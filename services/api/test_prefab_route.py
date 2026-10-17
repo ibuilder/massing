@@ -10,6 +10,7 @@ Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_prefab_route.p
 """
 import os
 import sys
+from urllib.parse import quote
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_prefab_route.db"
 os.environ["STORAGE_DIR"] = "./test_storage_prefab_route"
@@ -20,7 +21,7 @@ for _f in ("./test_prefab_route.db",):
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from aec_api import model_index  # noqa: E402
+from aec_api import model_events, model_index  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
 FAILED: list[str] = []
@@ -109,14 +110,61 @@ with TestClient(app) as c:
     check("GET one kit answers 200", detail.status_code == 200, detail.text[:200])
     check("  and agrees with the register", detail.json()["elements"] == R["elements"])
 
-    # --- freeze --------------------------------------------------------------------------------------
-    fr = c.post(f"/projects/{pid}/prefab/kits/{rid}/freeze")
+    # --- freeze, and the precondition that makes it a recorded decision ------------------------------
+    #
+    # PREFAB-FREEZE-RACE. The write re-resolves the selector, so without a precondition a model
+    # republished or a selector edited between the confirmation and the POST writes a GlobalId list
+    # the person never saw — and a kit is fabricated off-site from that record. `if_scope_version` is
+    # what the reader echoes back; every check below is about the write NOT happening when it moved.
+    def sv(kit_id: str) -> str:
+        """The scope version as a READER gets it — from the detail route, not recomputed here.
+
+        Recomputing it in the test would assert the token's format and prove nothing about the two
+        sides agreeing. This is the same read the panel does before it offers the button."""
+        return c.get(f"/projects/{pid}/prefab/kits/{kit_id}?as_of={TODAY}").json()["scope_version"]
+
+    def freeze(kit_id: str, token: str | None = "auto"):
+        q = "" if token is None else f"?if_scope_version={quote(sv(kit_id) if token == 'auto' else token)}"
+        return c.post(f"/projects/{pid}/prefab/kits/{kit_id}/freeze{q}")
+
+    check("the register and the kit detail agree on the scope version",
+          reg.json()["kits"][0]["scope_version"] == detail.json()["scope_version"],
+          (reg.json()["kits"][0]["scope_version"], detail.json()["scope_version"]))
+
+    bare = c.post(f"/projects/{pid}/prefab/kits/{rid}/freeze")
+    check("freezing WITHOUT saying what you were shown is refused", bare.status_code == 400,
+          bare.status_code)
+    # Not 422, and that is the whole reason this is a hand-raised 400 rather than a required query
+    # parameter: FastAPI's validation error is a 422, which is the code this route already uses for
+    # "the scope itself cannot be frozen". A missing precondition would arrive wearing the costume of
+    # FREEZE_NO_MATCH, and the client would tell the user to narrow a selector that is fine.
+    check("  with its own code, distinguishable from the 422 refusals on the merits",
+          bare.status_code != 422, bare.status_code)
+    check("  and it did not write anything",
+          not (c.get(f"/projects/{pid}/modules/prefab_kit/{rid}").json()["data"].get("frozen_guids")))
+
+    stale = freeze(rid, token="m0.r1999-01-01T00:00:00+00:00")
+    check("freezing with a scope version that is not the current one is a 409",
+          stale.status_code == 409, stale.status_code)
+    check("  and STILL did not write — a refused precondition that wrote anyway is no precondition",
+          not (c.get(f"/projects/{pid}/modules/prefab_kit/{rid}").json()["data"].get("frozen_guids")))
+
+    fr = freeze(rid)
     check("POST /freeze answers 200", fr.status_code == 200, fr.text[:200])
     check("  it froze the two matching elements", fr.json()["frozen"] == 2, fr.json())
     rec = c.get(f"/projects/{pid}/modules/prefab_kit/{rid}").json()
     check("  and PERSISTED the list onto the record — not just returned it",
           sorted((rec["data"].get("frozen_guids") or "").split()) == [G1, G2],
           rec["data"].get("frozen_guids"))
+
+    # The write bumped `modified_at`, so the token the caller just used is spent. Replaying it is the
+    # double-submit case — a second click, a retried request — and it must not re-freeze blind.
+    replay = c.post(f"/projects/{pid}/prefab/kits/{rid}/freeze"
+                    f"?if_scope_version={quote(fr.request.url.params['if_scope_version'])}")
+    check("replaying the token that was just spent is a 409", replay.status_code == 409,
+          replay.status_code)
+    check("  and the response handed back the NEW one, so the next write needs no extra read",
+          fr.json()["scope_version"] == sv(rid), (fr.json()["scope_version"], sv(rid)))
 
     # Release it, then change the model underneath. This is the whole feature.
     # The `release` transition declares requires: [frozen_guids, released_on] — a kit cannot reach
@@ -158,16 +206,135 @@ with TestClient(app) as c:
 
     # --- freeze refuses what it should ----------------------------------------------------------
     bad = create("prefab_kit", {"name": "nothing matches", "selector": "IfcWall & storey=L9"})
-    r422 = c.post(f"/projects/{pid}/prefab/kits/{bad['id']}/freeze")
+    r422 = freeze(bad["id"])
     check("freezing a selector that matches nothing is a 422, not an empty release",
           r422.status_code == 422, r422.status_code)
     broken = create("prefab_kit", {"name": "broken selector", "selector": "&&&"})
-    r422b = c.post(f"/projects/{pid}/prefab/kits/{broken['id']}/freeze")
+    r422b = freeze(broken["id"])
     check("freezing a broken selector is a 422", r422b.status_code == 422, r422b.status_code)
+
+    # ORDER: stale OUTRANKS unfreezable, and this is the one assertion that distinguishes the
+    # precondition check before `resolve()` from the one after it. Found by mutation — deleting the
+    # first check left this whole file green, because the second catches every case the other tests
+    # build. *A duplicated guard is indistinguishable from a load-bearing one until a test exercises
+    # the gap between them.* The gap is this kit: its selector matches nothing AND the token is
+    # stale, so with only the later check it answers "the selector matches no elements" — a true
+    # sentence about a selector the reader has not seen, read as a verdict on the one they have.
+    stale_and_bad = c.post(f"/projects/{pid}/prefab/kits/{bad['id']}/freeze"
+                           "?if_scope_version=m0.r1999-01-01T00:00:00%2B00:00")
+    check("a kit that is BOTH stale and unfreezable answers 409, not 422",
+          stale_and_bad.status_code == 409, stale_and_bad.status_code)
     check("  and the register still lists all three kits rather than failing wholesale",
           c.get(f"/projects/{pid}/prefab/kits?as_of={TODAY}").json()["total"] == 3)
+    # A FRESH token, so this still tests what it is named for. Without one it would have been
+    # measuring which refusal comes first instead — and the precedence is asserted on its own below.
     check("freezing an unknown kit is a 404",
-          c.post(f"/projects/{pid}/prefab/kits/nope/freeze").status_code == 404)
+          c.post(f"/projects/{pid}/prefab/kits/nope/freeze"
+                 f"?if_scope_version={quote(sv(rid))}").status_code == 404)
+    check("a request with no token at all is refused before the record is looked up",
+          c.post(f"/projects/{pid}/prefab/kits/nope/freeze").status_code == 400)
+
+    # --- the two ways the ground moves, each refused -------------------------------------------------
+    #
+    # Both halves of the token, exercised through the route rather than against the function. Either
+    # input alone leaves half the race open, and nothing but a test that MOVES each one can tell the
+    # difference between a token on both and a token on one.
+    live = create("prefab_kit", {"name": "race", "selector": "IfcDuctSegment & storey=L3"})
+    tok = sv(live["id"])
+    model_index.load(pid, {"schema": "IFC4", "elements": [ELEMENTS[0]],
+                           "counts": {"elements": 1}})
+    model_events.bump(pid, "republished-under-the-reader")
+    moved_model = c.post(f"/projects/{pid}/prefab/kits/{live['id']}/freeze"
+                         f"?if_scope_version={quote(tok)}")
+    check("a model republished between the read and the write is a 409",
+          moved_model.status_code == 409, moved_model.status_code)
+    check("  and nothing was written for it",
+          not (c.get(f"/projects/{pid}/modules/prefab_kit/{live['id']}")
+               .json()["data"].get("frozen_guids")))
+    check("  the token moved because the MODEL half did",
+          sv(live["id"]) != tok, (sv(live["id"]), tok))
+
+    tok2 = sv(live["id"])
+    c.patch(f"/projects/{pid}/modules/prefab_kit/{live['id']}",
+            json={"selector": "IfcDuctSegment"})
+    moved_rec = c.post(f"/projects/{pid}/prefab/kits/{live['id']}/freeze"
+                       f"?if_scope_version={quote(tok2)}")
+    check("a selector edited between the read and the write is a 409 TOO — the other half",
+          moved_rec.status_code == 409, moved_rec.status_code)
+    check("  and the record half of the token is what moved",
+          sv(live["id"]) != tok2, (sv(live["id"]), tok2))
+    ok_now = freeze(live["id"])
+    check("re-reading and confirming against the new numbers then succeeds",
+          ok_now.status_code == 200, ok_now.text[:200])
+
+    # --- the two windows INSIDE one request -------------------------------------------------------
+    #
+    # Both guards below survived mutation at first, and the reason is structural rather than an
+    # oversight: each covers an interleaving a sequential test cannot produce, so deleting either
+    # left this file green. The house rule is that a surviving mutation is measured or removed —
+    # these are measured, by injecting the concurrent event AT THE SEAM it would arrive through.
+    #
+    # **Said plainly: this is a simulated interleaving through a monkeypatch, not real concurrency.**
+    # It is strictly stronger than no test (it fails the moment either guard is deleted, which is
+    # exactly what mutation showed nothing else does) and strictly weaker than two processes, which
+    # is what `test_pid_lock_pgxproc.py` had to build for a lock whose whole subject was exclusion.
+    # Here the subject is a comparison, and the injection point is the one a republish or an edit
+    # would really land at.
+    import aec_api.modules as _me_mod
+    import aec_api.prefab_kit as _pk_mod
+
+    def with_interference(patch_target, attr, interfere, kit_id):
+        """Run one freeze with `interfere()` firing part-way through, and report the response."""
+        original = getattr(patch_target, attr)
+
+        def wrapper(*a, **kw):
+            out = original(*a, **kw)
+            interfere()
+            return out
+
+        setattr(patch_target, attr, wrapper)
+        try:
+            return freeze(kit_id)
+        finally:
+            setattr(patch_target, attr, original)
+
+    mid = create("prefab_kit", {"name": "republished mid-request",
+                                "selector": "IfcDuctSegment & storey=L3"})
+    # A republish landing between the first token check and the resolve. The token the caller sent
+    # was valid when the request started, so only the check AFTER `freeze()` can see this.
+    during_resolve = with_interference(
+        _pk_mod, "freeze", lambda: model_events.bump(pid, "republished-mid-request"), mid["id"])
+    check("a model republished DURING the resolve is still refused — the second check",
+          during_resolve.status_code == 409, during_resolve.status_code)
+    check("  and it wrote nothing",
+          not (c.get(f"/projects/{pid}/modules/prefab_kit/{mid['id']}")
+               .json()["data"].get("frozen_guids")))
+
+    mid2 = create("prefab_kit", {"name": "edited mid-request",
+                                 "selector": "IfcDuctSegment & storey=L3"})
+    # A record edit landing after BOTH token checks, in the instant before the write. No token check
+    # can catch this one; `update_record`'s `expected_modified_at` compares inside its own retry,
+    # which is why the freeze passes it rather than trusting the check above.
+    _orig_update = _me_mod.update_record
+
+    def _capture_then_edit(*a, **kw):
+        # `update_record`'s first positional is the Session the route is already holding — the
+        # interfering edit reuses it rather than opening a second one, so it lands against the same
+        # transaction boundary the route commits through.
+        _orig_update(a[0], "prefab_kit", pid, mid2["id"],
+                     {"name": "somebody else got there first"}, "other@test", None)
+        return _orig_update(*a, **kw)
+
+    _me_mod.update_record = _capture_then_edit
+    try:
+        raced = freeze(mid2["id"])
+    finally:
+        _me_mod.update_record = _orig_update
+    check("a record edited in the instant before the write is refused by the row lock",
+          raced.status_code == 409, raced.status_code)
+    check("  and the frozen list was not written over the top of it",
+          not (c.get(f"/projects/{pid}/modules/prefab_kit/{mid2['id']}")
+               .json()["data"].get("frozen_guids")))
 
 print()
 if FAILED:

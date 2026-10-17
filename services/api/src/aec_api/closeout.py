@@ -77,6 +77,14 @@ def punch_rollup(punches: list[dict], as_of: date | None = None) -> dict[str, An
     }
 
 
+# CX-CELL-FLAT. The bucket a commissioning test with no `test_type` falls into. `test_type` is a
+# `select` and `module_schema.validate_record` says in so many words that select options are
+# "treated as *suggestions*, not a closed enum" — so a test can carry no phase at all, or a phase
+# outside the five. This rollup already bucketed both correctly; `cx.matrix` attributed the first to
+# Pre-Functional and dropped the second off the chart. The name is shared so the two agree.
+UNSPECIFIED_PHASE = "(unspecified)"
+
+
 def commissioning_rollup(cx: list[dict]) -> dict[str, Any]:
     by_result, by_test_type, by_state = {}, {}, {}
     passed = failed = conditional = accepted = 0
@@ -94,7 +102,7 @@ def commissioning_rollup(cx: list[dict]) -> dict[str, Any]:
             failed += 1
         elif res == "Conditional":
             conditional += 1
-        tt = (d.get("test_type") or "(unspecified)").strip() or "(unspecified)"
+        tt = (d.get("test_type") or UNSPECIFIED_PHASE).strip() or UNSPECIFIED_PHASE
         by_test_type[tt] = by_test_type.get(tt, 0) + 1
     decided = passed + failed + conditional
     return {

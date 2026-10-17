@@ -2,20 +2,24 @@
  *
  *  SCALE-SEAM (90), third slice from the methods above the STAYING banner.
  *
- *  Two halves of one question. The OWNER's half mints, lists and revokes share tokens
- *  (`createShareToken`, `shareTokens`, `revokeShareToken`) and reads what came back
- *  (`clientDecisions`). The RECIPIENT's half is the token-authenticated public surface:
- *  `sharedPageUrl` and `sharedDigestUrl` build the no-login URLs, and `sharedComment` and
- *  `sharedDecision` post back a comment or an approve/acknowledge/decline.
+ *  **Everything here is the OWNER's half, and that is the correction PORTAL-TXN-DARK made.** It
+ *  mints, lists and revokes share tokens (`createShareToken`, `shareTokens`, `revokeShareToken`),
+ *  builds the links to hand out (`sharedPageUrl`, `sharedDigestUrl`), and reads what came back
+ *  (`clientDecisions`).
  *
- *  They belong together because the token is the seam: it is minted on one side, IS the credential
- *  on the other, and revoking it closes both. Splitting owner-side from recipient-side would put a
- *  capability and its only means of exercise in different files.
+ *  This file used to claim a RECIPIENT's half as well — `sharedComment` and `sharedDecision`, which
+ *  posted to the two public write routes. A recipient has no account and arrives from a link, so the
+ *  surface that serves them is `client_portal.to_html`, a server-rendered page; neither method could
+ *  ever have had a caller here, and both were frozen as unreachable while the transaction had no
+ *  screen at either end. They are deleted, and the page now carries the controls.
  *
- *  `services/api/src/aec_api/routers/client_portal.py` groups the same set — 8 of its 9 routes are
- *  exactly these methods, checked rather than assumed. The ninth, `GET /shared/{token}/model.frag`,
- *  still has no client method: it is a whole-file response a recipient opens by URL, not JSON this
- *  SPA parses. What it DOES need from here is the mint-time opt-in that makes it answer at all.
+ *  `services/api/src/aec_api/routers/client_portal.py` holds all nine routes of the seam, and the
+ *  split between them is not owner-vs-recipient but **who parses the response**. The four owner
+ *  routes are JSON this SPA reads. Of the five public ones, two are whole responses a recipient
+ *  opens by URL (`GET /shared/{token}` and `/model.frag` — the first a page, the second a fragment
+ *  download), one is JSON nothing here consumes (`/digest`), and two are writes issued by that
+ *  page's own script. What the public half DOES need from this file is the mint-time opt-ins that
+ *  make the model and the payment schedule answer at all.
  *
  *  ### The opt-in this file could not reach — fixed 2026-09-04
  *
@@ -71,23 +75,17 @@ export function withClientPortal<TBase extends Ctor<HttpCore>>(Base: TBase) {
   sharedPageUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}`); }
   /** The public digest JSON URL for a share token. */
   sharedDigestUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}/digest`); }
-  /** PORTAL-TXN phase 3 — post a client comment through a share token (public; lands on the token's
-   * BCF feedback topic, so the team answers from the Issue Board). */
-  sharedComment(token: string, body: { text: string; client_name?: string }) {
-    return this.json<{ topic_id: string; comment_id: string; author: string | null; text: string;
-      created_at: string | null }>(
-      `/shared/${encodeURIComponent(token)}/comment`, { method: "POST", body: JSON.stringify(body) });
-  }
-  /** PORTAL-TXN — record a client decision through a share token (public; approve/acknowledge/decline). */
-  sharedDecision(token: string, body: {
-    item_type: string; item_ref: string; action: "approved" | "acknowledged" | "declined";
-    client_name?: string; note?: string;
-  }) {
-    return this.json<{
-      id: number; item_type: string; item_ref: string; action: string;
-      client_name: string | null; note: string | null; created_at: string | null;
-    }>(`/shared/${encodeURIComponent(token)}/decision`, { method: "POST", body: JSON.stringify(body) });
-  }
+  // PORTAL-TXN-DARK — `sharedComment` and `sharedDecision` stood here, and they are DELETED rather
+  // than wired. The two routes they addressed are public and token-authenticated, and the person who
+  // posts to them has no account: they arrive from a link in an email. The surface that serves them
+  // is `client_portal.to_html` — a server-rendered page — so an SPA method for either could never
+  // have an SPA caller, and `clientCallers.test.ts` froze both as unreachable for months while the
+  // transaction they belong to had no screen at either end.
+  //
+  // *A callerless method whose only legitimate caller could never be this program is not an unbuilt
+  // feature; it is a method on the wrong side of a seam.* The roadmap read these two as "one missing
+  // feature, not two missing buttons" and that was half the story — the feature was missing, and
+  // these were never going to be the half of it that lived here.
   /** PORTAL-TXN — the project's client-decision feed (editor only), newest first. */
   clientDecisions(pid: string, limit = 500) {
     type D = { id: number; item_type: string; item_ref: string; action: string; client_name: string | null;

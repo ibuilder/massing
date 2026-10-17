@@ -67,6 +67,12 @@ def _crew(row: dict) -> float:
     return 0.0
 
 
+#: How many un-levelled activities the coverage block may NAME. The count is always exact; only the
+#: list is capped, and `without_demand` carries the true figure beside it — the `CLASH-TRUNC` rule,
+#: that a consumer handed a page and told it is a total will treat it as one.
+_SAMPLE_LIMIT = 20
+
+
 def levelling(activities: list[dict], *, caps: dict[str, float] | None = None,
               horizon: str = "within_float") -> dict[str, Any]:
     """Level the schedule against per-trade crew caps.
@@ -130,10 +136,73 @@ def levelling(activities: list[dict], *, caps: dict[str, float] | None = None,
         horizon=h, mode=LevellingMode.ADVISORY,
     ))
 
+    peak_after = dict(result.peak_after)
+    # WHICH TRADES ARE STILL OVER, and by how much. LEVEL-UNREAD: the response reported the moves it
+    # made and the peaks before and after, and nothing compared the second peak to the cap — so the
+    # one question levelling exists to answer ("is the crew limit met now?") was left to a caller to
+    # assemble. Measured on a four-activity fixture: 26 crew/day against a cap of 8, `move_count: 0`,
+    # `finish_moved_days: 0` — a total failure whose three published figures are the most reassuring
+    # three a successful run could produce.
+    over_cap = [
+        {"trade": r, "cap": cap, "peak_after": peak_after.get(r, 0.0),
+         "over_by": round(peak_after.get(r, 0.0) - cap, 4)}
+        for r, cap in sorted(caps.items())
+        if peak_after.get(r, 0.0) > cap
+    ]
+    # Trades carrying crew that nobody capped. Unconstrained BY DEFINITION — the docstring above is
+    # right that inventing an availability would move real work for a limit nobody set — but a
+    # reader of `within_caps` is entitled to know the verdict says nothing about them. Measured on
+    # the same fixture: `Electrical` at 30 crew/day is absent from `peak_before` entirely.
+    uncapped_trades = sorted({d.resource_id for d in demands} - set(caps))
+    coverage = {
+        "activities": len(activities),
+        "with_demand": len(demands),
+        # An activity needs BOTH a trade and a crew size to draw on anything, so one missing field
+        # drops it from the levelling. Counted and sampled rather than silently filtered — the rule
+        # `massingplan/core/issues.py` states for this engine family: *"every coercion, drop or
+        # fallback emits one of these. A silent default produces a plausible schedule that is wrong,
+        # with nothing in the output to look at."*
+        "without_demand": len(activities) - len(demands),
+        # Named through `_text`, not `row.get("name")`. `modules.list_records` keeps the module's
+        # own fields under `data` and lifts only some to the row root, so the bare `.get` returned
+        # the row UUID for every entry — a list of identifiers nobody can look up, which reads as a
+        # populated sample and is worth less than a count. Measured, not assumed.
+        "without_demand_sample": [
+            _text(row, "name") or str(row.get("id") or "(unnamed)")
+            for row in activities
+            if not (row.get("id") and _text(row, "trade") and _crew(row) > 0)
+        ][:_SAMPLE_LIMIT],
+        "levelled_demands": len(capped),
+        "capped_trades": sorted(caps),
+        "uncapped_trades": uncapped_trades,
+    }
     return {
         "available": True,
         "horizon": result.horizon.value,
         "mode": result.mode.value,
+        # COVERAGE: coverage
+        # A verdict over the CAPPED trades only, which is every trade the caller asked about and not
+        # every trade on the job. `caps` is guaranteed non-empty here — the branch above refuses an
+        # empty one — so this cannot be the vacuous `all([])`.
+        #
+        # The declaration names the `coverage` BLOCK rather than one field inside it, and
+        # `test_verdict_coverage` forced the choice twice over. Its first draft here declared the
+        # nested uncapped-trades field, which is not a SIBLING of this verdict, and the gate refused
+        # it with the right reason — *"a declaration that names nothing is an exemption, and the
+        # point of declaring at the site is that it cannot become one."* Then the correction
+        # explained itself by writing that rejected declaration out in prose, and the gate's regex
+        # read the EXAMPLE as a second declaration and refused again. *An illustrative form spelled
+        # exactly is a live one*, which is the lesson `test_claude_md_gates` records about
+        # backticking a filename you only meant to name — so the rejected field is described here
+        # rather than quoted.
+        #
+        # The block is also the honest answer: TWO independent narrowings matter — trades nobody
+        # capped, and activities carrying no trade or no crew size — so naming either alone would
+        # leave the other unchecked by the consumer rule.
+        "within_caps": bool(caps) and all(
+            peak_after.get(r, 0.0) <= cap for r, cap in caps.items()),
+        "over_cap": over_cap,
+        "coverage": coverage,
         "finish_before": result.finish_before.isoformat(),
         "finish_after": result.finish_after.isoformat(),
         "finish_moved_days": (result.finish_after - result.finish_before).days,
@@ -144,7 +213,7 @@ def levelling(activities: list[dict], *, caps: dict[str, float] | None = None,
         # visible, which is the reason the horizon is a parameter rather than a default.
         "unresolved_count": len(result.unresolved),
         "peak_before": dict(result.peak_before),
-        "peak_after": dict(result.peak_after),
+        "peak_after": peak_after,
         "caps": caps,
         "issues": [i.to_dict() for i in issues],
     }
@@ -165,6 +234,12 @@ def _unavailable(reason: str, **extra: Any) -> dict[str, Any]:
         "unresolved_count": None,
         "peak_before": {},
         "peak_after": {},
+        # `None`, not `True`: a levelling that did not run has not met any cap. `False` would be as
+        # wrong in the other direction — it did not fail to meet them either — which is why the
+        # three-state is worth the awkwardness. Same reasoning as the counts one line up.
+        "within_caps": None,
+        "over_cap": [],
+        "coverage": None,
         "caps": {},
         "issues": [],
         **extra,

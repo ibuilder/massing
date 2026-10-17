@@ -13,6 +13,12 @@ Here they share one engine:
   the point: holding costs you the net proceeds you declined.
 * **Breakeven hold period** — the first year whose incremental IRR clears the hurdle, or an honest
   statement that none does inside the horizon.
+* **Coverage** — how many hold periods were actually MEASURED. The incremental-IRR framing has no
+  root to find when selling today yields no net proceeds, so an over-levered asset produces
+  `incremental_irr: null` for most of the horizon. `recommendation` keeps a third state,
+  `unmeasured`, rather than reading those refusals as a reason to sell: `hold` survives a partial
+  measurement because one clearing period is positive evidence by itself, and `sell` does not,
+  because it is a claim about every period.
 
 Cap-rate drift is explicit rather than assumed flat, because "hold" quietly bets on the exit cap,
 and a bet nobody wrote down is the one that loses money. Everything reuses the shipped
@@ -84,8 +90,43 @@ def analyze(inputs: dict, hurdle_rate: float = 0.12, max_years: int = 10) -> dic
         })
 
     clearing = [y for y in years if y["beats_hurdle"]]
-    best = max((y for y in years if y["incremental_irr"] is not None),
-               key=lambda y: y["incremental_irr"], default=None)
+    # HOLDSELL-UNMEASURED — the COVERAGE of the verdict below, and it is not decoration.
+    #
+    # `beats_hurdle` is `bool(irr is not None and irr >= hurdle_rate)`, so a hold period whose IRR
+    # could not be computed counts as one that FAILED. `_irr` returns None when the incremental flows
+    # never change sign, and the commonest cause is structural rather than exotic: for an OVER-LEVERED
+    # asset the net proceeds of selling today are negative, so `flows[0] = -today_net` is positive,
+    # every later flow is non-negative, and there is no root to find. The engine is right to refuse —
+    # and the verdict then read that refusal as evidence for selling.
+    #
+    # Measured on NOI 500k at a 6% cap against a 9M loan: net proceeds today **-833,333**, four of
+    # five hold periods unevaluable, `recommendation: "sell"`, and a note asserting that no hold
+    # period clears the hurdle. *It recommended selling an asset whose sale requires writing a cheque,
+    # on the strength of four measurements that were never taken.*
+    measured = [y for y in years if y["incremental_irr"] is not None]
+    unevaluable = [y["hold_years"] for y in years if y["incremental_irr"] is None]
+    best = max(measured, key=lambda y: y["incremental_irr"], default=None)
+
+    # A THIRD STATE, exactly as `codecheck_egress` keeps `na` and `soft_clash` keeps `untested`.
+    # `hold` survives a partial measurement because a hold period that DID clear the hurdle is
+    # positive evidence on its own; `sell` does not, because it is a claim about every period.
+    if clearing:
+        recommendation = "hold"
+    elif unevaluable:
+        recommendation = "unmeasured"
+    else:
+        recommendation = "sell"
+
+    cover_reason = None
+    if unevaluable:
+        cover_reason = (
+            "selling today produces no net proceeds, so there is no cheque for a hold to be measured "
+            "against — the incremental-IRR framing has no sign change to solve, and an asset whose "
+            "debt exceeds its net sale value is a recapitalisation question rather than a hold/sell one"
+            if today_net <= 0 else
+            "the incremental cash flows never change sign inside the horizon, so no IRR exists for "
+            "those hold periods")
+
     return {
         "computable": True,
         "sell_now": {**{k: round(v, 2) for k, v in sell_now.items()},
@@ -96,14 +137,20 @@ def analyze(inputs: dict, hurdle_rate: float = 0.12, max_years: int = 10) -> dic
                         "selling_cost_pct": sell_cost,
                         "annual_loan_amortization": amort, "capex_per_year": capex},
         "years": years,
+        # The coverage of `recommendation`, `breakeven_hold_years` and `best_year` alike: all three are
+        # computed over `measured` and say nothing about the rest.
+        "coverage": {"hold_periods": len(years), "measured": len(measured),
+                     "unevaluable_years": unevaluable, "reason": cover_reason},
         "breakeven_hold_years": clearing[0]["hold_years"] if clearing else None,
-        "recommendation": ("hold" if clearing else "sell"),
+        "recommendation": recommendation,
         "best_year": best,
         "note": ("The hold case is measured as INCREMENTAL cash flows against the net proceeds "
                  "declined today — holding costs you the cheque you did not take. Cap drift is an "
                  "explicit input because 'hold' silently bets on the exit cap; a bet nobody wrote "
                  "down is the one that loses money."
                  + ("" if clearing else
+                    f" {len(unevaluable)} of {len(years)} hold period(s) could not be measured, so "
+                    "no recommendation to sell is made on these assumptions." if unevaluable else
                     " No hold period inside the horizon clears the hurdle on these assumptions.")),
     }
 

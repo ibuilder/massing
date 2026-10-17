@@ -1,8 +1,10 @@
-import type { ModuleDef } from "../../api/client";
+import type { LiveStatus, LiveStream, ModuleDef } from "../../api/client";
 import { groupedBar, usd } from "../../ui/charts";
+import { liveDisplay } from "../../ui/liveState";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
+import { cpmLine, cpmSeverity, issuesLine, noDates } from "./cpmRead";
 import { renderScheduleBrief } from "./scheduleBrief";
 import { renderEotClaim } from "./eotClaimPanel";
 import { renderScheduleMethods } from "./scheduleMethods";
@@ -20,7 +22,9 @@ import { flattenLookahead, mondayUtc, renderWeeklyGantt } from "./weeklyGantt";
 // M3 live-board resources of the CURRENT render. The panel has no dispose hook, so each re-render
 // closes its predecessor's SSE stream + presence timer synchronously — rapid Schedule↔Home toggling
 // must replace the live subscription, never stack them (the 20s heartbeat probe alone left a window).
-let livePull: { close(): void } | null = null;
+// `retry()` as well as `close()`: the live indicator's *Try again* resumes a refused stream through
+// this handle, and typing it as `{ close(): void }` is what made the refusal unanswerable.
+let livePull: LiveStream | null = null;
 let livePullTimer = 0;
 
 export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
@@ -125,7 +129,20 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   xerOut.onclick = doExport("xer"); mspOut.onclick = doExport("msp");
   const note = document.createElement("span"); note.className = "meta";
   note.innerHTML = "One relational schedule — these views + the 3D <b>4D sequence</b> (Model → ⏱ 4D) share the same activities.";
-  intro.append(listBtn, xerLabel, xerClearBtn, xerOut, mspOut, alertBtn, esBtn, baseBtn, lvlBtn, note);
+  // SCHED-STATUS-DARK — "what is late, as of a data date". The route had no caller, and the engine
+  // is careful in four ways a status card would flatten (see `scheduleStatusReading.ts`).
+  //
+  // THE DATE IS AN INPUT, not an assumption. It is prefilled with today as a convenience and is
+  // visible and editable, which is the engine's actual rule — *the as-of line is chosen, not
+  // assumed* — and it is what lets a reader run the same schedule against last month's line.
+  const ddIn = document.createElement("input");
+  ddIn.type = "date"; ddIn.className = "portal-filter"; ddIn.title = "Data date — the 'as of' line everything remaining is measured from (P6's term)";
+  ddIn.setAttribute("aria-label", "Data date"); ddIn.style.cssText = "margin:2px 4px 2px 0";
+  ddIn.value = new Date().toISOString().slice(0, 10);
+  const statusBtn = document.createElement("button");
+  statusBtn.className = "mini-btn on"; statusBtn.textContent = "⏳ What is late";
+  statusBtn.title = "Late to start, overdue and forecast slip as of the data date — three different questions, reported separately";
+  intro.append(listBtn, xerLabel, xerClearBtn, xerOut, mspOut, alertBtn, esBtn, baseBtn, lvlBtn, ddIn, statusBtn, note);
   ctx.root.appendChild(intro);
 
   // R45 — the four scheduling methods the vendored engine brought, each behind its own button rather
@@ -144,6 +161,45 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     .then((el) => { if (eotSlot.isConnected) eotSlot.appendChild(el); })
     .catch(() => {});
 
+  // NOTICE-CLOCK-DARK — the contractual notice register, beside the EOT claim for the reason the
+  // claim exists: late notice is what bars it. `notice_clock`, its clause library and its letter
+  // drafter all shipped and no screen reached any of them — two of the three routes sat in
+  // `services/api/test_route_reachability.py`'s uncalled list and the third in a different one, so
+  // each part of one capability read as somebody else's gap.
+  //
+  // A BUTTON, not a card that fetches on render: the register walks the whole field record, and the
+  // comment above this block already says a panel that fires several full computations when
+  // somebody opens it is a panel people learn to avoid.
+  const noticeCard = document.createElement("div");
+  noticeCard.className = "dash-card"; noticeCard.style.margin = "0 0 8px";
+  noticeCard.innerHTML = `<div><b>⏱ Notice clock</b></div>`
+    + `<div class="meta" style="margin-top:2px">Events in the field record that the contract `
+    + `requires notice of, and the days left under the adopted contract family. Late notice is what `
+    + `bars the claim above.</div>`;
+  const noticeBtn = document.createElement("button");
+  noticeBtn.className = "mini-btn on"; noticeBtn.textContent = "Open";
+  noticeBtn.style.marginTop = "6px";
+  noticeBtn.onclick = () => void (async () => {
+    await (await import("./noticeClock")).renderNoticeClock(ctx);
+  })();
+  noticeCard.appendChild(noticeBtn);
+  ctx.root.appendChild(noticeCard);
+
+  // CV-BRIDGE-DARK — the site-photo progress bridge, which writes to the activities this panel
+  // shows. Three of its routes were frozen as unreachable and only ONE of them wanted a screen:
+  // `…/ingest` and `…/ingest-batch` are inbound doors a vision vendor's service calls, so a
+  // browser caller for them would be the wrong thing to build. `…/status` is the operator's half —
+  // *is this wired up, and what do I hand my vendor?* — and nothing asked it.
+  //
+  // A SLOT appended synchronously, then a late write guarded by `isConnected`, for the reason the
+  // EOT block above states: `ctx.root` belongs to whichever panel rendered last.
+  const cvSlot = document.createElement("div");
+  ctx.root.appendChild(cvSlot);
+  void (async () => {
+    const { renderCvBridge } = await import("./cvBridge");
+    await renderCvBridge(ctx, cvSlot, pid);
+  })().catch(() => {});
+
   // a collapsible drawer the alerts / earned-schedule buttons fill on demand (kept out of the way)
   const interopDrawer = document.createElement("div"); interopDrawer.style.cssText = "display:none;margin:0 0 8px";
   ctx.root.appendChild(interopDrawer);
@@ -158,6 +214,40 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
         : `<div class="meta">🟢 No schedule alerts.</div>`;
       showDrawer(`<div class="dash-card"><div class="section-title">🔔 Schedule alerts · ${a.counts.high} high · ${a.counts.medium} medium · ${a.counts.low} low</div>${rows}</div>`);
     } catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Alerts unavailable: ${(e as Error).message}</div></div>`); }
+  };
+  statusBtn.onclick = async () => {
+    showDrawer(`<div class="dash-card"><div class="meta">Reading the schedule…</div></div>`);
+    try {
+      const m = await import("./scheduleStatusReading");
+      const r = await ctx.host.api.scheduleStatus(pid, ddIn.value || undefined);
+      const read = m.statusReading(r);
+      const col = read.tone === "bad" ? "var(--status-crit)" : read.tone === "warn" ? "var(--status-warn)"
+        : read.tone === "unknown" ? "var(--muted)" : "var(--status-good)";
+      const list = (title: string, refs: string[], claim = false) => {
+        const rows = m.rowsFor(r, refs);
+        if (!rows.length) return "";
+        return `<div class="meta" style="margin-top:6px"><b>${esc(title)}</b>${claim ? " <span style=\"opacity:.7\">(the crew's claim, not a measurement)</span>" : ""}</div>`
+          + rows.map((a) => {
+            const c = m.slipCells(a);
+            return `<div class="meta" style="margin:1px 0">${esc(a.ref)} — ${esc(a.detail)}`
+              + (a.days_overdue != null ? ` · <b>${a.days_overdue}d overdue</b>` : "")
+              + (a.days_late_to_start != null ? ` · <b>${a.days_late_to_start}d late to start</b>` : "")
+              + ` · actual slip ${esc(c.actual)} · forecast ${esc(c.forecast)}</div>`;
+          }).join("");
+      };
+      const ignored = m.futureActualRows(r);
+      showDrawer(`<div class="dash-card"><div class="section-title">⏳ Schedule status</div>`
+        + `<div class="meta" style="color:${col}">${esc(read.text)}</div>`
+        // OVERDUE and LATE TO START are two lists, never one. They answer different questions and
+        // an activity can be in both, so a combined list would also double-count.
+        + list("Overdue (past planned finish, not complete)", r.overdue)
+        + list("Late to start (should have begun, has not)", r.late_to_start)
+        + list("Forecast to slip", r.forecast_slipping, true)
+        + (ignored.length
+          ? `<div class="meta" style="margin-top:6px">${ignored.length} activity(s) had an actual date AFTER the data date, which was disregarded: ${esc(ignored.map((a) => a.ref).join(", "))}</div>`
+          : "")
+        + `<div class="meta" style="margin-top:6px;opacity:.7">${esc(r.note)}</div></div>`);
+    } catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Status unavailable: ${(e as Error).message}</div></div>`); }
   };
   esBtn.onclick = async () => {
     showDrawer(`<div class="dash-card"><div class="meta">Computing earned schedule…</div></div>`);
@@ -336,7 +426,6 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   optCard.appendChild(optNote);
   const optBody = document.createElement("div"); optBody.innerHTML = `<div class="meta">Click <b>▶ Run</b> to score the options.</div>`;
   optCard.appendChild(optBody); ctx.root.appendChild(optCard);
-  const usd0 = (n: number) => `$${Math.round(n).toLocaleString()}`;
   const runOpt = async () => {
     optBody.innerHTML = `<div class="meta">enumerating options…</div>`; runBtn.disabled = true;
     try {
@@ -349,8 +438,8 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       if (!r.scenarios.length) { optBody.innerHTML = `<div class="meta">No trades to optimise.</div>`; return; }
       const rec = r.recommended, base = r.baseline, sv = r.recommended_vs_baseline;
       const chips = document.createElement("div"); chips.className = "meta"; chips.style.cssText = "margin-bottom:6px;display:flex;gap:14px;flex-wrap:wrap";
-      chips.innerHTML = `<span>Recommended <b style="color:var(--status-good)">${rec.duration_days}d</b> (${rec.duration_weeks} wk) · ${usd0(rec.cost)} · peak ${rec.crew_peak} crews</span>`
-        + (base && sv ? `<span>vs baseline <b>${base.duration_days}d</b>: ${sv.days > 0 ? `<b style="color:var(--status-good)">${sv.days}d faster</b> (${sv.pct_faster}%)` : "no faster"}${sv.cost ? ` · ${sv.cost > 0 ? "+" : ""}${usd0(sv.cost)}` : ""}</span>` : "")
+      chips.innerHTML = `<span>Recommended <b style="color:var(--status-good)">${rec.duration_days}d</b> (${rec.duration_weeks} wk) · ${usd(rec.cost)} · peak ${rec.crew_peak} crews</span>`
+        + (base && sv ? `<span>vs baseline <b>${base.duration_days}d</b>: ${sv.days > 0 ? `<b style="color:var(--status-good)">${sv.days}d faster</b> (${sv.pct_faster}%)` : "no faster"}${sv.cost ? ` · ${sv.cost > 0 ? "+" : ""}${usd(sv.cost)}` : ""}</span>` : "")
         + `<span>${r.scenario_count} scenarios · ${r.pareto_count} on the Pareto frontier</span>`;
       // when the CPM lever is on, say which rule actually applied — a path that matched nothing falls
       // back to the slowest-trade heuristic, and the user needs to know the difference
@@ -409,7 +498,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
             s.resequenced ? "reseq" : ""].filter(Boolean).join(" · ") || "single crews · 1z";
           const hl = s.rank === rec.rank ? "background:var(--hover);font-weight:600" : "";
           return `<tr style="${hl}"><td style="text-align:center">${s.rank}</td><td style="text-align:left">${lev}</td>`
-            + `<td style="text-align:right">${s.duration_days}</td><td style="text-align:right">${usd0(s.cost)}</td>`
+            + `<td style="text-align:right">${s.duration_days}</td><td style="text-align:right">${usd(s.cost)}</td>`
             + `<td style="text-align:right">${s.crew_peak}</td><td style="text-align:center">${s.pareto ? "◆" : ""}</td></tr>`;
         }).join("") + `</tbody>`;
       wrap.appendChild(t);
@@ -538,10 +627,42 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
 
   // --- M3: real-time collaboration — the board live-refreshes as any trade edits, and presence shows
   //     who else is on it. Reuses the SSE + presence infra; self-cleans when the view is replaced. ---
+  // THE DOT ASSERTED "live" WHATEVER THE STREAM WAS DOING — in green, with a `title` promising the
+  // board "refreshes automatically". Slice ⑥ taught `liveStream` to classify a fatal close and stop
+  // retrying, but only `if (why && onStatus)`, and this caller passed no `onStatus`. So for the
+  // pull-plan board the whole of that work was inert: a stream the server will never serve this
+  // caller again — removed from the project, project deleted — backed off to the 60-second ceiling
+  // and retried for ever, while this span went on saying live. *A status light is a verdict, and a
+  // verdict rendered without the coverage behind it is the defect this branch is about.*
   const liveEl = document.createElement("span"); liveEl.className = "meta";
-  liveEl.title = "Live — the board refreshes automatically as any trade edits its sticky notes";
-  liveEl.style.cssText = "display:inline-flex;align-items:center;gap:4px;font-size:11px";
-  liveEl.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:var(--status-good);display:inline-block"></span>live`;
+  liveEl.style.cssText = "display:inline-flex;align-items:center;gap:6px;font-size:11px";
+  // It starts at "connecting…", not at "live". A FRAME is the proof the stream works; an accepted
+  // socket is not, and `liveStream` reports `connected` on the first message for exactly that
+  // reason. All three of this project's SSE streams open with a snapshot, so the state is brief —
+  // but claiming live before anything has arrived is the same unearned verdict in miniature.
+  const paintLive = (s: LiveStatus | "connecting", why?: string) => {
+    liveEl.replaceChildren();
+    // The state→tone→wording mapping is shared with the viewer's and drawings' indicators
+    // (`ui/liveState.ts`); only the chrome below is this screen's. Three private copies of that
+    // prose is the shape `noRespelledShapes.test.ts` exists to catch.
+    const d = liveDisplay(s, why, "Live board updates");
+    const dot = document.createElement("span");
+    dot.style.cssText = `width:8px;height:8px;border-radius:50%;display:inline-block;background:var(${d.tone})`;
+    const label = document.createElement("span");
+    label.textContent = d.text;
+    liveEl.append(dot, label);
+    if (d.retryable) {
+      // Reversibility, and the reason as VISIBLE text rather than a tooltip: the probe rules on one
+      // status code and can be wrong, and the field tablet this board is read on has no hover. The
+      // button's visible label IS its accessible name — no `title`, no `aria-label` to drift from it.
+      const again = document.createElement("button");
+      again.type = "button"; again.className = "file-btn"; again.textContent = "Try again";
+      again.style.cssText = "font-size:11px;padding:1px 6px";
+      again.onclick = () => { paintLive("connecting"); livePull?.retry(); };
+      liveEl.append(again);
+    }
+  };
+  paintLive("connecting");
   ppRight.insertBefore(liveEl, msSel);
   let lastSig = "";
   const es = ctx.host.api.pullPlanStream(pid, (d) => {
@@ -551,7 +672,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     if (sig === lastSig) return;
     lastSig = sig;
     if (!first) { loadPull(msSel.value); if (anShown) loadAnalytics(msSel.value); }   // someone edited → refresh
-  });
+  }, paintLive);
   livePull = es;
   const renderPeers = (active: { user: string; viewpoint: unknown }[]) => {
     const peers = active.filter((a) => a.viewpoint && (a.viewpoint as { board?: string }).board === "pull-plan");
@@ -694,22 +815,44 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       toast(`${r.activities} trade activit${r.activities === 1 ? "y" : "ies"} upserted — `
         + `CPM ${r.cpm_project_duration}d`, "success");
       const c = await ctx.host.api.scheduleCpm(pid);       // refresh the CPM line in place
-      cpmBox.innerHTML = `<b>CPM</b>: project ${c.project_duration}d · ${c.critical_count}/${c.activity_count} on the `
-        + `<span style="color:var(--status-crit)">critical path</span>`;
+      // CPM-SILENT — the SECOND renderer of this line, and it said even less than the first: no
+      // cycle mention at all, so a loop introduced by the activities this button just inserted
+      // rendered as `project 0d`. Both go through `cpmLine` now.
+      const note2 = issuesLine(c);
+      cpmBox.innerHTML = `<b${noDates(c) ? ` style="color:var(--status-crit)"` : ""}>${esc(cpmLine(c))}</b>`
+        + (note2 ? `<br><span class="meta">${esc(note2)}</span>` : "");
     } catch (e) { toast((e as Error).message, "error"); }
     estBtn.disabled = false; estBtn.textContent = prev;
   };
   ctx.root.appendChild(estBtn);
   void ctx.host.api.scheduleCpm(pid).then((c) => {
     if (!c.activity_count) { cpmBox.textContent = "CPM: no activities with durations yet."; return; }
+    // CPM-SILENT. The caption used to append " · ⚠ cycle broken" over `project 0d · 0/N`, which is
+    // the behaviour `schedule_cpm._cyclic` deliberately STOPPED having — it computes no dates now —
+    // and it never rendered `issues`, so a typo'd predecessor was dropped in silence on a schedule
+    // that otherwise looked perfect. `cpmRead` owns both wordings; the escaping stays here because
+    // this is the sink.
+    //
     // `critical_path` is a list of stored activity REFS (schedule_engine builds it as
     // `[r["ref"] or r["id"] ...]`), so it is user-entered text reaching innerHTML. Escaped AFTER the
     // join because the " → " separator holds nothing escapable. Found by triaging the bare-local
     // class this PR's new rule deliberately leaves out: 134 sites classified, this the one real one.
+    const sev = cpmSeverity(c);
+    const col = sev === "error" ? "var(--status-crit)" : sev === "warn" ? "var(--status-warn)" : "";
+    const head = esc(cpmLine(c));
+    const note = issuesLine(c);
+    if (noDates(c)) {
+      // No dates means no critical path and no duration, so nothing below the headline can be
+      // rendered as a figure. The refusal IS the content.
+      cpmBox.innerHTML = `<b style="color:${col}">${head}</b>`
+        + (note ? `<br><span class="meta" style="color:${col}">${esc(note)}</span>` : "");
+      return;
+    }
     const cp = esc(c.critical_path.slice(0, 12).join(" → ")) || "—";
     cpmBox.innerHTML = `<b>CPM</b>: project ${c.project_duration}d · ${c.critical_count}/${c.activity_count} on the `
-      + `<span style="color:var(--status-crit)">critical path</span>${c.has_cycle ? " · ⚠ cycle broken" : ""}<br>`
-      + `<span class="meta">Critical: ${cp}</span>`;
+      + `<span style="color:var(--status-crit)">critical path</span><br>`
+      + `<span class="meta">Critical: ${cp}</span>`
+      + (note ? `<br><span class="meta" style="color:var(--status-warn)">${esc(note)}</span>` : "");
   }).catch(() => { cpmBox.textContent = "CPM unavailable."; });
 
   // Earned value (schedule performance) — SPI + dollar schedule variance
@@ -784,7 +927,14 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     const pg = tp.progress;
     const color = (s: string) => s === "ahead" ? "var(--status-good)" : s === "behind" ? "var(--status-warn)" : "var(--text)";
     const head = `<div class="meta">Overall <b style="color:${color(pg.overall_status)}">${pg.overall_status}</b>`
-      + ` · lead ${pg.lead_trade ?? "—"} at <b>${pg.lead_actual_floors_per_week}</b> vs plan <b>${pg.planned_floors_per_week}</b> floors/wk`
+      // A TRADE NAME IS USER-ENTERED TEXT, and this was unescaped — found by the innerHTML ratchet
+      // the moment CPM-SILENT's renderer happened to introduce a local also called `head`.
+      // `innerHtmlGuard`'s one-hop follower keys `bound` on the NAME, file-wide, so it collects from
+      // every `const head = …` in the file once any one of them reaches innerHTML as a bare
+      // identifier. *Whether this sink was visible depended on what an unrelated function a hundred
+      // lines away called its local* — which is a reach defect in the scanner, recorded here because
+      // the finding it surfaced is real and the mechanism that surfaced it was luck.
+      + ` · lead ${esc(pg.lead_trade ?? "—")} at <b>${pg.lead_actual_floors_per_week}</b> vs plan <b>${pg.planned_floors_per_week}</b> floors/wk`
       + ` · PPC <b>${Math.round((tp.ppc.ppc ?? 0) * 100)}%</b> (${tp.ppc.rating})</div>`;
     const rows = pg.rows.map((r) =>
       `<tr><td>${esc(r.trade)}</td><td style="text-align:right">${r.floors_done}/${r.planned_done}</td>`

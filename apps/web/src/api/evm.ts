@@ -69,11 +69,23 @@ export function withEvm<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<EvmEarnedSchedule & { note?: string }>(
       `/projects/${pid}/evm/earned-schedule?period=${period}`);
   }
-  /** Model-based EV: EV from physically-installed model elements × BAC, vs schedule EV. */
+  /**
+   * Model-based EV — and the COVERAGE the comparison rests on (EVM-COVERAGE).
+   *
+   * `front_loaded_flag` is an accusation, so the fields that bound it are part of the contract:
+   * `determined_elements` (install status actually known — a `pending` row is not evidence),
+   * `basis` (what `model_percent_complete` is a share OF, which falls back from the model's element
+   * count to the surveyed count), and `model_percent_complete_max` / `ev_model_max`, the ceiling the
+   * evidence allows. `coverage_pct` is rounded and is NOT the authority: 1 of 4,000 prints `0.0`,
+   * the same string an untouched job prints — read the counts.
+   */
   evmModelEv(pid: string) {
     return this.json<{ total_elements: number; installed_elements: number; tracked_elements: number;
-      model_percent_complete: number; has_field_data: boolean;
-      bac: number; ev_model: number; ev_schedule: number; divergence: number; front_loaded_flag: boolean;
+      determined_elements: number; deviated_elements: number;
+      coverage_pct: number; basis: string;
+      model_percent_complete: number; model_percent_complete_max: number; has_field_data: boolean;
+      bac: number; ev_model: number; ev_model_max: number; ev_schedule: number;
+      divergence: number; divergence_unexplained: number; front_loaded_flag: boolean;
       note: string }>(`/projects/${pid}/evm/model-ev`);
   }
   /** EVM S-curve: cumulative PV (full baseline) + EV + AC to the data date, for the 3-line chart. */

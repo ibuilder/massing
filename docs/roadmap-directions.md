@@ -329,6 +329,24 @@ for the process, not for output**, and if a run's log has been at zero bytes for
 buffering, not failure. A heavy `vitest run` or `vite build` alongside the backend suite is enough to
 cause the same errors on its own.
 
+⚠️ **Sweeping up scratch directories by name prefix can delete a TRACKED test.** Nine suites set
+`STORAGE_DIR = "./test_storage"`, and a tracked gate is called `test_storage_key_parity.py` — so
+`rm -rf test_storage*` takes the gate with the scratch directory. Measured the hard way on
+2026-10-15: the deletion was silent, and the symptom arrived a half-hour later as
+`run_tests manifest: registered in TESTS but no such file on disk`, which reads as somebody else's
+de-registration bug. **The glob cannot tell a directory from a file; `find` can** —
+
+```
+find services/api -maxdepth 1 -type d -name 'test_storage*' -exec rm -rf {} +
+```
+
+`-type d` is the whole of the fix. Renaming the scratch directory was considered and declined: nine
+files use that prefix, and `.gitignore` already carries `test_storage*/` and `test_storage_*/`
+because they do. A gate was considered and declined too — it would be red on arrival with the only
+remedies being the nine-file rename or an exemption, and *an exemption list is where the next
+instance hides*. `git clean -fdX` is **not** the safe alternative: it is scoped to ignored files, and
+`services/api/.venv/` is ignored.
+
 **Web** — Node **24+** (`export PATH="/c/Program Files/nodejs:$PATH"`; the default `node` on PATH is v18
 and breaks the build). Typecheck with `npx tsc --noEmit` from `apps/web`. For the suite, run the
 workspace command — **not a bare `vitest run` from the repo root**, which collects `.claude/worktrees/`
@@ -342,6 +360,97 @@ This is the CI invocation; its `include: ["src/**/*.test.ts"]` is relative to `a
 are structurally out of reach. Note the suite environment is **happy-dom**, where `import.meta.url` has
 no `file:` scheme — a test that reads source off disk must resolve from `process.cwd()` (which is
 `apps/web`), the way `shell/roadmapLanes.test.ts` does, not via `fileURLToPath`.
+
+### A NEW backend gate file must be REGISTERED, and running it directly does not test that
+
+`services/api/run_tests.py` holds a manifest of every gate, and its first check is that the manifest
+and the files on disk agree in both directions:
+
+```
+FAIL  run_tests manifest: TESTS: test file(s) on disk not registered in TESTS (add to run_tests.py)
+```
+
+**CI runs `python services/api/run_tests.py`, not the gate files.** So a new `test_*.py` can pass
+every way you invoke it and still red the build — which is what happened on 2026-10-12: a gate was
+written, mutation-checked ten ways, run beside 36 neighbours, and reddened `API test gate` on the
+first push because nothing in that sequence reads the manifest. *Verifying a file is not verifying
+that anybody runs it* — the same shape as `test_ruff_scope`, where the lint was real and the SCOPE
+was the fiction.
+
+Register it, then re-derive both directions rather than trusting the edit:
+
+```
+cd services/api && ./.venv/bin/python - <<'EOF'
+import re, pathlib
+names = set(re.findall(r'"(test_\w+)"', pathlib.Path("run_tests.py").read_text()))
+print(sorted({p.stem for p in pathlib.Path(".").glob("test_*.py")} - names) or "all registered")
+EOF
+```
+
+### Run the API gate's BOTH steps, in order, before pushing
+
+`API test gate` is two steps and the first one is the lint:
+
+```
+cd services/api && ./.venv/bin/python -m ruff check ../..          # step 1 — whole tree, from here
+cd services/api && PYTHONPATH="src:../data/src" ./.venv/bin/python run_tests.py   # step 2
+```
+
+**This direction was written naming only step 2, and the very next push failed on step 1.** One
+change set reddened that single check three times, at three different steps: the TESTS manifest
+(a new gate file not registered), `test_money_spine` (a float `round(x/100*amount, 2)` on money),
+and `ruff`'s `I001` (an import block out of order inside a new test). Each fix was correct and each
+was followed by another failure of the same check. *A pre-push checklist that names some of a
+gate's steps is a checklist that teaches you the gate is flaky* — the lint is 0.2 s and it is first
+for a reason.
+
+Note the `ruff` invocation's shape: `ci.yml` runs it **from `services/api`, pointing at `../..`**,
+which is how `test_ruff_scope.py` can read the command out of the workflow and prove it reaches
+every tracked `.py`. Running `ruff check .` from the repo root is a different scope and can pass
+while CI fails.
+
+The 32-gate derivation in the section below is the complement to both, not a substitute: it catches
+a web change breaking a Python gate, and it cannot catch a Python gate nobody runs or a file nobody
+lints.
+
+### `npm run budget` is part of the web check, and `typecheck && lint && test && build` is not it
+
+The `Web typecheck + test + build` job also runs `npm run budget`, which fails the build when the
+EAGER shell outgrows its brotli budget. Measured 2026-10-12 after that job went red on a change whose
+typecheck, lint, full suite and build were all clean locally: a 0.4 KB overshoot, from one new module
+under `apps/web/src/viewer/tools/`.
+
+**Where a module lands decides whether it costs anything**, and it is not obvious from the source:
+
+```
+cd apps/web && npm run build && npm run budget
+grep -rl "<a string only your module emits>" dist/assets/*.js   # which chunk took it
+```
+
+`viewer/tools/*` lands in the eager `app-*` chunk; `portal/panels/*` and `reportCenter`'s helpers
+land in lazy chunks. So the same amount of code is downloaded by every first-time visitor in one
+place and by nobody in the other. *Four features shipped that day, two cost shell bytes and two cost
+none, and nothing told anybody which.*
+
+### A web-only change can red a BACKEND gate, and the list is derived not remembered
+
+Many of this repo's gates read the other side of the tree — a frozen route allowlist, a size pin, a
+citation check, a client-caller ledger. So wiring one client method can turn a Python suite red with
+no Python touched, and a green `npm run test` says nothing about it. Measured 2026-10-12, after
+exactly that: `test_route_reachability` froze `/codes/seeded` as a route with no client caller,
+CODE-ADOPT-DARK gave it one, and the gate was right.
+
+**Do not keep a list — ask:**
+
+```
+cd services/api && grep -ln "apps/web" test_*.py          # 32 of them on 2026-10-12
+```
+
+Run the ones your change plausibly touches before pushing, or the whole suite if it is cheaper than
+a CI round trip (it usually is: ~27 min local against a wait plus a re-push). *The lesson is not
+"run more tests" — it is that the SET is a fact about the tree and a remembered subset of it is the
+thing that was wrong.* I had run four of the thirty-two and the one I missed was the one that
+watched the half of the gap the other frozen list cannot see.
 
 ### Announce before a full suite
 

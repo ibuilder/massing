@@ -1,2 +1,9 @@
 *.local
+# Vestigial, deliberately kept. `gen:api-types` no longer writes here — it dumps the spec into the OS
+# temp directory and deletes it, because an input that persists is an input that can be stale, and this
+# very line is what hid that: the generator's one documented invocation read a file git was told to
+# ignore, so "regenerate the types" silently meant "re-read whatever dump is on this machine". See
+# apps/web/scripts/gen-api-types.mjs and services/api/test_schema_types_agree.py. The pattern stays so
+# that a leftover dump from before 2026-09-25 does not surface as untracked work in every lane's
+# `git status` — the residue problem services/api/test_scratch_ignored.py exists for.
 src/api/openapi.json

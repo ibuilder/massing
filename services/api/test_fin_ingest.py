@@ -41,6 +41,37 @@ with TestClient(app) as c:
     assert any("26-00" in s for s in codes(rec["actuals_only"])), rec["actuals_only"]
     assert rec["counts"]["uncoded"] == 1 and rec["uncoded"][0]["amount"] == 15_000
     assert rec["fully_reconciled"] is False
+    # ...and false for a FINDING, not for want of data — the two Falses mean opposite things
+    assert rec["nothing_reconciled_yet"] is False, rec["counts"]
+
+    # NEGATED-VERDICT. `fully_reconciled` was `not actuals_only and not uncoded`: the absence of two
+    # problem lists, with nothing requiring that a cost was ever recorded. Two projects it was wrong
+    # about, and the second is the one that shipped to a screen.
+    #
+    #   (a) nothing at all — every list empty, so the flag was true
+    #   (b) a BUDGET and no actuals — also every problem list empty, so also true, with
+    #       `budget_only` holding every line. `ledger.ts` guarded (a) by testing the SUM of the four
+    #       counts and could not catch (b), because the sum is non-zero. That is every job before
+    #       its first invoice, and it read "12 budget with no actual — fully reconciled".
+    bare = c.post("/projects", json={"name": "No Books"}).json()["id"]
+    r0 = c.get(f"/projects/{bare}/finance/reconcile").json()
+    assert r0["fully_reconciled"] is False, r0
+    assert r0["nothing_reconciled_yet"] is True, r0
+
+    only = c.post("/projects", json={"name": "Budget Only"}).json()["id"]
+    rb = c.post(f"/projects/{only}/modules/budget",
+                json={"data": {"cost_code": "09-20", "description": "Drywall",
+                               "original": 500_000}})
+    assert rb.status_code in (200, 201), rb.text
+    r1 = c.get(f"/projects/{only}/finance/reconcile").json()
+    assert r1["counts"]["budget_only"] >= 1, r1["counts"]
+    assert r1["counts"]["matched"] == 0 and r1["counts"]["actuals_only"] == 0, r1["counts"]
+    assert r1["counts"]["uncoded"] == 0, r1["counts"]
+    # THE WHOLE POINT: non-empty input, both problem lists empty, and still not reconciled.
+    assert r1["fully_reconciled"] is False, r1
+    # ...and NOT reported as "nothing recorded" either — there IS a budget, it just has no actuals,
+    # so the screen must not say "no cost actuals to reconcile yet" and stop there.
+    assert r1["nothing_reconciled_yet"] is True, r1
 
     # ---- import lineage: a CSV import is audit-logged with its filename + counts
     csv = "description,cost_code,amount,date\nPumps,22-10,42000,2026-07-05\nValves,22-10,8000,2026-07-06\n"

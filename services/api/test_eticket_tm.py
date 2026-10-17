@@ -35,7 +35,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from aec_api.main import app  # noqa: E402
 from aec_api.modules import apply_table_totals  # noqa: E402
-from aec_api.tm import summarize  # noqa: E402
+from aec_api.tm import SHIPPED_ACCEPTED, accepted_states, summarize  # noqa: E402
 
 H = {"X-User": "gc"}
 
@@ -150,6 +150,81 @@ with TestClient(app) as c:
 
     # the sign-off is captured on the original ticket too
     assert got["signed_by"] == "M. Chen (owner's rep)" and got["signed_on"] == "2026-07-30"
+
+# ---- 4. TM-UNBILLED: the GC-accepted state set is DERIVED, and the declaration cannot drift -----
+#
+# `tm.accepted_states` derives "the GC has accepted this money" from the workflow -- a state counts
+# when every transition reaching it is performable by the GC alone. The argument that this is the
+# right rule is that it reproduces the pair two places used to hardcode: `cost.summary` read
+# `("gc_signed", "billed")` by hand, and the T&M card inferred acceptance from three state names on
+# the client. So the equality is asserted here rather than claimed in a docstring.
+from aec_api import modules_registry  # noqa: E402
+from aec_api import tm as tm_mod  # noqa: E402
+
+# Loaded explicitly rather than relying on the HTTP section above having triggered `init_db`:
+# a precondition that holds because of the order of unrelated code above it is one nobody will
+# preserve when the file is reorganised. Idempotent -- `load_registry` reassigns by key.
+modules_registry.load_registry()
+_eticket = modules_registry.REGISTRY.get("eticket")
+assert _eticket, "the eticket module is not in the registry, so the derivation below proves nothing"
+_derived = accepted_states(_eticket)
+assert _derived == ["billed", "gc_signed"], _derived
+assert _derived == sorted(SHIPPED_ACCEPTED), (_derived, SHIPPED_ACCEPTED)
+
+# `super_signed` is the load-bearing exclusion: the sub has signed and the GC has NOT accepted, and
+# a rule that swept it in would have made this whole item pointless.
+assert "super_signed" not in _derived, _derived
+assert "draft" not in _derived, _derived
+
+# The rule follows the workflow rather than the state names. A project that renames its acceptance
+# state keeps a correct answer; one that makes acceptance JOINT loses it, which is the right way
+# round -- joint means the GC alone did not accept it.
+_renamed = {"workflow": {"transitions": [
+    {"from": "draft", "to": "field_signed", "party": ["Subcontractor", "GC"]},
+    {"from": "field_signed", "to": "owner_accepted", "party": ["GC"]}]}}
+assert accepted_states(_renamed) == ["owner_accepted"], accepted_states(_renamed)
+_joint = {"workflow": {"transitions": [{"from": "a", "to": "b", "party": ["GC", "Owner"]}]}}
+assert accepted_states(_joint) == [], accepted_states(_joint)
+# A single transition reaching a state by a joint party disqualifies it even when another is GC-only:
+# "every path into this state was the GC's alone" is the claim, and `any` would have weakened it to
+# "some path was".
+_mixed = {"workflow": {"transitions": [{"from": "a", "to": "b", "party": ["GC"]},
+                                       {"from": "c", "to": "b", "party": ["Subcontractor"]}]}}
+assert accepted_states(_mixed) == [], accepted_states(_mixed)
+# `party` as a bare string, which the schema permits.
+assert accepted_states({"workflow": {"transitions": [
+    {"from": "a", "to": "b", "party": "GC"}]}}) == ["b"]
+
+# And the summary states the resolved set rather than letting a reader infer it from state names.
+# `None` is not `[]`: "nobody resolved it" and "nothing is accepted" are different facts, and the
+# second reads as a plausible answer.
+_s = summarize([{"data": {"labor_total": 90000}, "workflow_state": "gc_signed"}],
+               list(SHIPPED_ACCEPTED), False)
+assert _s["accepted_states"] == ["billed", "gc_signed"], _s["accepted_states"]
+assert _s["workflow_overridden"] is False
+assert summarize([])["accepted_states"] is None, "an unresolved set must not report as empty"
+
+# **`effective_accepted` has to make that distinction too, and asserting `summarize`'s default was
+# not asserting it** -- a mutation returning `[]` from the unresolved branch left every assertion
+# above green. *Reporting a value and deciding it are two different questions.* So the branch is
+# driven directly, with the registry entry removed.
+_saved = modules_registry.REGISTRY.pop("eticket")
+try:
+    _unres = tm_mod.effective_accepted("any-project")
+    assert _unres == (None, False), _unres
+finally:
+    modules_registry.REGISTRY["eticket"] = _saved
+assert tm_mod.effective_accepted("any-project")[0] == ["billed", "gc_signed"], "registry not restored"
+
+# The two $90,000 cases the card could not tell apart, measured on the engine: identical totals,
+# different `by_status`. The split the client needs is in the response and always was.
+_draft = summarize([{"data": {"labor_total": 90000}, "workflow_state": "draft"}],
+                   list(SHIPPED_ACCEPTED))
+_acc = summarize([{"data": {"labor_total": 90000}, "workflow_state": "gc_signed"}],
+                 list(SHIPPED_ACCEPTED))
+assert _draft["unbilled_total"] == _acc["unbilled_total"] == 90000.0
+assert _draft["by_status"] != _acc["by_status"], (_draft["by_status"], _acc["by_status"])
+
 
 print("ETICKET T&M OK - an eTicket now itemises labour (worker, trade, classification, hours, OT, "
       "rate), material (qty, unit, unit price) and equipment (hours, idle hours, rate), and each "

@@ -75,9 +75,16 @@ export function withCoverageMaps<TBase extends Ctor<HttpCore>>(Base: TBase) {
         responsible: string | null; package: string | null; start: string | null; finish: string | null;
         quantified: boolean; allocated: boolean; scheduled: boolean; gaps: string[]; status: "complete" | "gap";
       };
+      // The three percentages are `null` on an EMPTY register, not `0` — SCOPE-EMPTY changed them
+      // from `0.0` so that "nothing is quantified" and "there is nothing to quantify" stop reading
+      // alike. This declaration said `number`, which asserts the very state that change was made to
+      // express cannot occur, and `scopeRegister` has no caller yet: the first one would have been
+      // written against the lie rather than against the engine. *A nullable field declared
+      // non-nullable is a defect with no symptom until somebody trusts it.*
       return this.json<{
-        item_count: number; complete: number; with_gaps: number; pct_quantified: number; pct_allocated: number;
-        pct_scheduled: number; total_value: number; by_owner: { owner: string; value: number }[];
+        item_count: number; complete: number; with_gaps: number; pct_quantified: number | null;
+        pct_allocated: number | null; pct_scheduled: number | null; total_value: number;
+        by_owner: { owner: string; value: number }[];
         gap_items: Item[]; items: Item[]; note: string;
       }>(`/projects/${pid}/scope/register`, { method: "POST", body: JSON.stringify(body) });
     }

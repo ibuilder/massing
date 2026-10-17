@@ -88,5 +88,50 @@ with TestClient(app) as c:
     assert ce["expired_count"] == 1 and ce["expiring_count"] == 1, ce
     assert ce["expired"][0]["vendor"] == "expired" and ce["expiring_soon"][0]["vendor"] == "soon", ce
 
+    # ---- PREQUAL-LAPSE --------------------------------------------------------------------
+    # `coi_expiry`'s docstring has always said "plus prequals lapsing" and its body read the `coi`
+    # table alone. The two `prequalification` records created above carry no `expires` and are not
+    # approved, so they are correctly absent; these are the records that make the clause true.
+    assert ce["prequals_expired_count"] == 0 and ce["prequals_expiring_count"] == 0, ce
+    assert ce["covers"] == ["coi", "prequalification"], ce["covers"]
+
+    def _pq(company: str, exp: str, approve: bool) -> None:
+        r = c.post(f"/projects/{pid}/modules/prequalification",
+                   json={"data": {"company": company, "trade": "Structural", "expires": exp}}).json()
+        c.post(f"/projects/{pid}/modules/prequalification/{r['id']}/transition",
+               json={"action": "submit"})
+        c.post(f"/projects/{pid}/modules/prequalification/{r['id']}/transition",
+               json={"action": "approve" if approve else "reject"})
+
+    _pq("Lapsed Steel", (today - timedelta(days=5)).isoformat(), approve=True)
+    _pq("Lapsing Steel", (today + timedelta(days=10)).isoformat(), approve=True)
+    _pq("Far Steel", (today + timedelta(days=200)).isoformat(), approve=True)
+    # NOT approved, and lapsing inside the window: there is no approval to lose, so it must NOT be
+    # reported. `prequalification` declares no transition out of `approved`, so the date is the only
+    # thing that ends an approval -- which is why only an approval can lapse.
+    _pq("Rejected Steel", (today + timedelta(days=10)).isoformat(), approve=False)
+
+    ce2 = c.get(f"/projects/{pid}/prequal/coi-expiry?soon_days=30").json()
+    assert ce2["prequals_expired_count"] == 1, ce2["prequals_expired"]
+    assert ce2["prequals_expiring_count"] == 1, ce2["prequals_expiring"]
+    assert ce2["prequals_expired"][0]["company"] == "Lapsed Steel", ce2["prequals_expired"]
+    assert ce2["prequals_expiring"][0]["company"] == "Lapsing Steel", ce2["prequals_expiring"]
+    assert ce2["prequals_expiring"][0]["days"] == 10, ce2["prequals_expiring"]
+    assert ce2["prequals_expired"][0]["days"] == -5, ce2["prequals_expired"]
+    named = {r["company"] for r in ce2["prequals_expired"] + ce2["prequals_expiring"]}
+    assert "Rejected Steel" not in named, named          # no approval to lose
+    assert "Far Steel" not in named, named               # outside the window
+    # the COI side is untouched by the addition -- the two registers are separate lists on purpose,
+    # because a lapsing certificate and a lapsing prequalification have different remedies
+    assert ce2["expired_count"] == 1 and ce2["expiring_count"] == 1, ce2
+    # the horizon applies to both registers, not just the one it was written for
+    ce3 = c.get(f"/projects/{pid}/prequal/coi-expiry?soon_days=365").json()
+    assert ce3["prequals_expiring_count"] == 2, ce3["prequals_expiring"]
+    assert {r["company"] for r in ce3["prequals_expiring"]} == {"Lapsing Steel", "Far Steel"}, ce3
+
 print("PREQUAL OK - transparent Q-score (weights sum 100): strong sub low-risk >75, weak sub high-risk "
-      "<50 with EMR/bonding/expired flags; scores sorted worst-first; COI expiry = 1 expired + 1 soon")
+      "<50 with EMR/bonding/expired flags; scores sorted worst-first; COI expiry = 1 expired + 1 soon. "
+      "PREQUAL-LAPSE: the 'plus prequals lapsing' half of that docstring is now in the body - 1 "
+      "lapsed + 1 lapsing at 30d, 2 lapsing at 365d, a rejected record inside the window excluded "
+      "because it has no approval to lose, and `covers` names both registers so the promise is "
+      "checkable from outside the function")

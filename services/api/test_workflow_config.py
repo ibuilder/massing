@@ -140,6 +140,88 @@ with TestClient(app) as c:
     # ---- unknown module 404s rather than saving a config nothing reads ------------------------------
     assert c.get(f"/projects/{pid}/workflow/not_a_module").status_code == 404
 
+    # ---- BOARD-SHIPPED: the claim in this file's own summary was true of the ROUTES it checked ------
+    # It says "the actions the UI offers and the transitions the engine honours come from the same
+    # effective workflow, so there is no button that 409s". That held for the single-record route,
+    # whose own comment states the rule -- and NOT for the kanban board, the one screen whose entire
+    # interaction IS a state transition. `board()` called `get_module` where every other workflow
+    # consumer routes through `workflow_config.effective`, so on an overridden project the board was
+    # INVERTED: measured, dragging `draft -> open` (which it offered) posted `submit` and got 409
+    # "action 'submit' not allowed from state 'draft'", while `fast_answer` -- the transition the
+    # firm configured -- returned 200 and the board offered no drag for it.
+    # *A property asserted for the routes somebody looked at is not a property of the system.*
+    bpid = c.post("/projects", json={"name": "Board basis"}).json()["id"]
+    brid = c.post(f"/projects/{bpid}/modules/rfi",
+                  json={"data": {"subject": "B", "question": "q"}}).json()["id"]
+    shipped = c.get(f"/projects/{bpid}/modules/rfi/board").json()
+    assert shipped["workflow_overridden"] is False, shipped["workflow_overridden"]
+    assert {(t["from"], t["to"]) for t in shipped["transitions"]} == \
+        {(t["from"], t["to"]) for t in RFI["workflow"]["transitions"]}, shipped["transitions"]
+
+    c.put(f"/projects/{bpid}/workflow/rfi",
+          json={"transitions": [{"from": "draft", "to": "answered", "action": "fast_answer",
+                                 "party": ["GC"]},
+                                {"from": "answered", "to": "open", "action": "reopen",
+                                 "party": ["GC"]}]})
+    over = c.get(f"/projects/{bpid}/modules/rfi/board").json()
+    assert over["workflow_overridden"] is True, over
+    offered = {(t["from"], t["to"]) for t in over["transitions"]}
+    assert offered == {("draft", "answered"), ("answered", "open")}, offered
+    # ...and EVERY transition the board offers is one the engine honours, which is the property this
+    # file's summary claims. Asserted by actually running them, not by comparing two lists that
+    # could both be wrong.
+    acted = c.post(f"/projects/{bpid}/modules/rfi/{brid}/transition",
+                   json={"action": "fast_answer"})
+    assert acted.status_code == 200, acted.text[:200]
+    # the shipped transition the board NO LONGER offers is also the one the engine now refuses --
+    # so the two halves agree in both directions
+    refused = c.post(f"/projects/{bpid}/modules/rfi/{brid}/transition", json={"action": "respond"})
+    assert refused.status_code == 409, (refused.status_code, refused.text[:160])
+    c.delete(f"/projects/{bpid}/workflow/rfi")
+
+    # ---- BOARD-SHIPPED: `counts` is the SQL truth and `columns` is a page of it --------------------
+    # The kanban head rendered `columns[state].length`. Measured at 205 records in one state: the
+    # column serves the capped 200 and the head said 200, with `counts` undeclared on the client so
+    # the screen could not say otherwise. TRUNC-COUNTED, on the board shared across every module.
+    cap = int(over["per_state_cap"])
+    for i in range(cap + 5):
+        c.post(f"/projects/{bpid}/modules/rfi", json={"data": {"subject": f"C{i}", "question": "q"}})
+    deep = c.get(f"/projects/{bpid}/modules/rfi/board").json()
+    init = RFI["workflow"]["initial"]
+    assert len(deep["columns"][init]) == cap, len(deep["columns"][init])
+    assert deep["counts"][init] == cap + 5, deep["counts"]
+    assert deep["counts"][init] > len(deep["columns"][init]), "the cap must actually bite here"
+    assert "page length" in deep["counts_basis"], deep["counts_basis"]
+
+    # ---- BOARD-SHIPPED, the CLEAN NEGATIVE half ---------------------------------------------------
+    # A record in a state the module does not declare would get a column in `columns` and, before
+    # this change, none in `states` -- so a consumer iterating `states` rendered it nowhere:
+    # invisible, not merely uncounted (measured at 2 of 3 drawn). **It is not reachable today, and
+    # measuring is what establishes that.** `workflow_state` is written in exactly two places -- the
+    # module's `initial` at create, and `transition` against the EFFECTIVE workflow -- and an
+    # override "may rewire declared states but never invent new ones", which this file already
+    # asserts. So the only door left is a `module.json` whose `states` list shrinks across releases
+    # while records sit in the removed state. This is the assertion that keeps the negative clean:
+    # every module's `initial` and every endpoint of every declared transition must BE a declared
+    # state, or that module can strand records somewhere no board would draw.
+    bad_init, bad_edge = [], []
+    for mkey, mdef in modules_registry.REGISTRY.items():
+        wf = mdef.get("workflow") or {}
+        declared = set(wf.get("states") or [])
+        if not declared:
+            continue
+        if (wf.get("initial") or "") not in declared:
+            bad_init.append((mkey, wf.get("initial"), sorted(declared)))
+        for tr in wf.get("transitions") or []:
+            for side in ("from", "to"):
+                if (tr.get(side) or "") not in declared:
+                    bad_edge.append((mkey, side, tr.get(side), tr.get("action")))
+    assert not bad_init, f"module(s) whose `initial` is not a declared state: {bad_init}"
+    assert not bad_edge, f"transition endpoint(s) outside the declared states: {bad_edge}"
+    _with_wf = sum(1 for m in modules_registry.REGISTRY.values()
+                   if (m.get("workflow") or {}).get("states"))
+    assert _with_wf > 100, f"only {_with_wf} modules have a workflow — the sweep found almost none"
+
 print("WFE-3 OK - a project can rewire which of a module's DECLARED states connect (RFIs going "
       "straight draft->answered here, with a reopen), and both halves agree: the actions the UI offers "
       "and the transitions the engine honours come from the same effective workflow, so there is no "
@@ -150,4 +232,15 @@ print("WFE-3 OK - a project can rewire which of a module's DECLARED states conne
       "treated as stranding. Overrides may rewire declared states but never invent new ones, "
       "duplicates/empties/oversized are rejected atomically, unreachable states are reported rather "
       "than silently ignored, reset restores the shipped workflow idempotently, and one project's "
-      "override never touches another's.")
+      "override never touches another's. "
+      "BOARD-SHIPPED: that no-button-409s claim was true of the ROUTES this file checked and FALSE "
+      "of the kanban board, which read the SHIPPED workflow while `transition` honours the "
+      "configured one -- so on an overridden project every drag it offered 409d and the one that "
+      "worked was refused client-side. The board now resolves through the same effective workflow, "
+      "asserted by RUNNING its offered transition (200) and the one it no longer offers (409). Its "
+      "column heads also printed a page length: `counts` is the SQL GROUP BY truth and `columns` is "
+      "capped, asserted where the cap actually bites. And the clean negative: a record in an "
+      "undeclared state would be invisible rather than uncounted, which is unreachable today "
+      "because `workflow_state` has exactly two writers and overrides cannot invent states -- kept "
+      "clean by asserting that every module's `initial` and every transition endpoint IS a declared "
+      f"state, across all {_with_wf} modules that have a workflow.")

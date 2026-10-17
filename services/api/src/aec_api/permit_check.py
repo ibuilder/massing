@@ -86,7 +86,20 @@ def readiness(db: Session, pid: str, model, *, occupancy_group: str = "",
 
     analysis = codecheck.code_analysis(model, occupancy_group, construction_type,
                                        sprinklered, jurisdiction)
-    edition = analysis.get("edition") or analysis.get("code_edition")
+    # PERMIT-BLIND. This read `analysis.get("edition") or analysis.get("code_edition")` and
+    # `code_analysis` returns NEITHER key — its top level is
+    # {code_context, occupancy, construction_type, sprinklered, building,
+    #  occupant_load_by_occupancy, egress, doors, allowable, citations, disclaimer} — so `edition`
+    # was None on every call this route has ever served, the response's `code_edition` was
+    # permanently null, and the checklist evidence read "edition=IBC (default)" even where a
+    # jurisdiction had resolved IBC 2021.
+    #
+    # **The `or` is what made it look safe.** Two spellings chained that way read as "try the
+    # obvious name, fall back to the other" — a shape that implies at least one of them is right.
+    # Neither was. *A second spelling of a value is a second chance to pick the wrong one*, and a
+    # `.get()` that answers None is indistinguishable from a value that is genuinely absent.
+    ctx = analysis.get("code_context") or {}
+    edition = ctx.get("ibc_edition")
     item("Code-analysis summary complete (occupancy group + construction type declared)",
          bool(occupancy_group and construction_type),
          f"occupancy={occupancy_group or '—'} type={construction_type or '—'} "
@@ -115,6 +128,21 @@ def readiness(db: Session, pid: str, model, *, occupancy_group: str = "",
         "checklist": checklist, "deficiencies": deficiencies,
         "sheet_series": series,
         "code_edition": edition,
+        # WHOSE edition, and whether anybody's. An edition number alone cannot be read: IBC 2021
+        # because this project's state adopted it is a different claim from IBC 2021 because that is
+        # the national baseline, and a permit screen that shows the number without the basis invites
+        # a reader to cite it. `resolved` is the engine's own word for the difference.
+        "code_context": {"jurisdiction": ctx.get("jurisdiction"), "ibc_edition": edition,
+                         "resolved": bool(ctx.get("resolved")), "as_of": ctx.get("as_of"),
+                         "verify": ctx.get("verify")},
+        # What this check was TOLD, as opposed to what it inferred. `code_analysis` falls back to an
+        # occupancy group read off the model and a construction type of "II-B (verify with AHJ)" —
+        # both reasonable defaults and neither a declaration, which is exactly why the checklist item
+        # above tests the inputs rather than the resolved values. A caller cannot tell those apart
+        # from the verdict alone, so the inputs are echoed.
+        "declared": {"occupancy_group": occupancy_group or None,
+                     "construction_type": construction_type or None,
+                     "sprinklered": bool(sprinklered), "jurisdiction": jurisdiction or None},
         "egress": {"summary": {k: v for k, v in egress.items() if not isinstance(v, list)}},
         "approvability_score": score,
         "disclaimer": ("Pre-check assist with cited sections — NOT a certified plan review. The "

@@ -63,19 +63,37 @@ def model_progress(db: Session, pid: str, quantity: str | None = None) -> dict[s
     if not total_ct:
         return {"available": False,
                 "note": "No model loaded — upload a model to derive physical % complete by GlobalId."}
-    installed_guids = {g for (g,) in db.execute(
-        select(ElementVerification.guid).where(
-            ElementVerification.project_id == pid,
-            ElementVerification.status.in_(("installed", "verified")))).all()}
+    rows = list(db.execute(select(ElementVerification.guid, ElementVerification.status)
+                           .where(ElementVerification.project_id == pid)).all())
+    installed_guids = {g for g, st in rows if st in ("installed", "verified")}
+    # EVM-COVERAGE, second site. `percent_complete` here is `installed ÷ total` over the WHOLE model,
+    # so an element nobody has walked is counted exactly like one inspected and found absent. On a
+    # 4,000-element model with 40 verified, this reads 1% — and `schedule(method="units-installed")`
+    # multiplies it by the contract value to get EARNED REVENUE, which then drives over-billing, which
+    # `accounting.journal_entries` posts back as the WIP-ADJ line. *The EVM instance raises a banner;
+    # this one moves a number in a financial statement, and it was found second.*
+    #
+    # DETERMINED, not merely tracked: a `pending` row is a queued inspection and is not evidence.
+    # A `deviation` IS evidence — of something not installed as designed — so it bounds the ceiling.
+    deviated_guids = {g for g, st in rows if st == "deviation"} - installed_guids
+    determined_guids = (installed_guids | deviated_guids) & set(idx)
     installed_ct = sum(1 for g in idx if g in installed_guids)
     pct_count = round(100 * installed_ct / total_ct, 1)
+    # The ceiling: everything except what is known to deviate. See `test_evm_coverage.py` for why
+    # this is a bound rather than a coverage threshold — any percentage would have been invented.
+    dev_in_model = sum(1 for g in idx if g in deviated_guids)
+    pct_count_max = round(100 * max(0, total_ct - dev_in_model) / total_ct, 1)
     out: dict[str, Any] = {
         "available": True, "method": "units-installed",
         "total_elements": total_ct, "installed_elements": installed_ct,
+        "determined_elements": len(determined_guids), "deviated_elements": dev_in_model,
+        "coverage_pct": round(100 * len(determined_guids) / total_ct, 1),
         "percent_complete_count": pct_count, "percent_complete": pct_count,
+        "percent_complete_count_max": pct_count_max, "percent_complete_max": pct_count_max,
+        "fully_determined": len(determined_guids) >= total_ct,
     }
     if quantity:
-        tot_q = ins_q = 0.0
+        tot_q = ins_q = undet_q = 0.0
         n_with = 0
         for g, e in idx.items():
             q = model_query._qto_sum(e, quantity)
@@ -84,15 +102,28 @@ def model_progress(db: Session, pid: str, quantity: str | None = None) -> dict[s
                 tot_q += q
                 if g in installed_guids:
                     ins_q += q
+                elif g not in determined_guids:
+                    undet_q += q
         pct_q = round(100 * ins_q / tot_q, 1) if tot_q else 0.0
+        # The ceiling has to be weighted the SAME WAY as the figure it bounds. A count-weighted
+        # ceiling over a quantity-weighted percentage is not a bound at all: one unsurveyed 400 m³
+        # pour is 1 element and a quarter of the concrete.
+        pct_q_max = round(100 * min(tot_q, ins_q + undet_q) / tot_q, 1) if tot_q else 0.0
         out.update({"quantity": quantity, "elements_with_quantity": n_with,
                     "total_quantity": round(tot_q, 2), "installed_quantity": round(ins_q, 2),
-                    "percent_complete_quantity": pct_q})
+                    "undetermined_quantity": round(undet_q, 2),
+                    "percent_complete_quantity": pct_q,
+                    "percent_complete_quantity_max": pct_q_max})
         if tot_q:                                   # quantity-weighted supersedes the count when present
             out["percent_complete"] = pct_q
+            out["percent_complete_max"] = pct_q_max
     out["note"] = ("Physical progress = installed model elements ÷ total, by IFC GlobalId"
                    + (f", weighted by quantity '{quantity}'." if quantity and out.get("total_quantity")
-                      else " (count-weighted)."))
+                      else " (count-weighted).")
+                   + ("" if out["fully_determined"] else
+                      f" Only {len(determined_guids)} of {total_ct} element(s) have a DETERMINED "
+                      f"install status, so physical progress is between {out['percent_complete']}% "
+                      f"and {out['percent_complete_max']}% — the rest is unsurveyed, not absent."))
     return out
 
 
@@ -173,16 +204,57 @@ def schedule(db: Session, pid: str, method: str = "cost-to-cost", with_model: bo
     }
     if with_model and model.get("available"):
         m_pct = model["percent_complete"]
+        m_pct_max = model.get("percent_complete_max", m_pct)
         c_pct = round(cost_pct * 100, 1)
         diff = round(m_pct - c_pct, 1)
+        # THE BOUND IS ASYMMETRIC, AND THAT IS THE POINT. Missing survey coverage can only ever
+        # DEPRESS the measured physical percentage, so it biases this comparison in one direction:
+        #   * `physical-ahead` (m > c) cannot be manufactured by a coverage gap — the gap works
+        #     against it — so it keeps the shipped ±10 threshold untouched.
+        #   * `cost-ahead` (c > m) is exactly what a gap fabricates, and this block's own note calls
+        #     it "the classic front-loaded-billing signal". It must now clear the CEILING.
+        # Bounding both would have suppressed a real finding to fix a false one.
+        diff_max = round(m_pct_max - c_pct, 1)
+        flag = ("cost-ahead" if diff_max <= -10 else "physical-ahead" if diff >= 10 else "aligned")
         result["model"] = {
             "model_percent_complete": m_pct, "cost_percent_complete": c_pct, "divergence_pct": diff,
+            "model_percent_complete_max": m_pct_max, "divergence_pct_max": diff_max,
             "installed_elements": model["installed_elements"], "total_elements": model["total_elements"],
-            "flag": "cost-ahead" if diff <= -10 else "physical-ahead" if diff >= 10 else "aligned",
+            "determined_elements": model.get("determined_elements"),
+            "coverage_pct": model.get("coverage_pct"),
+            "fully_determined": model.get("fully_determined", True),
+            "flag": flag,
             "note": "Physical progress (installed model elements ÷ total, by IFC GlobalId) vs cost-to-cost "
                     "POC. A large gap flags over/under-billing risk or a cost / productivity variance — "
-                    "cost running ahead of physical progress is the classic front-loaded-billing signal.",
+                    "cost running ahead of physical progress is the classic front-loaded-billing signal, "
+                    "which is why `cost-ahead` must clear the ceiling an incomplete survey allows while "
+                    "`physical-ahead` need not: unsurveyed elements only ever lower the physical figure."
+                    + ("" if model.get("fully_determined", True) else
+                       f" Coverage is partial — physical progress is between {m_pct}% and {m_pct_max}%."),
         }
+        # WHEN THE PARTIAL FIGURE IS DRIVING REVENUE, SAY SO ON THE WIP ROW ITSELF, not only in the
+        # cross-check block a reader may never open. `earned_revenue` is deliberately NOT changed
+        # here: which end of the band a percentage-of-completion schedule should recognise is a
+        # revenue-recognition policy question for the project's accountant, not something to pick in
+        # an engine. What was wrong was that nothing said a band existed.
+        if pct_method == "units-installed" and not model.get("fully_determined", True):
+            result["percent_complete_max"] = m_pct_max
+            # MONEY-SPINE: `money.retainage` (exact Decimal multiply, ONE half-up quantize), never
+            # `round(x / 100 * amount, 2)` — `round()` is half-EVEN where an invoice rounds half
+            # away from zero, which is the penny `money.py`'s docstring records a pay application
+            # being rejected over. `services/api/test_money_spine.py` names the offending line
+            # structurally and caught this one on the first CI run after it was written: *the
+            # direction added to `roadmap-directions.md` an hour earlier said to run the suite the
+            # way CI runs it before pushing an engine change, and this was pushed without it.*
+            result["earned_revenue_max"] = money.retainage(contract_value, min(100.0, m_pct_max))
+            result["poc_coverage_partial"] = True
+            result["note"] += (
+                f" POC IS DRIVEN BY A PARTIAL SURVEY: {model.get('determined_elements')} of "
+                f"{model['total_elements']} element(s) have a determined install status, so physical "
+                f"progress is between {m_pct}% and {m_pct_max}% and earned revenue between "
+                f"{result['earned_revenue']} and {result['earned_revenue_max']}. The figure recognised "
+                "here is the lower bound; which end a WIP schedule should recognise is an accounting "
+                "policy decision.")
     return result
 
 

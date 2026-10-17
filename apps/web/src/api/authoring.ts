@@ -79,7 +79,8 @@
  *  sibling's private member — that has to move into HttpCore first.
  */
 import { HttpCore, HttpError } from "./httpCore";
-import type { AssemblyRow, EditMacro, GroupRow, TypeDetail, TypeRow } from "./types";
+import type { AssemblyRow, EditMacro, GroupRow, RecipeDiff, RecipeLogExport, RecipeLogPage,
+  RecipeReplayPlan, TypeDetail, TypeRow } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -96,6 +97,36 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
         // caller relies on.
         { method: "POST", body: JSON.stringify(wantGuid ? { recipe, params, publish, want_guid: wantGuid }
                                                         : { recipe, params, publish }) });
+    }
+
+    /**
+     * S4 — apply a SEQUENCE of authoring steps as ONE version.
+     *
+     * **The route's own docstring says it exists "so a multi-step NL command undoes as a single
+     * step", and the NL command path looped `editIfc` instead.** The model opens once, every step
+     * runs in memory, one file is written, one edit-history entry is pushed, and every step is
+     * guard-prechecked before anything runs — so a bad step aborts the batch with **nothing
+     * written**. Looping single applies gave the opposite of all four: N undo entries, N opens, no
+     * lock check between steps, and a failure at step k leaving k-1 steps written to the model.
+     *
+     * `baseSource` is the COLLAB-1 optimistic lock: the source filename the plan was built against.
+     * Omitted, the batch applies to whatever the current version is — which is the single-apply
+     * behaviour, so leaving it out is no worse than today and passing it is strictly better.
+     *
+     * One thing it does NOT carry, stated because it is a real trade: the engine runs the guard
+     * precheck on every step but **no model-aware precheck**, because a step may legally reference
+     * an element a PRIOR step in the same batch creates. A single apply gets the full model
+     * precheck. What that costs is the quality of the error message, not the all-or-nothing
+     * property — a step that references something absent raises before the file is written.
+     */
+    editBatch(pid: string, steps: { recipe: string; params: Record<string, unknown> }[],
+              publish = true, baseSource?: string) {
+      return this.json<{ steps: { recipe: string; changed: number | string }[];
+        step_count: number; out: string; publish?: string }>(
+        `/projects/${pid}/edit/batch`,
+        { method: "POST", body: JSON.stringify(baseSource
+            ? { steps, publish, base_source: baseSource }
+            : { steps, publish }) });
     }
 
     // --- Raise a 2D plan into authored walls ---
@@ -353,9 +384,21 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       return this.json<{ macro: string; name: string; steps: { recipe: string; params: Record<string, unknown> }[]; step_count: number }>(
         `/projects/${pid}/macros/${encodeURIComponent(macroId)}/expand`, { method: "POST", body: JSON.stringify({ args }) });
     }
-    /** runMacro — run a saved recipe chain as one GUID-stable version. */
+    /** runMacro — run a saved recipe chain as one GUID-stable version.
+     *
+     *  Declared rather than erased (it was `Record<string, unknown>`, which is what kept `mepTrayFill`'s
+     *  defect out of reach of every declaration-derived audit here). `changed` stays `unknown` and that
+     *  is a different thing: five recipes answer five shapes — a count, a GUID, a list — so `unknown`
+     *  is the honest type for that one field rather than the absence of a type for all of them.
+     *
+     *  `baseSource` is the COLLAB-1 optimistic lock: the model signature this client loaded, from
+     *  `collabSnapshot().model.source`. Pass it and the route refuses a stale edit with 409 instead of
+     *  overwriting another editor's publish — a guard that does nothing unless the caller opts in. */
     runMacro(pid: string, macroId: string, args: Record<string, unknown>, opts?: { publish?: boolean; baseSource?: string }) {
-      return this.json<Record<string, unknown>>(
+      return this.json<{
+        steps: { recipe: string; changed: unknown }[]; step_count: number; out: string;
+        macro: string; publish?: string;
+      }>(
         `/projects/${pid}/macros/${encodeURIComponent(macroId)}/run`,
         { method: "POST", body: JSON.stringify({ args, publish: opts?.publish ?? false, base_source: opts?.baseSource ?? null }) });
     }
@@ -452,6 +495,41 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       { method: "POST", body: fd, headers: this.authHeaders() });
     if (!r.ok) throw new HttpError((await r.text()) || `HTTP ${r.status}`, r.status);
     return r.json() as Promise<{ guid: string; ifc_class: string; category: string; faces: number; publish?: string }>;
+  }
+  // --- R23-RECIPE-ARTIFACT: the edit-recipe log ------------------------------------------------
+  //
+  // RECIPE-LOG-DARK — these four are the FIRST client methods this capability has ever had. It has
+  // recorded the recipe, parameters, actor and time of every authored edit since it shipped, and all
+  // four read routes were invisible to both reachability gates at once: `test_route_reachability.py`
+  // by leaf length (`log`, `diff` are under its `MIN_SEGMENT`) and by two explicit freezes, and
+  // `apps/web/src/api/clientCallers.test.ts` because a method that does not exist is not in its
+  // population. *A gate for each side of a seam is not a gate for the seam.*
+  /**
+   * The log, newest first. `recipe` narrows SERVER-SIDE on purpose: `total`, `elided` and the ring
+   * `note` are answers about the filtered set, and filtering the page in hand would print the
+   * unfiltered total beside a filtered list.
+   */
+  recipeLog(pid: string, opts: { limit?: number; offset?: number; recipe?: string } = {}) {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts)) if (v !== undefined && v !== "") q.set(k, String(v));
+    const qs = q.toString();
+    return this.json<RecipeLogPage>(`/projects/${pid}/recipes/log${qs ? `?${qs}` : ""}`);
+  }
+  /** The whole log as a portable document, **oldest first** — the provenance artifact. Carries
+   *  `replayable` AND `replay_coverage`; the boolean alone is a claim about a window. */
+  recipeLogExport(pid: string) {
+    return this.json<RecipeLogExport>(`/projects/${pid}/recipes/export`);
+  }
+  /** Compare two entries by index in the EXPORT (oldest-first) order — not the page order. */
+  recipeDiff(pid: string, a: number, b: number) {
+    return this.json<RecipeDiff>(`/projects/${pid}/recipes/diff?a=${a}&b=${b}`);
+  }
+  /** Ordered `{recipe, params}` steps to re-run the logged edits against ANOTHER model. A plan: it
+   *  does not execute, and it 422s rather than replay an entry whose parameters were elided.
+   *  `indices` omitted means the whole log. */
+  recipeReplayPlan(pid: string, indices?: number[]) {
+    return this.json<RecipeReplayPlan>(`/projects/${pid}/recipes/replay-plan`,
+      { method: "POST", body: JSON.stringify(indices ? { indices } : {}) });
   }
   };
 }

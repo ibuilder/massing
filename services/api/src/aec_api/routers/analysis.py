@@ -472,8 +472,64 @@ def _run_estimate(pid: str, body: dict) -> dict:
                 vintage_rates, vintage_meta = rates or {}, meta
     except Exception:                    # noqa: BLE001 — no cost database installed is a valid state
         vintage_rates, vintage_meta = {}, None
-    return fived.estimate(_idx_for(pid), body.get("rules") or [], measured, sources=sources,
-                          vintage_rates=vintage_rates, vintage=vintage_meta)
+    # ESTIMATE-DARK: the rule set. A caller may still send its own — an estimator legitimately
+    # prices a what-if without saving it — but an ABSENT `rules` now means *use the project's
+    # stored set* rather than *price nothing*, which is what it meant for as long as nothing could
+    # store one. Resolved through `cost_rules.effective` so this and `/cost/sov` cannot price from
+    # two different sets, the same reason they share this function at all.
+    from .. import cost_rules
+    sent = body.get("rules")
+    if sent:
+        rules, seeded = list(sent), False
+    else:
+        rules, seeded = cost_rules.effective(pid)
+    out = fived.estimate(_idx_for(pid), rules, measured, sources=sources,
+                         vintage_rates=vintage_rates, vintage=vintage_meta)
+    # WHERE THE RULES CAME FROM, which `fived.estimate` cannot know — it receives a list, and a
+    # list does not say who wrote it. `complete` is a verdict about coverage of the MODEL and is
+    # silent on whether anybody chose the rates, so a complete estimate over the starter set is
+    # reachable and is the most confident wrong number this route can produce. The flag travels with
+    # the total so a screen cannot lose it.
+    out["rules_seeded"] = seeded
+    out["rule_count"] = len(rules)
+    return out
+
+
+@router.get("/projects/{pid}/cost/rules")
+def cost_rules_get(pid: str, db: Session = Depends(get_db),
+                   _: str = Depends(require_role("viewer"))):
+    """ESTIMATE-DARK — the project's stored cost rule set (the starter set until one is saved).
+
+    Each rule is a QUERY-DSL selector bound to a cost code, a basis and a rate. `seeded` says the
+    set is the starter one, which is a fact about PROVENANCE rather than content: an estimate priced
+    from placeholder rates is not the firm's number, and nothing downstream can work that out from
+    the rules themselves.
+    """
+    from .. import cost_rules
+    from .standards import _project
+    _project(db, pid)
+    rules, seeded = cost_rules.effective(pid)
+    return {"rules": rules, "seeded": seeded}
+
+
+@router.put("/projects/{pid}/cost/rules")
+def cost_rules_put(pid: str, rules: list[dict] = Body(..., embed=True),
+                   db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Replace the project's cost rule set.
+
+    Validated through `fived.validate_rules` — the SAME function `/cost/estimate` runs — so a set
+    that stores is a set that prices, and a bad selector rejects the whole save with 422 rather than
+    persisting half a rule set that would price part of the model at rates nobody finished choosing.
+    """
+    from .. import cost_rules
+    from ..query_dsl import QueryError
+    from .standards import _project
+    _project(db, pid)
+    try:
+        saved = cost_rules.save(pid, rules)
+    except QueryError as e:
+        raise HTTPException(422, str(e)) from None
+    return {"saved": len(saved), "rules": saved}
 
 
 @router.post("/projects/{pid}/cost/sov")
@@ -811,16 +867,22 @@ async def scan_deviation(pid: str, file: UploadFile = File(...), tolerance: floa
     # The point-cloud parse and — far heavier — the IFC open + full tessellation are CPU-bound and
     # would block the event loop (stalling every other request on this worker) if run inline. Offload
     # to the threadpool, mirroring run_validate below.
-    pts = await run_in_threadpool(lambda: sd.parse_point_cloud(raw.decode("utf-8", "ignore")))
+    pts, points_total = await run_in_threadpool(
+        lambda: sd.parse_point_cloud_counted(raw.decode("utf-8", "ignore")))
     if len(pts) == 0:
         raise HTTPException(400, "no readable XYZ points in the upload")
     try:
-        ref = await run_in_threadpool(lambda: sd.model_surface_points(ifcopenshell.open(ifc_path)))
+        # BOTH caps are carried into `analyze`, because whether they were hit changes what the
+        # numbers mean — and for the reference cap it changes whether there are numbers at all.
+        ref, ref_truncated = await run_in_threadpool(
+            lambda: sd.model_surface_points_capped(ifcopenshell.open(ifc_path)))
     except Exception as e:  # noqa: BLE001 — geometry failure is a 4xx, not a 500
         raise HTTPException(400, f"could not build model geometry: {e}") from e
     if len(ref) == 0:
         raise HTTPException(409, "the model has no triangulated geometry to compare against")
-    return await run_in_threadpool(lambda: sd.analyze(pts, ref, tolerance))
+    return await run_in_threadpool(
+        lambda: sd.analyze(pts, ref, tolerance,
+                           points_total=points_total, reference_truncated=ref_truncated))
 
 
 @router.post("/projects/{pid}/scan/verify-lod500")
@@ -885,7 +947,15 @@ def egress_routes(pid: str, elevation: float = 0.0, max_travel_m: float = Query(
     from .. import egress_route
     ifc_path = _source_ifc(db, pid)
     try:
-        return egress_route.analyze(ifcopenshell.open(ifc_path), elevation, max_travel_m, cell=cell)
+        # EGRESS-TRAVEL-DARK — `with_paths=False`, and `_exits_xy` stripped. Both are the SVG's
+        # WORKING DATA and this is the JSON summary: `plan_svg` calls `analyze` itself with
+        # `with_paths=True` and is the only consumer of either. Shipping them here cost a caller that
+        # wants "which spaces are over the limit" one polyline per space of up to `_path_from`'s
+        # 4,000 points — on a 200-space floor plate, several hundred thousand coordinate pairs in a
+        # viewer-role GET, with no cap across spaces. The drawing is at `/egress/plan.svg`.
+        res = egress_route.analyze(ifcopenshell.open(ifc_path), elevation, max_travel_m, cell=cell,
+                                   with_paths=False)
+        return {k: v for k, v in res.items() if not k.startswith("_")}
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 

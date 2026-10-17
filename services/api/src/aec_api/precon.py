@@ -20,6 +20,26 @@ def _num(v: Any) -> float:
         return 0.0
 
 
+def _num_or_none(v: Any) -> float | None:
+    """The money field as a number, or ``None`` when the record carries no usable figure.
+
+    ``_num`` collapses both to ``0.0``, which is right for a SUM and wrong for a COUNT: a VE idea
+    recorded with no savings figure and one recorded as saving nothing are the same number and two
+    different facts. Every total below sums ``_num``, so a register holding blank money fields
+    produces a total over a SUBSET — and the consumer has no way to know unless this says so.
+    Booleans are excluded deliberately: ``float(True)`` is ``1.0``, which would turn a stray flag in
+    a money column into a dollar.
+    """
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, str) and not v.strip():
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def _d(r: dict) -> dict:
     return r.get("data") or r
 
@@ -88,6 +108,17 @@ def estimate_continuity(db, pid: str, budget: float | None = None) -> dict[str, 
 
 
 DECISION_OPEN = ("open",)
+# The row list is bounded and the bound is declared; every count above stays over the whole register.
+# Measured at ~306 bytes a row, so the module's own 100,000 limit is a 30 MB viewer-role GET — latent
+# rather than live, because a real precon decision log is tens to hundreds of rows, but the same class
+# has been found twice in this tree already.
+MAX_DECISION_ROWS = 500
+_DECISION_AXIS_BASIS = (
+    "`open` / `decided` / `superseded` are STATES and account for every decision between them. "
+    "`disputed` is an ALIGNMENT and cuts across all three — it is not a fourth slice of the same "
+    "pie. `disputed_open` is a pending argument; `disputed_decided` is a decision taken over a "
+    "recorded objection, which is a claim-exposure question rather than a to-do."
+)
 ASSUMPTION_OPEN = ("open",)
 
 
@@ -108,24 +139,51 @@ def decision_log(db, pid: str) -> dict[str, Any]:
         cat = (d.get("category") or "(uncategorized)").strip() or "(uncategorized)"
         by_category[cat] = by_category.get(cat, 0) + 1
         is_open = st in DECISION_OPEN
+        ci_val = _num_or_none(d.get("cost_impact"))
+        sd_val = _num_or_none(d.get("schedule_impact_days"))
         if is_open:
             open_count += 1
-            cost_exposure += _num(d.get("cost_impact"))
-            sched_exposure += _num(d.get("schedule_impact_days"))
+            cost_exposure += ci_val if ci_val is not None else 0.0
+            sched_exposure += sd_val if sd_val is not None else 0.0
         rows.append({
             "ref": r.get("ref"), "subject": d.get("subject"), "category": cat, "state": st,
-            "alignment": align, "cost_impact": _num(d.get("cost_impact")),
-            "schedule_impact_days": _num(d.get("schedule_impact_days")),
+            "alignment": align, "cost_impact": ci_val if ci_val is not None else 0.0,
+            "cost_impact_given": ci_val is not None,
+            "schedule_impact_days": sd_val if sd_val is not None else 0.0,
+            "schedule_impact_days_given": sd_val is not None,
             "decided_by": d.get("decided_by"), "due_date": d.get("due_date"),
         })
+    disputed_open = sum(1 for r in rows if r["alignment"] == "Disputed" and r["state"] in DECISION_OPEN)
+    disputed_total = by_alignment.get("Disputed", 0)
+    ordered = sorted(rows, key=lambda r: (r["state"] != "open", r.get("due_date") or ""))
     return {
         "decision_count": len(rows), "open_count": open_count,
         "decided_count": by_status.get("decided", 0),
-        "disputed_count": by_alignment.get("Disputed", 0),
+        # `superseded` is neither open nor the current answer, so it belongs in NEITHER count — and
+        # with it undeclared, `open` + `decided` fell short of the total with nothing to say why.
+        "superseded_count": by_status.get("superseded", 0),
+        "disputed_count": disputed_total,
+        # DECISION-AXES: `disputed` is an ALIGNMENT, `open` is a STATE, and the two were printed as
+        # one series. A disputed decision that has already been DECIDED is a different problem from a
+        # disputed one still pending — a claim risk rather than a pending action — and the split is
+        # what tells them apart.
+        "disputed_open": disputed_open,
+        "disputed_decided": disputed_total - disputed_open,
+        "axis_basis": _DECISION_AXIS_BASIS,
         "open_cost_exposure": round(cost_exposure, 2),
         "open_schedule_exposure_days": round(sched_exposure, 1),
+        # The decision log is the one of these three that is ALREADY on a screen, printing this
+        # exposure, so the same subset problem is live rather than latent: an open decision with no
+        # cost figure is in `open_count` and adds nothing to the money beside it.
+        "open_without_cost_impact": sum(1 for r in rows
+                                        if not r["cost_impact_given"] and r["state"] in DECISION_OPEN),
+        "open_without_schedule_impact": sum(1 for r in rows
+                                            if not r["schedule_impact_days_given"]
+                                            and r["state"] in DECISION_OPEN),
         "by_status": by_status, "by_alignment": by_alignment, "by_category": dict(sorted(by_category.items())),
-        "rows": sorted(rows, key=lambda r: (r["state"] != "open", r.get("due_date") or "")),
+        "rows": ordered[:MAX_DECISION_ROWS],
+        "rows_truncated": len(ordered) > MAX_DECISION_ROWS,
+        "max_rows": MAX_DECISION_ROWS,
     }
 
 
@@ -142,16 +200,25 @@ def assumptions(db, pid: str) -> dict[str, Any]:
         by_status[st] = by_status.get(st, 0) + 1
         cat = (d.get("category") or "(uncategorized)").strip() or "(uncategorized)"
         by_category[cat] = by_category.get(cat, 0) + 1
-        ci = _num(d.get("cost_impact"))
+        ci_val = _num_or_none(d.get("cost_impact"))
+        ci = ci_val if ci_val is not None else 0.0
         if st in ASSUMPTION_OPEN:
             open_cost += ci
         rows.append({"ref": r.get("ref"), "subject": d.get("subject"), "category": cat,
-                     "state": st, "cost_impact": ci, "owner": d.get("owner")})
+                     "state": st, "cost_impact": ci, "cost_impact_given": ci_val is not None,
+                     "owner": d.get("owner")})
     return {
         "assumption_count": len(rows),
         "open_count": sum(v for k, v in by_status.items() if k in ASSUMPTION_OPEN),
         "confirmed_count": by_status.get("confirmed", 0), "voided_count": by_status.get("voided", 0),
         "open_cost_exposure": round(open_cost, 2),
+        # WHAT THE EXPOSURE LEAVES OUT. `open_cost_exposure` sums the open rows' `cost_impact`,
+        # and a row with no usable figure contributes nothing to it while still being counted in
+        # `open_count` — so the money is a total over a subset of the count beside it. The OPEN
+        # figure is the one that qualifies the exposure; the whole-register count is for the table.
+        "rows_without_cost_impact": sum(1 for r in rows if not r["cost_impact_given"]),
+        "open_without_cost_impact": sum(1 for r in rows
+                                        if not r["cost_impact_given"] and r["state"] in ASSUMPTION_OPEN),
         "by_status": by_status, "by_category": dict(sorted(by_category.items())),
         "rows": sorted(rows, key=lambda r: (r["state"] != "open", -r["cost_impact"])),
     }
@@ -169,7 +236,8 @@ def ve_log(db, pid: str, target: float | None = None) -> dict[str, Any]:
         d = _d(r)
         st = (r.get("workflow_state") or d.get("status") or "proposed").strip().lower()
         by_status[st] = by_status.get(st, 0) + 1
-        sv = _num(d.get("savings"))
+        sv_val = _num_or_none(d.get("savings"))
+        sv = sv_val if sv_val is not None else 0.0
         if st == "accepted":
             accepted += sv
         elif st == "rejected":
@@ -177,12 +245,20 @@ def ve_log(db, pid: str, target: float | None = None) -> dict[str, Any]:
         else:
             proposed += sv
         rows.append({"ref": r.get("ref"), "subject": d.get("subject"), "status": st,
-                     "savings": round(sv, 2)})
+                     "savings": round(sv, 2), "savings_given": sv_val is not None})
     out = {
         "ve_count": len(rows), "by_status": by_status,
         "proposed_savings": round(proposed, 2), "accepted_savings": round(accepted, 2),
         "rejected_savings": round(rejected, 2),
         "pipeline_savings": round(proposed + accepted, 2),     # still-available + already-accepted
+        # WHAT EVERY TOTAL ABOVE LEAVES OUT, and it decides whether `target_met` means anything:
+        # an idea with no savings figure is in `ve_count` and in `by_status` and adds 0 to the
+        # money, so `accepted_savings >= target` can be false because the figures were never
+        # recorded rather than because the ideas do not close the gap. `accepted_without_savings`
+        # is the one that bears on the verdict.
+        "rows_without_savings": sum(1 for r in rows if not r["savings_given"]),
+        "accepted_without_savings": sum(1 for r in rows
+                                        if not r["savings_given"] and r["status"] == "accepted"),
         "rows": sorted(rows, key=lambda r: -r["savings"]),
     }
     if target is not None:

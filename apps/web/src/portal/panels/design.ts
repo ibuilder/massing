@@ -3,6 +3,9 @@ import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { promptModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
+import { TONE_CSS, entitlementRows, headline, reconciles, refusedNote } from "./conditionsRead";
+import { disagreeBanner, disagreeRows, returnsBasisNote, returnsCell, returnsCellTitle }
+  from "./optionDisagreeRead";
 
 /**
  * Design & feasibility panels (land screening, project-lifecycle gates, diligence, ESG/POE).
@@ -244,17 +247,40 @@ export async function renderDiligence(ctx: PanelContext) {
     //     typed them. Printing "0 conditions" there would be the confident wrong answer.
     // Nothing here is ever shown as satisfied — discharge is a human act, recorded elsewhere.
     void ctx.host.api.entitlementConditions(pid).then((ec) => {
-      if (!ec.entitlements.length && !ec.unrecorded.length) return;
+      // `!entitlements.length` already covers the refused rows, which are IN that list — but the
+      // guard is restated to include them explicitly, because the reason they belong is the whole
+      // of COND-REFUSED and an implicit inclusion is one a future narrowing removes by accident.
+      if (!ec.entitlements.length && !ec.unrecorded.length && !(ec.refused ?? []).length) return;
       const card = el("div", "dash-card"); card.style.marginBottom = "8px";
       const head = el("div"); head.style.fontWeight = "600";
       head.textContent = "Conditions of approval";
       card.appendChild(head);
 
-      const open = ec.total_open ?? 0, unparsed = ec.total_unparsed ?? 0;
+      // COND-REFUSED. The headline carries its DENOMINATOR, because `total_open` is a sum over the
+      // live rows and was printed as if it covered the register.
+      const unparsed = ec.total_unparsed ?? 0;
       const line = el("div", "meta"); line.style.marginTop = "2px";
-      line.textContent = `${open} open · ${unparsed} unparsed`
-        + (ec.unrecorded.length ? ` · ${ec.unrecorded.length} approved with no conditions recorded` : "");
+      line.textContent = headline(ec);
       card.appendChild(line);
+
+      // A DENIED approval is not a discharged one. The engine zeroes a refused row's counts and
+      // says why in its own note; the loop below used to print that row as `0 open`.
+      const refNote = refusedNote(ec);
+      if (refNote) {
+        const rf = el("div", "meta"); rf.style.color = "var(--status-crit)";
+        rf.textContent = refNote;
+        card.appendChild(rf);
+      }
+      // The response states its own identity (`live_count + refused === entitlement_count`) and the
+      // line above renders a denominator built from it. If the server's arithmetic does not close,
+      // the denominator is the thing that misleads — so it is reported rather than trusted.
+      if (reconciles(ec) === false) {
+        const bad = el("div", "meta"); bad.style.color = "var(--status-warn)";
+        bad.textContent = "The server's entitlement counts do not reconcile "
+          + `(${ec.live_count} live + ${ec.refused?.length ?? 0} refused ≠ ${ec.entitlement_count} `
+          + "total), so treat the scope above as approximate.";
+        card.appendChild(bad);
+      }
 
       if (unparsed) {
         const warn = el("div", "meta");
@@ -269,12 +295,10 @@ export async function renderDiligence(ctx: PanelContext) {
           + "a blank conditions field is far more often untyped than unconditioned.";
         card.appendChild(un);
       }
-      for (const e of ec.entitlements) {
-        if (!e.conditions.length) continue;
+      for (const r of entitlementRows(ec)) {
         const row = el("div", "meta"); row.style.marginTop = "4px";
-        row.textContent = `${e.ref ?? e.entitlement_id} — ${e.open_count} open`
-          + (e.unparsed_count ? `, ${e.unparsed_count} unparsed` : "")
-          + (e.fully_discharged ? " · fully discharged" : "");
+        if (r.tone) row.style.color = TONE_CSS[r.tone];
+        row.textContent = r.text;
         card.appendChild(row);
       }
       body.appendChild(card);
@@ -580,12 +604,42 @@ export async function renderOptionRecord(ctx: PanelContext) {
     + `<th scope="col" style="text-align:left">Basis</th></tr></thead><tbody>`
     + r.options.map((o) => `<tr>`
       + `<td>${o.comparable ? "" : `<span title="${esc(o.note)}">⚠ </span>`}${esc(o.name)}</td>`
-      + r.axes.map((a) => `<td style="text-align:right">${fmt(a, o.axes[a])}</td>`).join("")
+      + r.axes.map((a) => (a === "returns"
+        ? `<td style="text-align:right${o.returns_agree === false ? ";color:var(--status-crit)" : ""}"`
+          + ` title="${esc(returnsCellTitle(o))}">${esc(returnsCell(o))}</td>`
+        : `<td style="text-align:right">${fmt(a, o.axes[a])}</td>`)).join("")
       + `<td class="meta">${esc([o.carbon_basis && `carbon: ${o.carbon_basis}`,
           o.economics_basis && `economics: ${o.economics_basis}`].filter(Boolean).join(" · "))}</td>`
       + `</tr>`).join("")
     + `</tbody>`;
   body.appendChild(t);
+
+  // OPTION-DISAGREE. Two schemes sharing one scenario, one typing nothing and one typing 45.0%
+  // against a solved 32.16%, both arrived here as `returns 32.16 · economics: derived` — identical,
+  // 1,284 bps apart. `option_economics` calls this finding "the single most useful thing this
+  // module can surface" and published it only on a route with no caller.
+  const dis = disagreeBanner(r);
+  if (dis) {
+    const warn = el("div", "dash-card"); warn.style.marginTop = "8px";
+    warn.innerHTML = `<b style="color:var(--status-crit)">⚠ ${esc(dis)}</b>`;
+    const dt = el("table", "portal-table") as HTMLTableElement;
+    dt.style.cssText = "width:100%;font-size:11px;margin-top:6px";
+    dt.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Option</th>`
+      + `<th scope="col">Typed</th><th scope="col">Solved</th><th scope="col">Δ</th>`
+      + `</tr></thead><tbody>`
+      + disagreeRows(r).map((x) => `<tr><td>${esc(x.name)}</td>`
+        + `<td style="text-align:right">${esc(x.typed)}</td>`
+        + `<td style="text-align:right">${esc(x.solved)}</td>`
+        + `<td style="text-align:right">${esc(x.delta)}</td></tr>`).join("")
+      + `</tbody>`;
+    warn.appendChild(dt);
+    body.appendChild(warn);
+  }
+  const rbn = returnsBasisNote(r);
+  if (rbn) {
+    const n = el("div", "meta"); n.style.marginTop = "6px"; n.textContent = rbn;
+    body.appendChild(n);
+  }
 
   if (r.incomparable.length) {
     const gap = el("div", "meta"); gap.style.marginTop = "8px";

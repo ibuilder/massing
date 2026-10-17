@@ -413,10 +413,40 @@ export interface RelatedRecords {
   outgoing: (RecordBrief & { label: string })[];
   incoming: RecordBrief[];
 }
+/**
+ * BOARD-SHIPPED — the kanban board, and the three things it could not say.
+ *
+ * Measured against a live route on the `rfi` register:
+ *
+ * 1. **The column head printed a page length.** 205 records in `draft` → the column serves the
+ *    capped **200** cards while `counts.draft` is **205**, and the head rendered
+ *    `columns[state].length`. `counts` was undeclared here, so the screen could not say otherwise —
+ *    TRUNC-COUNTED, on the board shared across ~139 modules, with the engine's own docstring
+ *    stating the consequence: *"A column deeper than the cap shows count > len(cards)."*
+ * 2. **A record in an undeclared state was invisible, not merely uncounted.** `columns` was keyed
+ *    over the union of declared states and states the data holds; `states` was the declared list
+ *    alone. On three records with one moved to `retired`, the board drew **2 of 3**.
+ * 3. **`transitions` were the SHIPPED workflow while `transition` honours the CONFIGURED one.**
+ *    With RFI overridden to `draft → answered (fast_answer)`, every drag the board offered 409'd
+ *    (`draft → open` posts `submit`: *"action 'submit' not allowed from state 'draft'"*) and the one
+ *    that worked was refused client-side for having no shipped transition. *The board was inverted.*
+ */
 export interface ModuleBoard {
+  /** Declared order, then any state the DATA holds. Iterate this and every record has a column. */
   states: string[];
+  /** The module's own states, without the data-only ones. */
+  declared_states?: string[];
+  /** States holding records that the module does not declare — worth labelling, not hiding. */
+  extra_states?: string[];
   columns: Record<string, { id: string; ref: string; title: string | null; assignee: string | null; party_owner: string | null }[]>;
+  /** TRUE per-state totals from a SQL GROUP BY. `columns[state]` is a page of at most `per_state_cap`. */
+  counts?: Record<string, number>;
+  /** The project's EFFECTIVE transitions — what `transition` will actually honour. */
   transitions: WorkflowTransition[];
+  /** True when this project overrides the shipped workflow, so a UI can say the states are theirs. */
+  workflow_overridden?: boolean;
+  per_state_cap?: number;
+  counts_basis?: string;
 }
 export interface WorkItem {
   module: string; module_name: string; icon: string; id: string; ref: string;
@@ -588,12 +618,42 @@ export interface ProformaForecast {
   irr_delta: number | null;
 }
 
-/** One metric's sampled distribution from a Monte Carlo run. */
+/** One metric's distribution across a Monte-Carlo run — **and the draws it could not describe.**
+ *
+ *  `proforma/monte_carlo._summary` is explicit that `mean`/`std`/`min`/`max`/`pN` *"describe THESE
+ *  draws only"*: a draw that solved but produced no value for the metric carries `NaN`, is
+ *  **counted rather than dropped**, and the percentiles are necessarily over the defined ones.
+ *  `undefined` is published so that gap is visible. **MC-UNDEFINED declares it, because the client
+ *  type omitted it and neither of the two consumers could read it** — one captioned its percentiles
+ *  `${solved} draws` and the other `${iterations} draws`, where the honest denominator is `n`.
+ *
+ *  An undefined equity IRR is *"a scenario where the deal never returned capital, which is the worst
+ *  outcome rather than a missing one"*, so the draws left out of a percentile are the bad ones and
+ *  omitting them flatters the distribution. The direction is what makes a missing denominator
+ *  dangerous here rather than untidy.
+ *
+ *  **Everything but `n` and `undefined` is OPTIONAL, and that is a fact about the server, not
+ *  caution.** When every draw is undefined the engine returns `{n: 0, undefined: total}` and
+ *  nothing else — no percentiles, no histogram. The old declaration said those were required, so a
+ *  consumer written against it rendered four em-dashes for the single most important risk finding
+ *  a sim can produce: *in no scenario did this deal return capital.* */
 export interface MonteCarloMetric {
-  mean: number; std: number; min: number; max: number; n: number;
-  p5: number; p10: number; p25: number; p50: number; p75: number; p90: number; p95: number;
-  target?: number; prob_at_least?: number;
-  histogram: { counts: number[]; edges: number[] };
+  /** Draws with a DEFINED value — the population every percentile below describes. */
+  n: number;
+  /** Draws counted in the run that produced no value for this metric. `n + undefined` is the
+   *  run's solved-draw count. */
+  undefined?: number;
+  mean?: number; std?: number; min?: number; max?: number;
+  p5?: number; p10?: number; p25?: number; p50?: number; p75?: number; p90?: number; p95?: number;
+  target?: number;
+  /** Over ALL solved draws, because an undefined metric cannot clear a target and counts against.
+   *  The engine's comment: dividing by the defined draws instead *"flatters a deal exactly when it
+   *  is at its riskiest."* */
+  prob_at_least?: number;
+  /** `P[metric ≥ target | metric is defined]` — published ALONGSIDE, never instead, *"so a reader
+   *  can see the gap between the two"*. Present only when `undefined` is non-zero. */
+  prob_at_least_of_defined?: number;
+  histogram?: { counts: number[]; edges: number[] };
 }
 export interface MonteCarloResult {
   iterations: number; solved: number; failures: number; seed: number;
@@ -614,8 +674,33 @@ export interface Dashboard {
   party: string;
   kpis: Record<string, number>;
   cost: { budget: number; committed: number; actual: number; projected_over_under: number } | null;
+  /** A page of at most 100; `action_item_count` is how many are actually in this party's court. */
   action_items: { module: string; module_name: string; id: string; ref: string; title: string | null; state: string; actions: string[] }[];
+  action_item_count: number;
   by_module: { key: string; name: string; section: string; count: number; by_state: Record<string, number> }[];
+  /** DASH-TERMINAL — which states each module counts as open and which as finished, keyed by
+   *  module, resolved from the workflow IN FORCE for this project.
+   *
+   *  **The two halves are asymmetric on purpose.** `terminal` is DECLARED — "no transition leaves
+   *  this state" is the one question a workflow can answer. `open` is OBSERVED: the states this
+   *  project's records actually sit in, minus the terminal ones. Taking `open` from the declared
+   *  live states instead was a defect this item shipped and `test_trunc_counted` caught: a record
+   *  in a state the workflow no longer declares (written before a workflow change, or imported)
+   *  fell into neither half and so vanished from every open KPI — this item's own defect, one
+   *  layer along. The complement over the observed set fails in the safe direction instead: an
+   *  unrecognised state shows up as work rather than disappearing.
+   *
+   *  The KPIs above used to run on two sets hardcoded in `dashboard.build` and applied to all 139
+   *  modules, and both were wrong in both directions: 74 (module, state) pairs were terminal in
+   *  their own module and missing from the terminal set — so a `rejected` COR or an `expired`
+   *  lease with a past due date inflated `overdue` — and 140 pairs were live and in neither set,
+   *  so no KPI counted them (76 of 139 modules affected; `pending_change_orders` missed `approved`
+   *  CORs, `open_punchlist` missed `ready`, and so on).
+   *
+   *  On the wire because this side cannot derive it: a project may replace a module's transitions,
+   *  and terminal-ness is a property of the transitions, not of the state names. Only the modules
+   *  that contributed a record are listed, so it is the same population as `by_module`. */
+  kpi_basis: Record<string, { open: string[]; terminal: string[] }>;
 }
 
 export interface RespRow {
@@ -699,6 +784,14 @@ export interface PreflightCheck {
   count?: number;
   guids?: string[];
   link?: string | null;
+  /** DRAWQA-UNMEASURED — what the check was able to evaluate, when that is not everything.
+   *
+   *  `drawing_qa` runs four groups and the last two need a loaded model; when it will not open the
+   *  engine returns CLEAN over the register alone and says so here. DECLARED AND RENDERED in the same
+   *  change, deliberately: a field added to a response and read by nobody is the DEAD-FIELD class
+   *  this document tracks, and adding one in the commit that corrects a reachability gate would be a
+   *  poor joke. */
+  coverage?: string | null;
 }
 
 /** The pre-flight issuance gate — PASS/HOLD verdict + deep-linked checklist. */
@@ -711,6 +804,173 @@ export interface PreflightGate {
   warnings: number;
   checks: PreflightCheck[];
   disclaimer: string;
+}
+
+/** DOCHEALTH-VACUOUS — document-control health, declared so the lists behind the percentages can be
+ *  rendered. Named, not inline, per DEADFIELD-INLINE. */
+export interface DocRenamed {
+  id: string;
+  /** What the uploader called it. */
+  orig_name: string;
+  /** What it is filed as — generated by the server to the information standard. */
+  name: string;
+}
+
+export interface DocOrphan {
+  id: string;
+  name: string;
+  folder: string;
+}
+
+export interface DocumentsHealth {
+  total_files: number;
+  by_cde_state: Record<string, number>;
+  /** Over the FILED name, which the server generates — so it answers whether the auto-namer worked
+   *  and is 100% by construction. `naming_basis` says so. */
+  naming_compliance_pct: number | null;
+  /** The number about the PROJECT: how many arrived already conforming, from the stored
+   *  `orig_name`. */
+  named_at_source_pct: number | null;
+  renamed_on_intake: number;
+  renamed: DocRenamed[];
+  renamed_truncated: boolean;
+  naming_basis: string;
+  revision_control_pct: number | null;
+  required_coverage_pct: number | null;
+  /** The denominator, so the percentage can be checked rather than taken. */
+  required_total: number;
+  required_missing: string[];
+  orphans: DocOrphan[];
+  orphan_count: number;
+  orphans_truncated: boolean;
+  orphan_basis: string;
+  superseded_kept: number;
+  note: string;
+}
+
+/** CASCADE-DARK — the ISO 19650 information-requirement flow-down, declared so the FLOW can be
+ *  rendered. `nodes` and `children` are the tree; the card was named "Requirement flow-down" and
+ *  showed three numbers and a list of failures, because neither key was declared.
+ *
+ *  Named, not inline, per DEADFIELD-INLINE. */
+export interface CascadeNode {
+  id: string;
+  ref: string | null;
+  title: string | null;
+  /** The requirement class, short: OIR / PIR / AIR / EIR / MIDP / TIDP / Other. */
+  type: string;
+  /** 0 is the top of the cascade. 9 is a type this engine does not place. */
+  tier: number;
+  state: string | null;
+  /** As STORED — it may name a record that no longer exists, which is what separates a dangling
+   *  reference from a requirement nobody has linked. */
+  derives_from: string | null;
+}
+
+export interface CascadeBrief {
+  id: string;
+  ref: string | null;
+  type: string;
+  title: string | null;
+}
+
+/** A requirement whose `derives_from` names a record that is gone. Somebody DID link it and the
+ *  link was silently undone, so the repair is re-pointing a broken reference rather than making a
+ *  first link — which is why it cannot share a list with `orphans`. */
+export interface CascadeDangling extends CascadeBrief {
+  missing_parent: string;
+}
+
+export interface InfoRequirementsCascade {
+  total: number;
+  /** The requirements ISO 19650 says must trace up — everything below the top tier. `coverage_pct`
+   *  is over THIS, never over `total`: a root is not a coverage failure, and counting one made a
+   *  textbook three-tier cascade read 66.7% and a one-OIR project read 0.0% beside zero orphans. */
+  expected: number;
+  /** How many of `expected` resolve to a parent. Never larger than `expected` by construction. */
+  linked: number;
+  /** `null` when nothing is expected to trace up — not 0, which reads as a failure. */
+  coverage_pct: number | null;
+  coverage_basis: string;
+  nodes: CascadeNode[];
+  nodes_truncated: boolean;
+  max_nodes: number;
+  /** parent id → child ids, sorted. */
+  children: Record<string, string[]>;
+  /** The top of the cascade: organizational intent, legitimately unlinked. */
+  roots: CascadeBrief[];
+  /** Expected to trace up and never linked. */
+  orphans: CascadeBrief[];
+  orphan_count: number;
+  dangling: CascadeDangling[];
+  dangling_count: number;
+  /** Links that point at an equal-or-lower tier — a flow-down running the wrong way. */
+  misdirected: { id: string; ref: string | null; type: string; parent_type: string }[];
+  note: string;
+}
+
+/** NAMING-UNREAD — the ISO 19650 / NCS naming audit, declared so the violations can be rendered.
+ *
+ *  Named rather than inline per DEADFIELD-INLINE: `apps/web/src/api/deadFieldTyped.test.ts` builds
+ *  its population from exported interface declarations, so a response declared in a `this.json<{…}>`
+ *  type argument is outside every dead-field audit in the tree. */
+export interface NamingConventions {
+  container: { pattern: string; separator: string; fields: string[]; note: string };
+  sheet: { pattern: string; note: string };
+}
+
+/** One register row whose recorded name does not satisfy the convention. `ref` is what makes it
+ *  findable; `name` is the string that was ruled on, which is NOT the title. */
+export interface NamingViolation {
+  ref: string;
+  title: string;
+  name: string;
+  issues: string[];
+}
+
+/** One register row with no name recorded at all — outside `compliance_pct` in both directions.
+ *  It carries no `issues`, because there is no name to have an issue with. */
+export interface NamingUnnamed {
+  ref: string;
+  title: string;
+}
+
+/** `total` is the register. `named` is the rows that had a name to rule on. `compliance_pct` is
+ *  over `named`, and `unnamed_count` is the gap — the two numbers only read honestly together. */
+export interface NamingRegisterAudit {
+  total: number;
+  named: number;
+  compliant: number;
+  compliance_pct: number | null;
+  violations: NamingViolation[];
+  violations_count: number;
+  violations_truncated: boolean;
+  unnamed: NamingUnnamed[];
+  unnamed_count: number;
+  unnamed_truncated: boolean;
+}
+
+export interface NamingAudit {
+  /** The basis the audit ruled against, carried BY the verdict. It used to be fetched from
+   *  `/naming/conventions` on a second request the card could lose (`.catch(() => null)`) while
+   *  still printing the percentages — so the convention was optional and the number was not. */
+  conventions: NamingConventions;
+  containers: NamingRegisterAudit;
+  sheets: NamingRegisterAudit;
+  /** The server's own cap on each bounded list, so the client names the bound it is subject to
+   *  rather than hardcoding a second copy of 200. */
+  max_violations: number;
+}
+
+/** One name checked on demand against the convention — the fix loop for a violation row.
+ *  `fields` is what the parser READ, which is what teaches the convention; on a sheet ID it is the
+ *  NCS parse (discipline code, sheet type, sequence) rather than the five container fields. */
+export interface NamingCheck {
+  name: string;
+  kind: string;
+  valid: boolean;
+  fields: Record<string, string | number>;
+  issues: string[];
 }
 
 /** The compact gate stamp an issuance record carries. */
@@ -793,6 +1053,22 @@ export interface OptionRecord {
   /** How each engine got its number: declared / benchmark / derived / unlinked / unavailable. */
   carbon_basis: string | null;
   economics_basis: string | null;
+  /**
+   * OPTION-DISAGREE — the IRR somebody TYPED on this option, kept beside `axes.returns`.
+   *
+   * `null` when nothing was typed, which is the ordinary case for a linked scheme. It is never
+   * promoted into `returns` and never overwritten by it: both exist so `returns_agree` can be
+   * false, which is the state a basis label cannot express.
+   */
+  declared_returns: number | null;
+  /**
+   * `false` when the typed figure and the solved one disagree by more than the engine's 0.5pt
+   * tolerance — the scheme is being quoted at a return its own deal does not solve to.
+   * `null` when there is nothing to compare (no typed figure, or nothing derived).
+   */
+  returns_agree: boolean | null;
+  /** Typed minus solved, in percentage points. Positive means the typed figure is the optimistic one. */
+  returns_delta_pct: number | null;
   missing_axes: OptionAxis[];
   comparable: boolean;
   note: string;
@@ -805,6 +1081,24 @@ export interface OptionRecordSet {
   comparable_count: number;
   incomparable: { id: string; name: string; missing_axes: OptionAxis[] }[];
   axes: OptionAxis[];
+  /**
+   * OPTION-DISAGREE — schemes whose typed IRR their own proforma scenario does not solve to.
+   *
+   * `option_economics`'s header calls this *"the single most useful thing this module can
+   * surface"*, and it was surfaced only on `/design/options/economics`, which has no caller
+   * anywhere in this tree. Measured on two schemes sharing one scenario — one that typed nothing
+   * and one that typed **45.0%** against a solved **32.16%**, 1,284 basis points apart — both
+   * arrived as `returns: 32.16 · economics_basis: derived`, *byte-identical on the screen where a
+   * scheme is chosen.*
+   *
+   * Derived from `options` server-side rather than copied from the economics payload, so the list
+   * and the per-row flags cannot disagree.
+   */
+  declared_disagrees: { id: string; name: string; declared_returns: number | null;
+    derived_returns: number | null; delta_pct: number | null }[];
+  declared_disagrees_count: number;
+  /** What `returns` is, and what `declared_returns` is for. The engine's own sentence. */
+  returns_basis_note: string;
   project_id?: string;
   note: string;
 }
@@ -1029,6 +1323,16 @@ export interface EntitlementConditions {
   entitlement_count?: number;
   /** Approved entitlements whose conditions field is EMPTY — reported as unrecorded, not clean. */
   unrecorded: string[];
+  /** Entitlements NOT refused. `total_open`/`total_unparsed` are sums over rows whose refused
+   *  members contribute zero, so they are totals over THIS count, not over `entitlement_count` —
+   *  and the engine states the identity `live_count + refused.length === entitlement_count`.
+   *  Undeclared until COND-REFUSED, which is why the card printed the totals with no denominator. */
+  live_count?: number;
+  /** DENIED entitlements, listed with their conditions rather than dropped: those conditions are
+   *  what the agency would have required, and an appeal puts them back in play. The engine zeroes
+   *  their counts so a refused row cannot read "3 open" — so a consumer that reads only the counts
+   *  renders a refusal as **`0 open`**, the most reassuring row on the card. */
+  refused?: { ref: string; workflow_state: string | null; condition_count: number }[];
   total_open?: number;
   total_unparsed?: number;
   note: string;
@@ -1036,7 +1340,12 @@ export interface EntitlementConditions {
     entitlement_id: string;
     ref: string | null;
     workflow_state: string | null;
-    /** `tracked` · `no_conditions` · `unrecorded`. */
+    /** `tracked` · `no_conditions` · `unrecorded` · `refused`.
+     *
+     *  **This comment listed three of the four until COND-REFUSED**, and `refused` was the missing
+     *  one — so nothing branched on it and a denied approval rendered through the `tracked` path as
+     *  `0 open`. *An enumeration in a doc comment is the only specification a `string` field has,
+     *  and one short value reads exactly like a complete list.* */
     status: string;
     open_count: number;
     unparsed_count: number;
@@ -1161,9 +1470,15 @@ export interface SpineTraceability {
     sheets_specced_pct: number | null; spec_to_budget_pct: number | null };
   spec_count: number;
   withdrawn_excluded: { ref: string; section: string; title: string }[];
+  /** The three lists are PAGES (100 each); `counts` is the population each was taken from. The
+   *  `*_pct` values above were always computed over the full lists, so a screen summing the array
+   *  lengths contradicted the percentages printed beside them. */
   gaps: { specs_without_bid_package: { ref: string; section: string; title: string }[];
     bid_packages_without_cost_code: { ref: string; name: string }[];
-    sheets_without_spec: { ref: string; sheet: string }[] };
+    sheets_without_spec: { ref: string; sheet: string }[];
+    counts: { specs_without_bid_package: number; bid_packages_without_cost_code: number;
+      sheets_without_spec: number; total: number } };
+  chain_count: number;
   chain: { spec: string; section: string; title: string; discipline: string | null;
     bid_package: string | null; bid_package_name: string | null; cost_code: string | null;
     cost_code_value: string | null; linked: boolean }[];
@@ -1266,3 +1581,435 @@ export type NeedsEditIfc = HttpCore & {
   editIfc(pid: string, recipe: string, params: Record<string, unknown>, publish?: boolean,
           wantGuid?: string): Promise<{ recipe: string; changed: number | string; published: unknown }>;
 };
+
+/**
+ * R23-RECIPE-ARTIFACT — one entry in a project's edit-recipe log.
+ *
+ * The log is the only place in this product that keeps an edit's **inputs**: the audit log records
+ * an edit's outputs and the undo stack records file paths, so before it existed no replay, diff or
+ * provenance trail was possible. Declared here rather than inline on the mixin because both the
+ * mixin and `viewer/tools/recipeLogTool.ts` read the shape, and `api/noRespelledShapes.test.ts`
+ * reds a second declaration of the same name — one definition cannot drift from itself.
+ */
+export interface RecipeLogEntry {
+  recipe: string;
+  /** The recipe's arguments. A value replaced by `{ __elided__: true, … }` was too large to store
+   *  (or its key looked like a credential), which is what `params_elided` reports. */
+  params: Record<string, unknown>;
+  /** Any value elided ⇒ this entry **cannot be replayed faithfully**, and `replay-plan` refuses it
+   *  by name rather than calling the recipe with a descriptor that resembles the argument. */
+  params_elided: boolean;
+  actor: string | null;
+  at: string | null;
+  /** Basenames, not paths — the log is exported, and a server filesystem layout is not something to
+   *  hand out. */
+  source_in: string | null;
+  source_out: string | null;
+  outputs?: unknown;
+  /** Present when the edit arrived as one step of a `/edit/batch`. */
+  batch?: string;
+}
+
+/** `GET /projects/{pid}/recipes/log` — newest first, and a PAGE: `returned` is not `total`. */
+export interface RecipeLogPage {
+  version: number;
+  total: number;
+  returned: number;
+  offset: number;
+  entries: RecipeLogEntry[];
+  /** Distinct recipe names across the WHOLE log, for narrowing — not just this page. */
+  recipes: string[];
+  elided: number;
+  bounded_at: number;
+  /** The engine's own ring warning, or null. Render it verbatim: it is the one sentence that says
+   *  history has been dropped. */
+  note: string | null;
+}
+
+/**
+ * `GET /projects/{pid}/recipes/export` — the whole log, OLDEST first, as the provenance artifact.
+ *
+ * `replayable` and `replay_coverage` are two different claims and both are needed. The first is
+ * about the entries the log HOLDS; the second says whether it holds all of them, because the log is
+ * a ring bounded at `bounded_at`. Reading the boolean alone is the CLASH-TRUNC defect — a guard is
+ * only as sound as the evidence it is handed — and `services/api/test_verdict_coverage.py` is the
+ * gate that enforces a consumer reading the coverage.
+ */
+export interface RecipeLogExport {
+  version: number;
+  project: string;
+  order: "oldest_first";
+  count: number;
+  entries: RecipeLogEntry[];
+  elided: number;
+  replayable: boolean;
+  replay_coverage: {
+    entries: number;
+    elided: number;
+    replayable_entries: number;
+    /** Entries the ring has dropped, counted since the counter existed. */
+    dropped: number;
+    /** `unknown` is a real third state, not a default: a log written before the drop counter cannot
+     *  distinguish "exactly `bounded_at` edits, none lost" from "that many kept, an unknown number
+     *  dropped", and folding it into either answer would be a guess. */
+    history: "complete" | "truncated" | "unknown";
+    reason: string;
+  };
+  bounded_at: number;
+}
+
+/** `GET /projects/{pid}/recipes/diff` — two entries of the SAME recipe, compared field by field.
+ *  `comparable: false` carries the engine's reason; everything after it is absent in that case. */
+export interface RecipeDiff {
+  comparable: boolean;
+  reason?: string;
+  recipe?: string;
+  changed?: { param: string; before: unknown; after: unknown }[];
+  unchanged?: string[];
+  identical?: boolean;
+  elided?: boolean;
+  /** Why a diff over elided parameters means less than it looks: a descriptor compares by hash, so
+   *  an unchanged one means the value was identical and a changed one only means it differed. */
+  elided_warning?: string | null;
+}
+
+/** `POST /projects/{pid}/recipes/replay-plan` — a PLAN, not an execution. Apply through
+ *  `POST /projects/{pid}/edit/batch`, which is what `note` says and why this carries no result. */
+export interface RecipeReplayPlan {
+  steps: { recipe: string; params: Record<string, unknown> }[];
+  count: number;
+  note: string;
+}
+
+/** One section↔detail cross-reference. A RESOLVED edge and a DANGLING one are the same shape; the
+ *  `reason` is present only on the dangling ones, and it is the field that decides what to do. */
+export interface DetailRefEdge {
+  from_sheet: string;
+  to_sheet: string;
+  detail: string;
+  /** `detail/sheet`, the form a callout is written in on a drawing. */
+  label: string;
+  /** `sheet_not_in_set` — a typo, or a sheet never issued. `detail_not_on_sheet` — almost always a
+   *  renumber that was not propagated, which is why the engine splits them: the fix differs. */
+  reason?: "sheet_not_in_set" | "detail_not_on_sheet";
+  /** The detail numbers that ARE on the target sheet — only on `detail_not_on_sheet`, and the
+   *  shortest route to the right number. Capped at 20 by the engine. */
+  available?: string[];
+}
+
+/** A detail nothing points at. Not an error on its own — but a detail nobody can reach is a detail
+ *  nobody will look at, and in an issued set that is usually a deleted callout. */
+export interface DetailRefOrphan {
+  sheet: string;
+  detail: string;
+  title: string;
+  scale: string;
+}
+
+/** A callout whose text could not be parsed as a reference at all. */
+export interface DetailRefUnparseable {
+  from_sheet: string;
+  text: string;
+}
+
+/**
+ * `GET /projects/{pid}/drawing-set/references` — the cross-reference graph of an issued set.
+ *
+ * `navigable` is `assessed and not dangling and not orphans and not unparseable`, and **`assessed`
+ * leads deliberately**: NEGATED-VERDICT found this verdict reporting `True` on a register with no
+ * references at all, with `test_detail_refs.py` asserting exactly that beside the word *"vacuously"*.
+ * A reader asking "is my set navigable?" was told yes by a set that had never been checked. So
+ * `assessed` is the declared coverage (`# COVERAGE: assessed` at the engine) and a consumer that
+ * renders the verdict without it is reported by `services/api/test_verdict_coverage.py`.
+ */
+export interface DetailRefGraph {
+  sheet_count: number;
+  detail_count: number;
+  /** Resolved + dangling. Not `edges.length` — that is the resolved half only. */
+  reference_count: number;
+  resolved: number;
+  edges: DetailRefEdge[];
+  dangling: DetailRefEdge[];
+  orphans: DetailRefOrphan[];
+  unparseable: DetailRefUnparseable[];
+  /** Was there anything to rule on? False means UNCHECKED, which is not the same as clean. */
+  assessed: boolean;
+  navigable: boolean;
+  /** The engine's own sentence for why nothing could be assessed. Render it verbatim. */
+  unassessed_reason: string | null;
+}
+
+/** One row of the `design_standard` register: a keyword a firm standardises on, and its status. */
+export interface DesignStandardItem {
+  name: string;
+  category: string;
+  /** `approved` · `preferred` · `prohibited`. A row with any other status is declared and inert —
+   *  the engine buckets only these three, so the audit never sees it. */
+  status: string;
+  discipline: string;
+  /** The keyword matched against an element's type name, material and material-ish psets. **A row
+   *  with no keyword cannot match anything**, which is why the engine filters prohibited rows on it
+   *  and why the counts below can be 0 with rules declared. */
+  match_keyword: string;
+  spec_reference: string;
+}
+
+/** `GET /projects/{pid}/design/standards` — the ruleset as declared, before any model. */
+export interface DesignStandardRuleset {
+  count: number;
+  items: DesignStandardItem[];
+  /** Keyed by the three statuses the engine buckets. */
+  by_status: Record<string, DesignStandardItem[]>;
+  note?: string;
+}
+
+/** One flagged element. `issue` is the engine's own sentence — it names the standard that fired. */
+export interface DesignStandardViolation {
+  guid: string;
+  type: string;
+  issue: string;
+}
+
+/**
+ * What the counts do NOT say. Supplied by the engine rather than reconstructed per screen, because
+ * the engine is the only place that knows both the cap and the total.
+ */
+export interface DesignStandardCoverage {
+  /** `prohibited_hits + unapproved` — the complete total, NOT `violations.length`. The loop stops
+   *  appending unapproved rows at `cap` while still counting them, so the list is short by design. */
+  flagged: number;
+  listed: number;
+  truncated: boolean;
+  cap: number;
+  /** Approved + preferred rows carrying a match keyword. **At 0, `unapproved` counts nothing** —
+   *  which is a different answer from "every element matched something approved". */
+  approved_declared: number;
+  /** Prohibited rows carrying a match keyword. At 0, `prohibited_hits` counts nothing. */
+  prohibited_declared: number;
+  reason: string;
+}
+
+/**
+ * `GET /projects/{pid}/design/standards/check` — the model audited against the ruleset.
+ *
+ * `model_scored: false` is the state a consumer must not render as a pass: the response then carries
+ * `prohibited_hits: 0` and `unapproved: 0` beside the ruleset, two zeros that look exactly like a
+ * clean audit on a project with no model loaded.
+ */
+export interface DesignStandardCheck {
+  model_scored: boolean;
+  elements: number;
+  prohibited_hits: number;
+  unapproved: number;
+  violations: DesignStandardViolation[];
+  ruleset: DesignStandardRuleset;
+  coverage: DesignStandardCoverage;
+  note: string;
+}
+
+/**
+ * `GET /projects/{pid}/cv-progress/status` — CV-BRIDGE-DARK.
+ *
+ * The site-photo progress bridge is feature-flagged and the platform never runs a vision model
+ * itself, so this route answers two operator questions and nothing else: *is it enabled*, and
+ * *what contract does my vision vendor implement*. Its two siblings — `…/ingest` and
+ * `…/ingest-batch` — are INBOUND machine doors with no browser caller by design, which is why
+ * only this one gains a client method.
+ */
+export interface CvBridgeStatus {
+  feature: string;
+  enabled: boolean;
+  note: string;
+  /** One estimate's fields, as the engine describes them: `{field: meaning}`. */
+  contract: Record<string, string>;
+  /** The sweep's envelope, same shape. */
+  batch_contract: Record<string, string>;
+  reference_adapter: string;
+}
+
+
+/**
+ * `GET /projects/{pid}/compliance/expiring` and `.../warranties/expiring` — EXPIRY-UNDATED.
+ *
+ * What the window did NOT look at. The counts RECONCILE to the population
+ * (`considered + missing_date + unreadable_date + skipped === population`), which is what makes
+ * them checkable rather than just more numbers: a reader who finds an empty `expiring` list can
+ * tell "nothing is lapsing" from "nothing was looked at".
+ *
+ * `missing_date` and `unreadable_date` stay separate because they ask different things of the
+ * reader — a blank field needs somebody to find the certificate, an unreadable one needs somebody
+ * to retype a date they believe they already entered.
+ */
+export interface ExpiryCoverage {
+  population: number;
+  considered: number;
+  missing_date: number;
+  unreadable_date: number;
+  unevaluated: number;
+  /** Present only where the route excludes records for a reason of its own (a closed permit). */
+  skipped?: number;
+  skipped_reason?: string;
+  reason: string;
+}
+
+
+/** One party in the stakeholder register, as the grid reports it. */
+export interface StakeholderBrief {
+  ref?: string;
+  name?: string;
+  organization?: string;
+  category?: string;
+  stance?: string;
+  /** `null` when the register field is blank — which is why `unassessed` exists. */
+  power: string | null;
+  interest: string | null;
+}
+
+export interface StakeholderQuadrant {
+  label: string;
+  advice: string;
+  count: number;
+  stakeholders: StakeholderBrief[];
+}
+
+/**
+ * `GET /projects/{pid}/stakeholders/analysis` — STAKEHOLDER-MEDIUM.
+ *
+ * The grid is a 2×2 and the register's `power` / `interest` are THREE-option selects, so `Medium`
+ * sits on the low side of both axes. `grid` states that split and the distribution under it, so a
+ * screen can say "12 of 15 are Medium" rather than presenting a wall of "Monitor" as a finding.
+ */
+export interface StakeholderGrid {
+  high_level: string;
+  levels: string[];
+  by_level: { power: Record<string, number>; interest: Record<string, number> };
+  /** Values outside the register's options, per axis — blank counts here too. */
+  unrecorded: { power: number; interest: number };
+  unassessed: number;
+  reason: string;
+}
+
+export interface StakeholderAnalysis {
+  total: number;
+  assessed: number;
+  /** Four Mendelow quadrants plus `unassessed`, which is NOT one of them. */
+  quadrants: Record<string, StakeholderQuadrant>;
+  stance: Record<string, number>;
+  supporter_pct: number | null;
+  by_category: Record<string, number>;
+  /** Every Blocker, at any power level. */
+  blockers: StakeholderBrief[];
+  /** The high-power subset of `blockers` — a subset, not a substitute. */
+  high_power_blockers: StakeholderBrief[];
+  grid: StakeholderGrid;
+  note: string;
+}
+
+
+/**
+ * One activity's standing as of a data date — `POST /projects/{pid}/schedule/status`.
+ *
+ * EVERY key is present on EVERY row whatever branch produced it, filled with `null` where it does
+ * not apply. That uniformity is the server's `_ROW_KEYS` contract and it was briefly untrue:
+ * `future_actual_ignored` was missing from the blank branch, so reading it raised server-side.
+ * ROWKEY-SUPERSET closed that, which is why this type can be non-optional here.
+ */
+export interface ScheduleStatusRow {
+  ref: string;
+  state: "complete" | "in_progress" | "not_started" | "unknown";
+  detail: string;
+  planned_start: string | null;
+  planned_finish: string | null;
+  actual_start: string | null;
+  actual_finish: string | null;
+  /** P6's Expected Finish — entered by the crew, so a CLAIM rather than a measurement. */
+  expected_finish: string | null;
+  /** Should have begun by the data date and has not. Only meaningful for unstarted work. */
+  late_to_start: boolean;
+  days_late_to_start: number | null;
+  /** Past its planned finish and NOT complete. An activity that finished late is not overdue. */
+  overdue: boolean;
+  days_overdue: number | null;
+  /** What already happened. Only a finished activity has one. */
+  actual_slip_days: number | null;
+  /** The crew's claim. Reported apart from `actual_slip_days` and never added to it. */
+  forecast_slip_days: number | null;
+  /** An actual date later than the data date was disregarded — stated, not silent. */
+  future_actual_ignored: boolean;
+}
+
+export interface ScheduleStatusReport {
+  /** `null` exactly when `checked` is false. */
+  data_date: string | null;
+  activities: ScheduleStatusRow[];
+  counts: { complete: number; in_progress: number; not_started: number; unknown: number };
+  late_to_start: string[];
+  overdue: string[];
+  forecast_slipping: string[];
+  /**
+   * False when no data date was supplied, and then NOTHING was assessed — not "nothing is late".
+   * A consumer that renders a clean verdict on `checked: false` prints a page of green over a
+   * schedule nobody measured.
+   */
+  checked: boolean;
+  note: string;
+}
+
+/**
+ * CX-CELL-FLAT — one cell of the commissioning system × phase wall chart.
+ *
+ * `pass` + `fail` + `conditional` + `no_result` **partition** `total`, which
+ * `services/api/test_cx.py` asserts per cell. Before this item the cell carried only `pass` and
+ * `fail`, so on ten Functional tests coming back five Conditional, two Pass, one Fail and two with
+ * nothing recorded, seven of the ten were in no bucket at all.
+ *
+ * `tested` and `accepted` are the two halves of the workflow and NOT the same question: `tested` is
+ * the contractor's transition, `accepted` is the Owner's. A cell at `0 accepted` over `0 tested` has
+ * not been started; one at `0 accepted` over `10 tested` is waiting on an owner signature. The grid
+ * rendered both as `0/10`.
+ */
+export interface CxCell {
+  total: number;
+  /** Contractor's half — workflow_state is `tested` or `accepted`. */
+  tested: number;
+  /** Owner's half. `complete_pct` is computed from this, not from `tested`. */
+  accepted: number;
+  pass: number;
+  fail: number;
+  /** Accepted with deficiencies — the state that generates the punch work. */
+  conditional: number;
+  /** No result recorded, or a value outside the declared three. Never read as a pass. */
+  no_result: number;
+}
+
+export interface CxMatrixRow {
+  system: string;
+  /** asset_register records carrying this system name. Zero is normal for a system with tests only. */
+  assets: number;
+  tests: number;
+  tested: number;
+  accepted: number;
+  conditional: number;
+  failed: number;
+  /** Owner acceptance over every test on the row, including any under an `extra_phases` column. */
+  complete_pct: number;
+  /** Keyed by every entry of the response's `phases`; `null` where the system has no test in it. */
+  phases: Record<string, CxCell | null>;
+}
+
+export interface CxMatrix {
+  systems: CxMatrixRow[];
+  /** The five declared phases plus `extra_phases`, so every counted test has a column. */
+  phases: string[];
+  /**
+   * Phases found in the data that are not among the five — `(unspecified)` for a test with no
+   * `test_type`, plus any free-form value. `module_schema.validate_record` treats select options as
+   * suggestions rather than a closed enum, so both are ordinary stored data, and a grid built on the
+   * five being exhaustive counted them in its row totals and showed them in no column.
+   */
+  extra_phases: string[];
+  system_count: number;
+  note: string;
+  /** Why an extra column can appear, and why an unreadable `result` is not a pass. */
+  test_result_basis: string;
+}

@@ -125,7 +125,45 @@ with TestClient(app) as c:
     assert fl["peak_manpower"]["count"] == 20 and fl["peak_manpower"]["date"] == "2026-06-02", fl
     assert fl["weather_lost_days"] == 1.5, fl                   # 0 + 0.5 + 1.0
     assert fl["delay_days"] == 1, fl
+    # FIELDLOG-WINDOW. This 100.0% is a TAUTOLOGY and the assertion used to read as if it were an
+    # achievement: `span_days` is the span of the LOGGED dates, so an unbroken run is 100% whatever
+    # the job's length. The note now says so, and the window travels with the figure.
     assert fl["span_days"] == 3 and fl["logged_days"] == 3 and fl["coverage_pct"] == 100.0, fl
+    assert "BETWEEN THE FIRST AND LAST REPORT" in fl["coverage_note"], fl["coverage_note"]
+    assert "not out of the job" in fl["coverage_note"], fl["coverage_note"]
+    # **AND THIS FIXTURE IS THE FLATTENED CASE, which is how the suite documented the defect as
+    # correct output.** `mk` leaves a daily report in the module's initial `draft` state and nothing
+    # transitions these three, so the route reports `coverage_pct: 100.0` with NOTHING submitted --
+    # and the assertion above asserted that 100% as an achievement for as long as it existed. *A
+    # test can pin a tautology and read like a measurement.*
+    assert fl["draft_count"] == 3 and fl["submitted_count"] == 0, fl
+
+    # The denominator is derived from the answer, demonstrated on the engine with the window held
+    # as the only variable. Driven through `summary` because the comparison needs three populations
+    # and a route test can only hold one project.
+    from aec_api import dailylog as _dl
+    def _rep(day, state="submitted"):
+        return {"ref": f"DR-{day}", "workflow_state": state,
+                "data": {"report_date": f"2026-03-{day:02d}", "manpower": 10}}
+    one = _dl.summary([_rep(10)])
+    run3 = _dl.summary([_rep(d) for d in (10, 11, 12)])
+    gappy = _dl.summary([_rep(d) for d in list(range(1, 11)) + list(range(22, 32))])
+    assert one["coverage_pct"] == 100.0 and one["span_days"] == 1, one
+    assert run3["coverage_pct"] == 100.0 and run3["span_days"] == 3, run3
+    assert gappy["coverage_pct"] == 64.5 and gappy["span_days"] == 31, gappy
+    # ...so 100% says NOTHING about length: one report and a three-day run agree, and a 200-day job
+    # logged for three days is indistinguishable from a three-day job logged in full.
+    assert one["coverage_pct"] == run3["coverage_pct"], (one, run3)
+
+    # AND DRAFTS COUNT TOWARD EVERYTHING. Three unsigned reports agree with three signed ones on
+    # every number the field-log card used to print; only `submitted_count`/`draft_count` differ,
+    # and neither was rendered.
+    drafts = _dl.summary([_rep(d, "draft") for d in (10, 11, 12)])
+    _printed = ("report_count", "coverage_pct", "total_manpower", "avg_manpower",
+                "weather_lost_days", "delay_days")
+    assert {k: drafts[k] for k in _printed} == {k: run3[k] for k in _printed}, (drafts, run3)
+    assert drafts["submitted_count"] == 0 and drafts["draft_count"] == 3, drafts
+    assert run3["submitted_count"] == 3 and run3["draft_count"] == 0, run3
 
     # --- Safety dashboard (OSHA rates) ----------------------------------------
     mk(c, pid, "incident", {"subject": "Cut hand", "date": "2026-06-02", "classification": "Recordable",
@@ -198,6 +236,32 @@ with TestClient(app) as c:
     assert at["overdue_count"] == 1 and at["completion_pct"] == 50.0, at
     assert at["meeting_count"] == 1 and at["last_meeting"] == "2026-06-10", at
 
+    # --- ACTION-SUBSET: a rollup over the whole register, beside numbers about the open subset ----
+    # `by_assignee` and `by_priority` count DONE items too, and every other number this route
+    # returns is about what is outstanding — so the only rollup that was declared pointed at
+    # whoever had finished the most. Already visible at two items: Super's one item is complete.
+    assert at["by_assignee"] == {"PM": 1, "Super": 1}, at["by_assignee"]
+    assert at["open_by_assignee"] == {"PM": 1}, at["open_by_assignee"]
+    assert at["by_priority"] == {"High": 1, "Medium": 1}, at["by_priority"]
+    assert at["open_by_priority"] == {"High": 1}, at["open_by_priority"]
+    # The two states partition the register, so the open rollup's total IS `open_count`.
+    assert at["by_state"] == {"open": 1, "done": 1}, at["by_state"]
+    assert sum(at["open_by_assignee"].values()) == at["open_count"], at
+    assert sum(at["open_by_priority"].values()) == at["open_count"], at
+    assert sum(at["by_assignee"].values()) == at["action_count"], at
+    assert "done or not" in at["rollup_basis"], at["rollup_basis"]
+    # Worst-first on the open rollup, because the question it answers is who to chase.
+    mk(c, pid, "action_item", {"subject": "Chase permit", "assignee": "PM", "priority": "High"})
+    mk(c, pid, "action_item", {"subject": "Book crane", "assignee": "Super", "priority": "Low"})
+    at2 = c.get(f"/projects/{pid}/action-items/tracker").json()
+    assert list(at2["open_by_assignee"]) == ["PM", "Super"], at2["open_by_assignee"]
+    assert at2["open_by_assignee"]["PM"] == 2, at2["open_by_assignee"]
+    # The ROW shape the client declares, which was `Record<string, unknown>` and forced a cast.
+    row = at2["rows"][0]
+    assert set(row) == {"ref", "subject", "assignee", "priority", "state", "due_date",
+                        "overdue"}, sorted(row)
+    assert row["overdue"] is True, "overdue rows sort first, so the first row is the overdue one"
+
     # --- Project-health executive rollup --------------------------------------
     h = c.get(f"/projects/{pid}/health").json()
     assert h["overall_status"] == "red", h           # overdue RFIs/NCRs/punch + recordable incidents
@@ -221,5 +285,8 @@ print("CONSTRUCTION-DEPTH OK - T&M rollup $10k (labor/material/equip split, bill
       "ball-in-court Consultant vs GC; field-log: 3 reports, 32 manpower, peak 20, 1.5 weather lost-days; "
       "safety: 3 incidents, 2 recordable, TRIR 4.0/DART 2.0 @100k hrs (est 256h from manpower); "
       "closeout: 2 punch (1 overdue, ball-in-court GC vs Sub), Cx pass 50%, 1 expired warranty; "
-      "CO log: $12k executed/$8k pending + $25k CE ROM; action tracker: 50% complete, 1 overdue; "
+      "CO log: $12k executed/$8k pending + $25k CE ROM; action tracker: 50% complete, 1 overdue, "
+      "with ACTION-SUBSET's open-scoped rollups beside the whole-register ones (by_assignee counts "
+      "done work, so the only declared rollup pointed at whoever had finished the most) and the row "
+      "shape pinned; "
       "project-health: RED rollup over 7 domains; all 10 dashboard/log PDFs render")

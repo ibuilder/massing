@@ -63,9 +63,24 @@ function sources(dir: string): string[] {
   return out;
 }
 
-/** Every `append(...)` / `appendChild(...)` argument list in a source, concatenated. */
+/** Every `append(...)` / `appendChild(...)` argument list in a source, concatenated.
+ *
+ *  **The capture is GREEDY, and it was lazy until MODELOPT-DARK.** `[^;]*?` stops at the FIRST
+ *  `)`, which inside a multi-argument append is the one closing the first NESTED call — so only
+ *  the first `someButton({…})` in an append was ever visible and every builder after it read as
+ *  unappended. `macroButton` passed this gate by being first in its list.
+ *
+ *  It surfaced as a false RED, which is the dangerous direction for a failure message: the second
+ *  builder was genuinely appended, and the gate said *"their result reaches no append()"*. A check
+ *  whose message can misdiagnose is worse than one that stays silent, because somebody acts on it
+ *  — here, by moving a correctly-wired button.
+ *
+ *  Greedy stops at the next `;`, which is the end of the append statement, so every nested call in
+ *  the list is seen. The remaining bound is a `;` INSIDE the argument list (an inline arrow body),
+ *  which truncates the same way — far rarer than a second nested call, and the self-test below
+ *  pins the case that actually bit. */
 function appendArgs(src: string): string {
-  return [...src.matchAll(/\.append(?:Child)?\(([^;]*?)\)/g)].map((m) => m[1]!).join(",");
+  return [...src.matchAll(/\.append(?:Child)?\(([^;]*)\)/g)].map((m) => m[1]!).join(",");
 }
 
 // The whole viewer tree is the consumer set. `app.ts` was the only file read before, which is why
@@ -142,6 +157,28 @@ describe("every button a section module returns is wired into the app", () => {
     const args = appendArgs(synthetic);
     expect(args, "the append scan did not see a button it was handed").toMatch(/\bwired\b/);
     expect(args, "the append scan reported a button that is in no append").not.toMatch(/\borphan\b/);
+  });
+
+  it("sees EVERY nested builder call in one append, not just the first", () => {
+    // MODELOPT-DARK. The lazy capture this replaced stopped at the first `)` — the one closing the
+    // first nested call — so a second builder in the same append was invisible and the gate
+    // reported it as appended nowhere. Measured against the real shape that bit: a multi-line
+    // `b.append(...)` with two builder calls in it.
+    const twoInOne = `
+      b.append(fix, nodeBtn,
+               firstButton({ api, pid }),
+               secondButton({ api, pid }),
+               out);
+    `;
+    const args = appendArgs(twoInOne);
+    expect(args, "the FIRST nested call must be seen").toMatch(/\bfirstButton\s*\(/);
+    expect(args, "the SECOND nested call must be seen too — this is the regression")
+      .toMatch(/\bsecondButton\s*\(/);
+    // ...and the lazy form it replaced could not: kept as the counter-example, so the reason for
+    // the greedy capture cannot be refactored away without this failing.
+    const lazy = (src: string) =>
+      [...src.matchAll(/\.append(?:Child)?\(([^;]*?)\)/g)].map((m) => m[1]!).join(",");
+    expect(lazy(twoInOne), "the old lazy capture missed the second call").not.toMatch(/\bsecondButton\b/);
   });
 
   it("does not count a builder that is REFERENCED in an append but never called", () => {

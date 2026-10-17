@@ -335,8 +335,17 @@ def _rent_roll(db: Session, pid: str, name: str) -> Report:
     from .. import rentroll
     rr = rentroll.rent_roll(db, pid)
     r = Report("Rent Roll", name)
-    r.kpi("Occupancy", f"{rr['occupancy_pct']}%")
+    # RENTROLL-BASIS. This KPI leaves the building, which makes it the worst of the four consumers
+    # of `occupancy_pct`: on a project with no rentable area the figure is 100% by construction and
+    # a lender has no way to know. The percentage is WITHHELD rather than restated in that case,
+    # because "100%" and "we never had a denominator" must not be the same ink.
+    if rr.get("occupancy_basis") == "leased":
+        r.kpi("Occupancy", "n/a - no rentable area on file")
+    else:
+        r.kpi("Occupancy", f"{rr['occupancy_pct']}%")
     r.kpi("Leases", rr["lease_count"])
+    r.kpi("Rentable SF", f"{rr['total_rentable_sf']:,}"
+                         if rr.get("occupancy_basis") != "leased" else "not set")
     r.kpi("Occupied SF", f"{rr['occupied_sf']:,}")
     r.kpi("Base rent / yr", _money(rr["base_rent_annual"]))
     r.kpi("In-place income", _money(rr["in_place_gross_income"]))

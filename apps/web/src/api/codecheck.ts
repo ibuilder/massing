@@ -18,6 +18,52 @@ import { withJurisdiction } from "./jurisdiction";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** The three shared query parameters, built once so the JSON summary and the drawing cannot drift
+ *  apart — a plan showing one grid resolution beside a table computed on another is worse than
+ *  either alone. */
+function _egressQuery(o: { elevation?: number; maxTravelM?: number; cell?: number }): string {
+  const q = new URLSearchParams();
+  if (o.elevation != null) q.set("elevation", String(o.elevation));
+  if (o.maxTravelM != null) q.set("max_travel_m", String(o.maxTravelM));
+  if (o.cell != null) q.set("cell", String(o.cell));
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+/**
+ * The routed-egress response. Declared once; `egress_route.analyze` returns it and the route strips
+ * its two SVG-only keys (`path` per space, and the private `_exits_xy`).
+ *
+ * `routed: false` carries `note` and nothing else meaningful — the summary fields are absent, which
+ * is why they are optional here rather than zero. *A refusal that types as 0 spaces and 0 exits is a
+ * refusal a consumer will render as a clean building.*
+ */
+export interface EgressRoutes {
+  routed: boolean;
+  note: string;
+  elevation?: number;
+  cell_m?: number;
+  max_travel_m?: number;
+  exits?: number;
+  spaces?: number;
+  /** Reachable spaces within the limit. NOT `spaces - over_limit`: `unreachable` is a third state. */
+  compliant?: number;
+  over_limit?: number;
+  /** No route to any exit at all — a worse finding than over-limit, and never folded into it. */
+  unreachable?: number;
+  worst_travel_m?: number | null;
+  max_detour_ratio?: number | null;
+  results?: {
+    guid: string; name: string | null;
+    straight_line_m: number;
+    travel_m: number | null;
+    compliant: boolean;
+    unreachable: boolean;
+    detour_ratio?: number | null;
+    detail?: string;
+  }[];
+}
+
 /**
  * `withJurisdiction` is composed HERE rather than in `client.ts`'s top-level chain, and not for
  * tidiness: that chain sits at TypeScript's instantiation ceiling, and a fifty-first `withX()` on it
@@ -66,6 +112,14 @@ export function withCodeCheck<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/codes/adoptions?jurisdiction=${encodeURIComponent(jurisdiction)}`);
   }
 
+  /** CODE-1: the USPS state codes that have a specific adoption seed — everywhere else resolves to
+   *  the national baseline. The route shipped with `codeAdoptions` and had no client method at all,
+   *  which is what made that method's refusal a dead end: "nothing is seeded for WY" reads as a
+   *  claim about Wyoming until you can see the list it is missing from. */
+  codeSeeded() {
+    return this.json<{ jurisdictions: string[] }>(`/codes/seeded`);
+  }
+
   /** CODE-EBC: classify an existing-building scope under the IEBC Work Area Method. `infer` first-guesses
    * the scope from the model's phasing (existing vs new/demolish); explicit flags override the guess. */
   ebcClassify(pid: string, opts: { jurisdiction?: string; infer?: boolean; adds_area?: boolean;
@@ -101,6 +155,35 @@ export function withCodeCheck<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ checks: { check: string; citation: string; status: string; detail: string; guids?: string[] }[];
       summary: { passed: number; failed: number; gating: number; ready: boolean; score_pct: number | null };
       disclaimer: string }>(`/projects/${pid}/codecheck/approvability`);
+  }
+
+  /**
+   * EGRESS-TRAVEL — routed travel distance to the nearest exit, per space (IBC 1017).
+   *
+   * **This is the measurement `codecheckEgress` deliberately excludes.** `codecheck_egress.py` says
+   * in its own header that *"travel-distance / performance-based egress are out of scope"*, and the
+   * only travel number anywhere else in the app is `testFitCompare`'s — a formula over an idealised
+   * rectangle (`plate_w / (2 · stairs) + plate_d / 2`) for the massing stage. This routes over the
+   * **actual floor plate** from the IFC.
+   *
+   * Three states, and a consumer must keep them apart. `routed: false` is a refusal with a reason —
+   * no geometry, or no door marked `IsExternal`, where the engine declines to route to an arbitrary
+   * door rather than produce confident meaningless distances. `unreachable` is a space with no route
+   * to any exit, a worse finding than being over the limit and never folded in with it. And
+   * `detour_ratio` is routed ÷ straight-line: how much a straight line understated that walk.
+   *
+   * `max_travel_m` is a parameter because the IBC limit is occupancy- and sprinkler-dependent; 61 m
+   * (200 ft) is 1017.2 sprinklered Business. `cell_m` comes back in the response because a grid
+   * cannot resolve a gap narrower than one cell.
+   *
+   * The per-space polylines are NOT here — `egressPlanUrl` is their surface.
+   */
+  egressRoutes(pid: string, opts: { elevation?: number; maxTravelM?: number; cell?: number } = {}) {
+    return this.json<EgressRoutes>(`/projects/${pid}/egress/routes${_egressQuery(opts)}`);
+  }
+  /** The routed egress plan as SVG — walls, exits and each space's path, coloured by outcome. */
+  egressPlanUrl(pid: string, opts: { elevation?: number; maxTravelM?: number; cell?: number } = {}) {
+    return this.url(`/projects/${pid}/egress/plan.svg${_egressQuery(opts)}`);
   }
 
   codecheckEgressBcf(pid: string) {

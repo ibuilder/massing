@@ -260,14 +260,71 @@ with TestClient(app) as c:
         "spine.traceability must use the shared spec-section rule, not its own copy"
     assert specs_engine.SPEC_SECTION_WITHDRAWN == ("void",), specs_engine.SPEC_SECTION_WITHDRAWN
 
+    # ---- 6. changeorders.co_log: a REJECTED change order is not exposure -------------------------
+    #
+    # CO-REJECTED, and the sixth instance of a class whose gate said it *"covers the remaining five
+    # and is the gate that keeps the class from re-opening."* It did not cover `cor`, because its
+    # population is a hand-made list — **26 of the 139 modules declare a refusal-shaped state and
+    # this file names five.** *A gate over an enumerated population reports on what somebody
+    # remembered to enumerate*, which is the measurement the derivation this still needs starts
+    # from.
+    #
+    # What made this one different from the five above: the engine treated the SAME refusal two
+    # ways inside one function. `total_schedule_days` already excluded the rejected days; `total`
+    # accumulated unconditionally. So the report printed four of five money figures and the
+    # unnamed fifth was the refused one.
+    co_live = _mk(c, pid, "cor", {"subject": "Executed change", "amount": 100000,
+                                  "schedule_days": 5, "reason": "Owner change"})
+    co_gone = _mk(c, pid, "cor", {"subject": "Refused change", "amount": 400000,
+                                  "schedule_days": 30, "reason": "Owner change"})
+    for a in ("submit", "approve", "execute"):
+        _act(c, pid, "cor", co_live["id"], a)
+    _act(c, pid, "cor", co_gone["id"], "submit")
+
+    # POSITIVE CONTROL: while submitted, the $400k really IS the pipeline — it drives `pending_value`
+    # and its 30 days really are in the schedule total. Without this, the assertions below could
+    # pass on a COR that never counted for anything.
+    co = c.get(f"/projects/{pid}/change-orders/log").json()
+    assert co["pending_value"] == 400000.0, co["pending_value"]
+    assert co["total_schedule_days"] == 35.0, co["total_schedule_days"]
+    assert co["live_value"] == 500000.0, co["live_value"]
+
+    _act(c, pid, "cor", co_gone["id"], "reject")
+
+    co = c.get(f"/projects/{pid}/change-orders/log").json()
+    # The refusal moves every figure derived from the live set, and the gate's second rule is that
+    # it must RECONCILE: the filtered population plus the excluded one equals the total the same
+    # response reports.
+    assert co["pending_value"] == 0.0, co["pending_value"]
+    assert co["live_value"] == 100000.0, co["live_value"]
+    assert co["rejected_value"] == 400000.0, co["rejected_value"]
+    assert co["total_value"] == co["live_value"] + co["rejected_value"], co
+    assert co["live_value"] == (co["pending_value"] + co["approved_value"]
+                                + co["executed_value"]), co
+    # The schedule side was already right and is now auditable: 5 live, 30 excluded, and both
+    # published so the asymmetry with `total_value` can be seen from the response alone.
+    assert co["total_schedule_days"] == 5.0, co["total_schedule_days"]
+    assert co["rejected_schedule_days"] == 30.0, co["rejected_schedule_days"]
+    # `total_value` deliberately still counts it — volume of change is a real question — which is
+    # why the live figure exists rather than the total being quietly redefined under somebody's
+    # saved report.
+    assert co["total_value"] == 500000.0, co["total_value"]
+    # Still a row, still in `by_state`, so the refusal is visible rather than the record vanishing.
+    assert co["by_state"].get("rejected") == 1, co["by_state"]
+    assert any(r["ref"] == co_gone["ref"] and r["state"] == "rejected" for r in co["rows"]), co["rows"]
+
     # ---- the class's own invariant: refusal rules are CONSTANTS, not inline string literals -------
     # Every fix in this class named its rule. That is what makes a record type with several readers
     # survivable — v0.3.1122's owner_invoice had five, v0.3.1123's design_option three, and the
     # spec_section rule here has two. A rule spelled out inline in each reader is a rule with N
     # places to rot.
-    from aec_api import approval_conditions, design_options, prequalification, project_budget, rfi
+    from aec_api import approval_conditions, changeorders, design_options, prequalification, project_budget, rfi
     for mod, name, expected in (
         (project_budget, "OWNER_INVOICE_NOT_BILLED", ("rejected",)),
+        # `co_log` tested `"rejected"` as a bare literal in two places that had come to disagree —
+        # the money total counted it, the schedule total did not. Exactly the N-places-to-rot the
+        # paragraph above describes, found in the one reader that had no named rule.
+        (changeorders, "COR_REFUSED", ("rejected",)),
         (design_options, "DESIGN_OPTION_NOT_IN_CONTENTION", ("rejected",)),
         (rfi, "RFI_WITHDRAWN", ("void",)),
         (prequalification, "PREQUAL_NOT_IN_POOL", ("rejected",)),
@@ -277,4 +334,6 @@ with TestClient(app) as c:
         got = getattr(mod, name, None)
         assert got == expected, f"{mod.__name__}.{name}: {got!r} != {expected!r}"
 
-print("refusal-readers gate OK — 5 instances + the dead turnaround metric, all positive-controlled")
+print("refusal-readers gate OK — 6 instances + the dead turnaround metric, all positive-controlled "
+      "(and the population is still a hand-made list: 26 of 139 modules declare a refusal-shaped "
+      "state, so this covers six of them by name rather than by derivation)")

@@ -11,6 +11,7 @@ for _f in ("./test_precon.db",):
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from aec_api import precon  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
 
@@ -66,6 +67,41 @@ with TestClient(app) as c:
     assert dl["disputed_count"] == 1, dl
     assert dl["open_cost_exposure"] == 100000 and dl["open_schedule_exposure_days"] == 10, dl
 
+    # --- DECISION-AXES: a STATE count and an ALIGNMENT count are not one series ------------------
+    # The screen printed `N decisions · N open · N disputed` in a row, which a reader takes as three
+    # slices of the same total. `open` / `decided` / `superseded` are states and DO partition the
+    # register; `disputed` is an alignment that cuts across all three, and a disputed decision that
+    # has already been DECIDED is a claim-exposure question rather than a pending action.
+    d3 = mk(c, pid, "decision", {"subject": "Facade colour", "category": "Design",
+                                 "cost_impact": 1000, "alignment": "Disputed"})
+    trans(c, pid, "decision", d3, "decide")        # disputed AND decided — the case that was invisible
+    d4 = mk(c, pid, "decision", {"subject": "Superseded HVAC scheme", "category": "Systems",
+                                 "cost_impact": 50000, "alignment": "Aligned"})
+    trans(c, pid, "decision", d4, "decide")
+    trans(c, pid, "decision", d4, "supersede")
+    dx = c.get(f"/projects/{pid}/precon/decisions").json()
+    assert dx["decision_count"] == 4, dx["decision_count"]
+    # The three STATES account for the register with nothing left over. `open + decided` alone came
+    # to 3 of 4, and `superseded_count` was undeclared so nothing could say where the fourth went.
+    assert dx["open_count"] + dx["decided_count"] + dx["superseded_count"] == dx["decision_count"], dx
+    assert (dx["open_count"], dx["decided_count"], dx["superseded_count"]) == (1, 2, 1), dx
+    assert dx["by_status"] == {"open": 1, "decided": 2, "superseded": 1}, dx["by_status"]
+    # The alignment split, which is the distinction the one-series headline destroyed.
+    assert dx["disputed_count"] == 2, dx["disputed_count"]
+    assert dx["disputed_open"] == 1 and dx["disputed_decided"] == 1, dx
+    assert dx["disputed_open"] + dx["disputed_decided"] == dx["disputed_count"], dx
+    # And disputed is NOT a slice of the states: its total overlaps them rather than extending them.
+    assert dx["disputed_count"] <= dx["decision_count"], dx
+    assert "cuts across" in dx["axis_basis"], dx["axis_basis"]
+    # `by_category` — which trade the decisions cluster in — was dark on a precon decision log.
+    assert dx["by_category"] == {"Design": 2, "Systems": 2}, dx["by_category"]
+    # The row list is bounded and the bound declared; the counts stay over the whole register.
+    assert dx["rows_truncated"] is False and dx["max_rows"] == precon.MAX_DECISION_ROWS == 500
+    assert len(dx["rows"]) == dx["decision_count"], (len(dx["rows"]), dx["decision_count"])
+    # A superseded decision is neither open nor the current answer, so it is in neither count AND
+    # contributes nothing to the open exposure — $50,000 of it.
+    assert dx["open_cost_exposure"] == 100000, dx["open_cost_exposure"]
+
     mk(c, pid, "assumption", {"subject": "Unsuitable soils allowance", "category": "Allowance", "cost_impact": 50000})
     a2 = mk(c, pid, "assumption", {"subject": "Owner-furnished FF&E excluded", "category": "Exclusion"})
     trans(c, pid, "assumption", a2, "confirm")
@@ -96,12 +132,87 @@ with TestClient(app) as c:
         rp = c.get(f"/projects/{pid}/reports/{rid}.pdf")
         assert rp.status_code == 200 and rp.content[:4] == b"%PDF", (rid, rp.status_code)
 
+    # --- VE-DARK: a money total is a sum over the rows that HAVE a figure -------------------
+    # `_num` returns 0.0 for anything unparseable, so a record with no figure is counted in
+    # `open_count` / `ve_count` and adds nothing to the money beside it. These are the counts that
+    # let a screen say so, and the distinction they rest on is ABSENT versus ZERO: a decision whose
+    # cost impact is genuinely 0 is a priced decision and must NOT be reported as missing one.
+    pid3 = c.post("/projects", json={"name": "Precon coverage"}).json()["id"]
+
+    # THE INPUTS ARE MEASURED, not imagined. `modules` validates these fields on write and refuses
+    # 'TBD' and whitespace-only with 422, so the only "no figure" states reachable through the
+    # register are a MISSING field and an EMPTY STRING. `_num_or_none`'s unparseable branch is
+    # defence for the import and seed paths that do not pass the module validator, and claiming a
+    # garbage string as a register state would have been a defect nobody can produce.
+    mk(c, pid3, "decision", {"subject": "No figure yet", "category": "Systems"})          # absent
+    mk(c, pid3, "decision", {"subject": "Costs nothing", "category": "Design",
+                             "cost_impact": 0, "schedule_impact_days": 0})                # a real zero
+    mk(c, pid3, "decision", {"subject": "Blank string", "cost_impact": ""})               # absent
+    # A BOOLEAN IS ACCEPTED on write (measured: 201), and `float(True)` is 1.0 — so under the old
+    # `_num` a stray flag in a money column became one dollar of exposure.
+    mk(c, pid3, "decision", {"subject": "Flag not a figure", "cost_impact": True})
+    mk(c, pid3, "decision", {"subject": "Priced", "cost_impact": 75000,
+                             "schedule_impact_days": 5})                                  # priced
+    dl3 = c.get(f"/projects/{pid3}/precon/decisions").json()
+    assert dl3["decision_count"] == 5 and dl3["open_count"] == 5, dl3
+    assert dl3["open_cost_exposure"] == 75000, dl3            # the one priced row, nothing implied
+    assert dl3["open_without_cost_impact"] == 3, dl3          # absent, blank, garbage - NOT the zero
+    assert dl3["open_without_schedule_impact"] == 3, dl3      # blank + the two that never set one
+    priced = next(r for r in dl3["rows"] if r["subject"] == "Priced")
+    zero = next(r for r in dl3["rows"] if r["subject"] == "Costs nothing")
+    absent = next(r for r in dl3["rows"] if r["subject"] == "No figure yet")
+    assert priced["cost_impact_given"] is True and priced["cost_impact"] == 75000, priced
+    assert zero["cost_impact_given"] is True and zero["cost_impact"] == 0.0, zero   # ZERO IS A FIGURE
+    assert absent["cost_impact_given"] is False and absent["cost_impact"] == 0.0, absent
+    flag = next(r for r in dl3["rows"] if r["subject"] == "Flag not a figure")
+    assert flag["cost_impact_given"] is False and flag["cost_impact"] == 0.0, flag   # not $1
+
+    mk(c, pid3, "assumption", {"subject": "Allowance", "category": "Allowance", "cost_impact": 40000})
+    mk(c, pid3, "assumption", {"subject": "No number", "category": "Exclusion"})
+    asm3 = c.get(f"/projects/{pid3}/precon/assumptions").json()
+    assert asm3["open_count"] == 2 and asm3["open_cost_exposure"] == 40000, asm3
+    assert asm3["open_without_cost_impact"] == 1 and asm3["rows_without_cost_impact"] == 1, asm3
+
+    # THE SHARP ONE: `target_met` is `accepted >= target`, so an ACCEPTED idea with no savings
+    # figure makes a `false` ambiguous between "nobody recorded the numbers" and "the ideas do not
+    # close the gap" - two readings with opposite remedies.
+    w1 = mk(c, pid3, "value_engineering", {"subject": "Priced idea", "savings": 40000})
+    trans(c, pid3, "value_engineering", w1, "accept")
+    w2 = mk(c, pid3, "value_engineering", {"subject": "Accepted, never priced"})
+    trans(c, pid3, "value_engineering", w2, "accept")
+    mk(c, pid3, "value_engineering", {"subject": "Proposed, never priced"})
+    ve3 = c.get(f"/projects/{pid3}/precon/ve?target=250000").json()
+    assert ve3["ve_count"] == 3 and ve3["accepted_savings"] == 40000, ve3
+    assert ve3["target_met"] is False and ve3["gap_after_accepted"] == 210000, ve3
+    assert ve3["rows_without_savings"] == 2, ve3
+    assert ve3["accepted_without_savings"] == 1, ve3          # the one that makes the verdict moot
+    unpriced = next(r for r in ve3["rows"] if r["subject"] == "Accepted, never priced")
+    assert unpriced["savings_given"] is False and unpriced["savings"] == 0.0, unpriced
+
+    # a register with every figure present reports no gap in its coverage, so the caveat is absent
+    # rather than permanently on - a warning that never turns off is one nobody reads.
+    pid4 = c.post("/projects", json={"name": "Precon fully priced"}).json()["id"]
+    mk(c, pid4, "decision", {"subject": "Priced", "cost_impact": 10, "schedule_impact_days": 1})
+    dl4 = c.get(f"/projects/{pid4}/precon/decisions").json()
+    assert dl4["open_without_cost_impact"] == 0 and dl4["open_without_schedule_impact"] == 0, dl4
+
     # empty project -> clean zeroed structure (no crash)
     pid2 = c.post("/projects", json={"name": "Empty precon"}).json()["id"]
     e = c.get(f"/projects/{pid2}/precon/estimate-continuity").json()
     assert e["set_count"] == 0 and e["latest_total"] == 0.0 and e["variance_to_budget"] is None, e
+    # ...and an EMPTY VE log against a target: `target_met` is False because `accepted` is 0, which
+    # is arithmetically right and reads as a shortfall. The coverage counts are what let the screen
+    # say "nothing recorded" instead, so they must be zeroed rather than absent here.
+    ve0 = c.get(f"/projects/{pid2}/precon/ve?target=100000").json()
+    assert ve0["ve_count"] == 0 and ve0["target_met"] is False, ve0
+    assert ve0["rows_without_savings"] == 0 and ve0["accepted_without_savings"] == 0, ve0
 
 print("PRECON OK - estimate continuity (Concept->SD->DD, $/SF 250, drift +2.5M/25%, +500k OVER $12M); "
       "decision log (1 open/disputed, $100k+10d exposure); assumptions (1 open, $50k allowance); VE cycle "
       "($300k accepted vs $500k gap -> $200k remaining); alignment RED w/ score; 4 precon reports render; "
-      "empty project zeroed")
+      "empty project zeroed; VE-DARK coverage counts (3 of 5 open decisions unpriced with a REAL ZERO "
+      "excluded, 1 accepted VE idea unpriced so target_met is moot, 0 where every figure is present). "
+      "DECISION-AXES: open/decided/superseded are STATES that partition the register (1+2+1 of 4, "
+      "where open+decided alone came to 3 and superseded_count was undeclared), and `disputed` is an "
+      "ALIGNMENT cutting across them - 2 disputed of which 1 is already DECIDED, a claim-exposure "
+      "question the one-series headline rendered as a pending action")

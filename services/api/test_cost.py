@@ -97,6 +97,57 @@ with TestClient(app) as c:
     lwpdf = c.get(f"/projects/{pid}/cost/lien-waiver.pdf", params={"kind": "conditional_progress", "app_no": 2}).content
     assert lwpdf[:5] == b"%PDF-" and len(lwpdf) > 1200, len(lwpdf)
 
+    # ---- LIEN-PLACEHOLDER: the brackets, on both sides of the behaviour ------------------------
+    # A statutory lien waiver releases mechanics-lien, stop-payment-notice and payment-bond rights.
+    # `claimant`, `customer` and `through_date` have always been parameters of both routes, and
+    # **nothing in the web app passed any of them** — so every waiver this product produced rendered
+    # the placeholders literally, in the JSON and in the downloadable PDF alike. The assertions
+    # above pass the parties and never checked that passing them WORKS; the PDF assertion passes
+    # none and checks only that the bytes are a PDF.
+    _TOKENS = ("[Claimant]", "[Customer]", "[Owner]", "[date]", "[Project]")
+
+    # ① with the parties given, no bracket survives — on any of the four forms. A progress release
+    #    needs the through date and a final one does not, so both are supplied and the assertion is
+    #    the same for all four: the document must read as a document.
+    for kind in ("conditional_progress", "unconditional_progress", "conditional_final",
+                 "unconditional_final"):
+        full = c.get(f"/projects/{pid}/cost/lien-waiver",
+                     params={"kind": kind, "app_no": 2, "claimant": "ACME Concrete",
+                             "customer": "Owner LLC", "through_date": "2026-06-30"}).json()
+        text = f"{full['body']}\n{full['notice']}"
+        assert not [t for t in _TOKENS if t in text], (kind, [t for t in _TOKENS if t in text])
+        # and the exceptions carve-out is there to be rendered — a release read without it is read
+        # as unconditional
+        assert "excepted from this release" in full["exceptions"], full["exceptions"]
+        assert full["signature_block"]["claimant_title"], full["signature_block"]
+
+    # ② WITHOUT them the brackets are there, and that is asserted rather than described — it is the
+    #    exact condition `apps/web/src/portal/panels/lienWaiverRead.ts` withholds the PDF on, and a
+    #    guard whose trigger condition is untested is a guard nobody knows still fires.
+    bare = c.get(f"/projects/{pid}/cost/lien-waiver",
+                 params={"kind": "conditional_progress", "app_no": 2}).json()
+    bare_text = f"{bare['body']}\n{bare['notice']}"
+    assert [t for t in ("[Claimant]", "[Customer]", "[Owner]", "[date]") if t in bare_text] \
+        == ["[Claimant]", "[Customer]", "[Owner]", "[date]"], bare_text[:400]
+
+    # ③ THE PDF IS THE ARTIFACT SOMEBODY SIGNS, so it is checked as text, not as bytes. The
+    #    bare one carries the brackets — which is why the UI refuses to offer it — and the filled
+    #    one carries the parties instead.
+    import io as _lio
+
+    from pypdf import PdfReader as _LR
+    bare_pdf = c.get(f"/projects/{pid}/cost/lien-waiver.pdf",
+                     params={"kind": "conditional_progress", "app_no": 2}).content
+    bare_pdf_text = _LR(_lio.BytesIO(bare_pdf)).pages[0].extract_text()
+    assert "[Claimant]" in bare_pdf_text and "[date]" in bare_pdf_text, bare_pdf_text[:300]
+    full_pdf = c.get(f"/projects/{pid}/cost/lien-waiver.pdf",
+                     params={"kind": "conditional_progress", "app_no": 2,
+                             "claimant": "ACME Concrete", "customer": "Owner LLC",
+                             "through_date": "2026-06-30"}).content
+    full_pdf_text = _LR(_lio.BytesIO(full_pdf)).pages[0].extract_text()
+    assert not [t for t in _TOKENS if t in full_pdf_text], [t for t in _TOKENS if t in full_pdf_text]
+    assert "ACME Concrete" in full_pdf_text and "2026-06-30" in full_pdf_text, full_pdf_text[:300]
+
     # ---- eTicket T&M builder (priced from rate tables) ----------------------
     # TM-RATES: the ticket's OWN line tables are what get priced. This fixture used to file a
     # ticket with NO lines and pass a separate `lines` payload, which is the one shape in which the

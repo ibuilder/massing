@@ -2,9 +2,10 @@ import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 import type { PrefabKit } from "../../api/prefab";
+import { HttpError } from "../../api/httpCore";
 import {
   blockerLabel, driftLine, freezeConfirm, freezeGate, freezeSummary, modelCaveat, registerHeadline,
-  scopeNote,
+  scopeNote, staleScopeNote,
 } from "./prefabKits";
 
 /**
@@ -104,11 +105,34 @@ export async function renderPrefabKits(ctx: PanelContext) {
         btn.disabled = true;
         let written;
         try {
-          written = await ctx.host.api.prefabFreeze(pid, String(kit.id));
+          // PREFAB-FREEZE-RACE -- send the token from the read THIS CARD was built from, never a
+          // fresh one. A re-read here would produce a token for numbers nobody has seen and the
+          // precondition would pass over exactly the change it exists to catch, which is the
+          // shape of every "writing the guard is not applying it" finding in this directory.
+          written = await ctx.host.api.prefabFreeze(pid, String(kit.id), kit.scope_version);
         } catch (e) {
           btn.disabled = false;
-          // The server answers a refusal with its own fixed literal -- show that, not a generic
-          // failure, because it names which of the four refusals applied.
+          // 409 IS NOT A FAILURE, it is the precondition doing its job, and it has a recovery the
+          // other refusals do not: re-read the kit, swap the card for the new numbers, and let the
+          // reader decide again. Keyed on the STATUS rather than the message because the server's
+          // 409 for the record half comes from `modules.update_record`, whose detail is a dict that
+          // `httpCore.json` cannot surface as a sentence -- two bodies, one recovery.
+          if (e instanceof HttpError && e.status === 409) {
+            try {
+              const fresh = await ctx.host.api.prefabKit(pid, String(kit.id));
+              // Re-confirm by showing the new numbers and requiring a DELIBERATE second click,
+              // rather than popping a second confirm() immediately. The reader has to see what
+              // moved to judge it, and a dialog stacked on a dialog is the thing browsers suppress.
+              card.replaceWith(kitCard(fresh, modelLoaded));
+              ctx.host.setStatus(staleScopeNote(kit, fresh));
+            } catch {
+              ctx.host.setStatus("the scope moved while the confirmation was open and nothing was "
+                + "written; the kit could not be re-read, so reopen this register before retrying");
+            }
+            return;
+          }
+          // The server answers its other refusals with a fixed literal -- show that, not a generic
+          // failure, because it names which one applied.
           ctx.host.setStatus(`could not write the scope: ${(e as Error).message}`);
           return;
         }

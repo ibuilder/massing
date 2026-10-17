@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describePlan, planApply, type LockVariable } from "./dimLocks";
+import { describePlan, planApply, planSteps, type LockVariable } from "./dimLocks";
 
 /**
  * R38-SOLVER-LOCKS — the mapping from solved scalars to element edits.
@@ -117,5 +117,39 @@ describe("an unchanged variable is not an edit", () => {
     // The paired control: an epsilon that swallowed real edits would pass the test above forever.
     const p = planApply([wall()], { "w.thickness": 0.2 + 1e-3 });
     expect(p.writes).toHaveLength(1);
+  });
+});
+
+/**
+ * BATCH-DARK — the `op` → `recipe` rename, checked rather than assumed.
+ *
+ * A write calls its recipe `op`; an `/edit/batch` step calls it `recipe`. Posting `{op, params}`
+ * would make FastAPI see no `recipe` key and fail every step on a field nobody wrote — the kind of
+ * one-line mapping that breaks silently, which is why it is a function with a test instead of a
+ * `.map` at the call site.
+ */
+describe("planSteps — the batch step list", () => {
+  const w = (op: string, params: Record<string, unknown>) =>
+    ({ op, params, variable: op, target: 0 } as unknown as ReturnType<typeof planApply>["writes"][number]);
+
+  it("renames `op` to `recipe` and keeps params untouched", () => {
+    expect(planSteps({ writes: [w("set_pset", { value: 3 })], refused: [] }))
+      .toEqual([{ recipe: "set_pset", params: { value: 3 } }]);
+  });
+
+  it("keeps the order the plan was built in", () => {
+    expect(planSteps({ writes: [w("a", {}), w("b", {}), w("c", {})], refused: [] })
+      .map((s) => s.recipe)).toEqual(["a", "b", "c"]);
+  });
+
+  it("carries NO refusals into the batch — a refusal is not a step", () => {
+    // `refused` is the half the solver reports separately and must never be posted as work.
+    const steps = planSteps({ writes: [w("a", {})],
+                              refused: [{ variable: "x", reason: "no value" }] });
+    expect(steps).toHaveLength(1);
+  });
+
+  it("is empty for an empty plan, so the caller can refuse before posting", () => {
+    expect(planSteps({ writes: [], refused: [] })).toEqual([]);
   });
 });

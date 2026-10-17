@@ -1,4 +1,8 @@
 import { esc, usd } from "../../ui/charts";
+import { benchmarkRows, benchmarkScope, portfolioLine } from "./spaceBenchmark";
+import {
+  TONE_CSS as SCOPE_TONE, aggregatePrefixCaveat, rankedPrefixCaveat, scopeLine,
+} from "./portfolioScope";
 import type { PanelContext } from "../panelContext";
 
 /**
@@ -188,8 +192,18 @@ export async function renderPortfolio(ctx: PanelContext) {
         + `${rp.projects.length} project(s) · ${rp.trades.length} trade(s)`
         + (rp.peak ? ` · peak ${rp.peak.units} concurrent units in ${esc(rp.peak.week)}` : "")
         + (f.fallback ? ` · ${f.assigned} assigned / ${f.fallback} from crew counts` : "")
-        + (rp.truncated ? ` · showing ${rp.project_count} of ${rp.projects_available}` : "")
+        // PREFIX-RANKED, the other half. The same prefix, and here it bounds a MAX: `peak` is the
+        // highest weekly concurrent demand summed across projects, so over a prefix it is a lower
+        // bound presented as the peak — and this engine's own note never mentions the prefix, so
+        // the caveat exists in no sentence anywhere until this one.
+        + (scopeLine(rp) ? ` · ${esc(scopeLine(rp)!)}` : "")
         + `</span>`;
+      const peakCaveat = aggregatePrefixCaveat(rp, "Peak concurrent demand");
+      if (peakCaveat) {
+        card.insertAdjacentHTML("beforeend",
+          `<div class="meta" style="color:${SCOPE_TONE[peakCaveat.tone]}">`
+          + `${esc(peakCaveat.text)}</div>`);
+      }
       const tbl = document.createElement("table"); tbl.className = "portal-table"; tbl.style.fontSize = "11px";
       tbl.innerHTML = `<thead><tr><th scope="col">Trade / discipline</th>`
         + `<th scope="col" style="text-align:right">Peak</th><th scope="col">Peak week</th>`
@@ -284,8 +298,18 @@ export async function renderPortfolio(ctx: PanelContext) {
         + ` · ${hm.totals.high} high / ${hm.totals.medium} medium / ${hm.totals.low} low`
         + (cov.pct == null ? "" : ` · ${cov.pct}% of cells measured`)
         + (cov.errored || cov.unknown ? ` · ${cov.errored + cov.unknown} unavailable` : "")
-        + (hm.truncated ? ` · showing ${hm.project_count} of ${hm.projects_available}` : "")
+        // PREFIX-RANKED. `showing N of M` is accurate about counts and silent about SELECTION, and
+        // this table is sorted worst-first — so a reader takes the top rows for the portfolio's
+        // top rows. Measured at limit 2 over three projects: the only risky one was absent, the
+        // hotspots list empty, and this heading read `0 high / 0 medium / 0 low`.
+        + (scopeLine(hm) ? ` · ${esc(scopeLine(hm)!)}` : "")
         + `</span>`;
+      const rankCaveat = rankedPrefixCaveat(hm, hm.note);
+      if (rankCaveat) {
+        card.insertAdjacentHTML("beforeend",
+          `<div class="meta" style="color:${SCOPE_TONE[rankCaveat.tone]}">`
+          + `${esc(rankCaveat.text)}</div>`);
+      }
       // Intensity ramp, not a gradient: four steps a reader can name, keyed off the same
       // severity-weighted score the API computes so the colour and the number never diverge.
       const heat = (score: number) => score >= 9 ? "var(--status-crit)" : score >= 4 ? "var(--status-warn)"
@@ -339,6 +363,52 @@ export async function renderPortfolio(ctx: PanelContext) {
     // won; this answers what is in the book, how much of it historically closes, and how long it
     // takes. Weighted value uses this firm's closed history — a stage without enough samples is
     // excluded and counted, never multiplied by a textbook ladder.
+    // BENCH-DARK: the portfolio space benchmark, which no screen called. Its coverage line is the
+    // whole point — the median and the totals are over the projects whose models carry spaces, and
+    // the engine did not count that exclusion until this work.
+    void ctx.host.api.spaceUtilBenchmarks().then((sb) => {
+      const card = document.createElement("div"); card.className = "dash-card"; card.style.marginTop = "10px";
+      const scope = benchmarkScope(sb);
+      const head = document.createElement("div");
+      head.innerHTML = `<b>\u23f9 Space utilisation</b> <span class="meta">${esc(scope.headline)}</span>`;
+      card.appendChild(head);
+      const why = document.createElement("div"); why.className = "meta"; why.style.marginTop = "2px";
+      why.textContent = scope.detail;
+      card.appendChild(why);
+      if (scope.tone === "warn") card.style.borderLeft = "3px solid var(--status-warn)";
+      if (sb.projects) {
+        const pl = document.createElement("div"); pl.className = "meta"; pl.style.marginTop = "4px";
+        pl.textContent = portfolioLine(sb);
+        card.appendChild(pl);
+        const tbl = document.createElement("table");
+        tbl.className = "portal-table"; tbl.style.cssText = "font-size:11px;margin-top:6px";
+        tbl.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Project</th>`
+          + `<th scope="col" style="text-align:right">Area</th>`
+          + `<th scope="col" style="text-align:right">Spaces</th>`
+          + `<th scope="col" style="text-align:right">m\u00b2/space</th>`
+          + `<th scope="col" style="text-align:right">vs median</th>`
+          + `<th scope="col" style="text-align:right">Capacity</th>`
+          + `<th scope="col" style="text-align:left">Largest type</th></tr></thead>`;
+        const tb = document.createElement("tbody");
+        for (const r of benchmarkRows(sb)) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td>${esc(r.project)}</td>`
+            + `<td style="text-align:right">${esc(r.area)}</td>`
+            + `<td style="text-align:right">${esc(r.spaces)}</td>`
+            + `<td style="text-align:right">${esc(r.perSpace)}</td>`
+            + `<td style="text-align:right">${esc(r.vsMedian)}</td>`
+            + `<td style="text-align:right">${esc(r.capacity)}</td>`
+            + `<td>${esc(r.top)}</td>`;
+          tb.appendChild(tr);
+        }
+        tbl.appendChild(tb); card.appendChild(tbl);
+      }
+      const note = document.createElement("div"); note.className = "meta"; note.style.marginTop = "4px";
+      note.textContent = sb.note;
+      card.appendChild(note);
+      ctx.root.appendChild(card);
+    });
+
     void ctx.host.api.pipelineFunnel().then((fn) => {
       const card = document.createElement("div"); card.className = "dash-card"; card.style.marginTop = "10px";
       const w = fn.weighted;

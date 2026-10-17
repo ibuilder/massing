@@ -63,6 +63,46 @@ assert has(validate_record(_recmod, {"amount": "lots"}), "not a number"), "non-n
 assert validate_record(_recmod, {"discipline": "Acoustics"}) == [], "select options are suggestions"
 assert validate_record(_recmod, {"amount": "", "unknown": "x"}) == [], "empty + unknown tolerated"
 
+# --- EXPIRY-UNDATED: a `date` field was declared and never validated -----------------------------
+# 136 `date` fields across 87 of 139 modules, read by ~70 `fromisoformat` call sites, and
+# `validate_record` checked numbers, table rows and GUIDs — not dates. `12/31/2026` went into
+# `coi.expires`, a REQUIRED field, and every expiry window then skipped the record while the
+# project-health banner printed "Compliance: no COI/permit expiries ✓" over it.
+_datemod = {"key": "d", "name": "D", "fields": [{"name": "expires", "type": "date"},
+                                                {"name": "note", "type": "text"}]}
+assert validate_record(_datemod, {"expires": "2026-12-31"}) == [], "a plain ISO date"
+assert validate_record(_datemod, {"expires": ""}) == [], "blank clears the field (partial PATCH)"
+assert validate_record(_datemod, {"note": "12/31/2026"}) == [], "only `date` FIELDS are checked"
+for _bad in ("12/31/2026", "1/5/2027", "31-12-2026", "Dec 31 2026", "TBD", "soon", True):
+    assert has(validate_record(_datemod, {"expires": _bad}), "is not a date"), _bad
+    assert has(validate_record(_datemod, {"expires": _bad}), "ISO-8601"), _bad
+
+# THE LOAD-BEARING EQUIVALENCE: the validator must accept EXACTLY what the readers accept. A
+# validator stricter than its readers refuses data that works; one looser leaves the defect in
+# place. Every consumer in this service reads a stored date as `fromisoformat(str(v)[:10])`, so
+# that is the rule here too — which is why a full timestamp passes.
+import datetime as _dt  # noqa: E402
+
+# `20261231` is in this list on purpose, and it is why the rule DEFERS rather than opining:
+# `fromisoformat` accepts the basic ISO form `YYYYMMDD`, so every reader in this service already
+# reads that value fine — and a hand-written "must look like YYYY-MM-DD" would have refused data
+# that works. *The equivalence is not a convenience, it is the only way to be sure the validator
+# and the readers agree.* (The int form passes too, since both sides go through `str(v)`.)
+for _v in ("2026-12-31", "2026-11-02T00:00:00Z", "2026-01-05T23:59:59", "2026-02-29",
+           "20261231", 20261231):
+    _reader_ok = True
+    try:
+        _dt.date.fromisoformat(str(_v)[:10])
+    except (TypeError, ValueError):
+        _reader_ok = False
+    _validator_ok = validate_record(_datemod, {"expires": _v}) == []
+    assert _reader_ok == _validator_ok, (_v, _reader_ok, _validator_ok)
+# ...including the ones BOTH must refuse: 2026-02-29 is not a date in a non-leap year, and the
+# reader would raise on it just as loudly.
+assert has(validate_record(_datemod, {"expires": "2026-02-29"}), "is not a date")
+
 print("MODULE SCHEMA OK - accepts a valid module (party as bare string coerced); rejects duplicate "
       "fields, unknown types, select-without-options, reference-without/-bad-target, bad title_field / "
-      "list_column / workflow initial / transition state / requires, and key!=folder")
+      "list_column / workflow initial / transition state / requires, and key!=folder; and (EXPIRY-UNDATED) "
+      "a `date` field now refuses what no reader could parse, accepting exactly what "
+      "`fromisoformat(str(v)[:10])` accepts")

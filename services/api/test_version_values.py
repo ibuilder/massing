@@ -64,6 +64,51 @@ assert "properties changed" in d["modified"][0]["changes"]
 # a no-op republish is still skipped (values don't make an identical model look modified)
 assert versions.snapshot(PID, idx("1HR", {"AcousticRating": "STC50"})).get("skipped")
 
+# --- VERSION-VALUES (screen): the TRUE branch of `values_truncated` ---------------------------------
+# `apps/web/src/viewer/tools/versionDiffRead.ts` branches on this flag and renders a changed
+# property with no values as "(changed, values not stored)", which is a THIRD state beside
+# "2HR -> 1HR" and "no snapshot at all". Nothing exercised the flag being True, so the branch the
+# screen reads was asserted nowhere — *a flag tested only in its false state is a flag with one
+# tested state.*
+WIDE_PID = "p-vv-wide"
+
+
+def wide_idx(shift: int) -> dict:
+    # 60 properties, past the 40-key cap, so the sorted TAIL has hashes but no stored value. The
+    # hash of a tail key still changes, so the diff names it and can say nothing about the values.
+    return {"elements": [
+        {"guid": "G-W", "name": "Wide", "ifc_class": "IfcWall", "type_name": None,
+         "storey": "L1", "psets": {"Pset_W": {f"P{i:03d}": f"v{i + shift}" for i in range(60)}},
+         "qtos": {}},
+    ]}
+
+
+assert versions.snapshot(WIDE_PID, wide_idx(0))["version"] == 1
+assert versions.snapshot(WIDE_PID, wide_idx(1))["version"] == 2
+with SessionLocal() as db:
+    wd = versions.diff(db, WIDE_PID, 1, 2)
+assert wd["property_values_available"] and wd["values_truncated"], wd
+wprops = {p["property"]: p for p in wd["modified"][0]["changed_properties"]}
+# the first 40 sorted keys carry values; a key past the cap carries the change and neither value
+assert wprops["Pset_W.P000"]["from"] == "v0" and wprops["Pset_W.P000"]["to"] == "v1", wprops["Pset_W.P000"]
+tail = wprops["Pset_W.P059"]
+assert tail["status"] == "changed" and tail["from"] is None and tail["to"] is None, tail
+
+# and the OTHER flag's false branch, which the screen renders as "NAMES only": a version whose
+# fingerprints predate position [7] has hashes and no values.
+with SessionLocal() as db:
+    from aec_api.models import ModelVersion
+    _v1 = db.query(ModelVersion).filter(ModelVersion.project_id == WIDE_PID,
+                                        ModelVersion.version == 1).first()
+    _fp = dict(_v1.fingerprints or {})
+    _fp["G-W"] = list(_fp["G-W"])[:7]                  # drop the value snapshot, keep the hashes
+    _v1.fingerprints = _fp
+    db.commit()
+with SessionLocal() as db:
+    nd = versions.diff(db, WIDE_PID, 1, 2)
+assert nd["property_detail_available"] and not nd["property_values_available"], nd
+assert not nd["values_truncated"], nd                  # not capped — never stored, a different fact
+
 # --- upgrade safety: a pre-values version (positions 0..6 only) doesn't read as all-modified -------
 old_fp = ["Wall A", "IfcWall", None, "Level 1", "h1", "h2", {"Pset_WallCommon.FireRating": "hash"}]
 new_fp = [*old_fp, {"Pset_WallCommon.FireRating": "2HR"}]               # same meaning + value cache
@@ -75,4 +120,9 @@ print("VERSION-VALUES OK - the bounded value snapshot rides fingerprint position
       "instead of only saying 'properties changed'; values are capped deterministically (40 sorted "
       "keys/element, 64-char clip, containers summarized) and the id bookkeeping key is dropped; a "
       "no-op republish is still skipped; and a version predating the cache does NOT read as "
-      "modified (positions 0..6 decide meaning) while a genuine rename still does.")
+      "modified (positions 0..6 decide meaning) while a genuine rename still does. VERSION-VALUES "
+      "adds the two branches a SCREEN reads: `values_truncated` TRUE on a 60-property element, "
+      "where a key past the 40 cap carries the change and neither value; and "
+      "`property_values_available` FALSE with `values_truncated` FALSE on fingerprints that predate "
+      "position [7] -- never stored is a different fact from capped, and the compare card names "
+      "them differently.")

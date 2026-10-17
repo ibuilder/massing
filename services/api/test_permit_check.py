@@ -59,8 +59,44 @@ with TestClient(app) as c:
     assert r1["readiness_pct"] > r0["readiness_pct"], (r0["readiness_pct"], r1["readiness_pct"])
     assert r1["sheet_series"].get("G") == 1 and r1["sheet_series"].get("A") == 1, r1["sheet_series"]
 
+    # --- PERMIT-BLIND: the code edition, which was NULL on every call this route ever served ------
+    # `readiness` read `analysis.get("edition") or analysis.get("code_edition")` and `code_analysis`
+    # returns neither key — the edition lives at `code_context.ibc_edition`. So `code_edition` was
+    # permanently None and the checklist evidence said "edition=IBC (default)" even here, with
+    # `jurisdiction=CA` passed and the row above flipping to satisfied. **This test made the call
+    # that proves it and asserted everything around it.** *An `or` over two spellings reads as "try
+    # one, fall back to the other" — a shape that implies at least one is right.*
+    assert r1["code_edition"], ("code_edition is null with jurisdiction=CA declared — "
+                                "the edition is at code_context.ibc_edition", r1["code_edition"])
+    assert isinstance(r1["code_edition"], int), r1["code_edition"]
+    cc = r1["code_context"]
+    assert cc["ibc_edition"] == r1["code_edition"], cc
+    # RESOLVED vs BASELINE is the load-bearing half: IBC 2021 because California adopted it is a
+    # different claim from IBC 2021 as the national baseline, and a permit screen showing the number
+    # without the basis invites a reader to cite it.
+    assert cc["resolved"] is True and cc["jurisdiction"], cc
+    assert cc["verify"], cc
+    # the no-jurisdiction call must NOT claim a resolution — and may still carry a baseline edition
+    assert r0["code_context"]["resolved"] is False, r0["code_context"]
+    # WHAT THE CHECK WAS TOLD, as opposed to what it inferred. `code_analysis` falls back to an
+    # occupancy group read off the model and a construction type of "II-B (verify with AHJ)"; both
+    # are defaults and neither is a declaration, which is why the checklist item tests the inputs.
+    assert r1["declared"] == {"occupancy_group": "B", "construction_type": "II-B",
+                              "sprinklered": False, "jurisdiction": "CA"}, r1["declared"]
+    assert r0["declared"]["occupancy_group"] is None, r0["declared"]
+    # and the evidence sentence now names the edition rather than "(default)"
+    ev = {row["requirement"]: row["evidence"] for row in r1["checklist"]}
+    code_row = next(v for k, v in ev.items() if "Code-analysis summary" in k)
+    assert f"edition={r1['code_edition']}" in code_row, code_row
+    # every deficiency carries its SOURCE, which the client type did not declare
+    assert all(d.get("source") for d in r0["deficiencies"]), r0["deficiencies"][:2]
+
 print("PERMIT-CHECK OK - 409 without a model; with a 2-storey model + spaces the intake report composes "
       "computed egress + approvability + code-analysis + the drawing register: empty register -> "
       "series requirements unsatisfied and ranked deficiencies (critical->major->minor) with the "
       "not-a-certified-review disclaimer; registering G/A/S/M/E/P sheets + declaring occupancy B / "
-      "type II-B / CA jurisdiction flips those rows and raises readiness_pct.")
+      "type II-B / CA jurisdiction flips those rows and raises readiness_pct. PERMIT-BLIND adds "
+      "the code edition, which was None on every call ever served because `readiness` read two key "
+      "names `code_analysis` does not have; it comes from code_context.ibc_edition now, beside "
+      "`resolved` (an adopted edition is a different claim from the national baseline) and "
+      "`declared` (what the check was TOLD, as opposed to what it inferred from the model).")

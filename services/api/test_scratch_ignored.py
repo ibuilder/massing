@@ -68,6 +68,12 @@ EXEMPT: dict[str, str] = {
                             "asserts the absence.",
     "feedback": "a TypeScript import specifier (`import { toast } from './feedback'`) quoted inside "
                 "test_route_reachability.py's fixture data, not a path on this filesystem.",
+    "qualityCloseout": "the same shape as `feedback` above, one file over: a TypeScript import "
+                       "specifier inside test_verdict_coverage.py's FROZEN REPLAY of the pre-fix "
+                       "consumer. It has to stay spelled exactly as it shipped — the delegation "
+                       "self-test resolves it — so this is the one literal there that cannot be "
+                       "reworded away. The illustrative `./x` in the same file was reworded "
+                       "instead, because an example is not worth an exemption.",
     "routines": "a TypeScript import specifier quoted in a test_file_sizes.py comment, same as above.",
 }
 

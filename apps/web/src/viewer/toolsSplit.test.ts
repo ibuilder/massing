@@ -64,9 +64,34 @@ const SECTION_SOURCES = [
   // section precedes it. It must stay inside the `qa` run: its three controls (the survey-basis
   // read moved out of `qaSection.ts`, plus project units and project origin) mount there.
   "src/viewer/tools/projectSetupPanel.ts",
+  // LAYOUT-RENUMBER: the field-layout control moved to `tools/layoutTool.ts`, which also carries
+  // the as-installed upload the panel's own copy had always promised. SAME ORDERING CONSTRAINT as
+  // the two entries above — this file opens no `const b = section("key"` either, so it is
+  // attributed to whichever section precedes it and must stay inside the `qa` run. **This gate
+  // found the move**: measured from the list without it, the control read as `gone`, which is the
+  // both-directions property the docstring promises, kept.
+  "src/viewer/tools/layoutTool.ts",
+  // HEALTH-WEIGHT-COVER: the Model Health result BODY moved to `tools/healthPanel.ts` under the
+  // extraction ratchet. SAME ORDERING CONSTRAINT as the three entries above — it opens no
+  // `const b = section("key"` either, so it is attributed to whichever file precedes it and must
+  // stay inside the `qa` run, which is where the Model Health button mounts. The button and its
+  // status line stayed in `qaSection.ts`; only the body left, so what this list must keep reaching
+  // is the rendering, not the control.
+  "src/viewer/tools/healthPanel.ts",
   "src/viewer/tools/exportsSection.ts",
   "src/viewer/tools/analyseSection.ts",
   "src/viewer/tools/authoringSection.ts",
+  // MODELOPT-DARK: the model-branch controls, exported as a `*Button()` and appended by
+  // `authoringSection.ts`. SAME ORDERING CONSTRAINT as the three `qa`-run entries above — this
+  // file opens no `const b = section("key"` of its own, so it is attributed to whichever file
+  // precedes it, and `authoringSection.ts` is where its button mounts. It is therefore LAST on
+  // purpose: anywhere earlier and its controls read as belonging to another section.
+  "src/viewer/tools/modelOptionsPanel.ts",
+  // ...and its BODY, which is a separate module only because `viewer/tools/*` is the eager shell
+  // chunk and the panel put it at exactly 225.0 KB of a 225 KB budget. The controls live there, so
+  // this list has to read it or every one of them reads as deleted — the both-directions property
+  // the docstring above promises. Same ordering constraint: it opens no `section("key"` either.
+  "src/viewer/tools/modelOptionsView.ts",
 ];
 const APP = () => SECTION_SOURCES.map(read).join("\n");
 
@@ -107,7 +132,12 @@ const INVENTORY: Record<string, "qa" | "analyse"> = {
   "▢ Model CI (quality gate)": "qa",
   "🔗 Coordinate clashes (grouped issues)": "qa",
   "📊 Coordination KPIs": "qa",
-  "📍 Field layout (points CSV / DXF)": "qa",
+  // RENAMED 2026-10-12, and the rename is recorded rather than worked around: LAYOUT-RENUMBER added
+  // the as-installed upload to this same control, so its label gained `· verify as-built`. The
+  // frozen inventory is a record of what existed, so a label change SHOULD turn it red — the entry
+  // is edited with the reason beside it, not matched loosely. *A gate that tolerates renames cannot
+  // tell a rename from a removal.*
+  "📍 Field layout (points CSV / DXF · verify as-built)": "qa",
   "🕸 Related elements (model graph)": "qa",
   "🧬 Property layers (IFC5 overlays)": "qa",
   "🚫 Decision-readiness (RFI-prevention)": "qa",
@@ -184,7 +214,15 @@ describe("the qa/analyse split loses nothing", () => {
     // The twin of the assertion above: "Analyse has contents" passes just as happily if `qa` were
     // emptied wholesale, which would be a much worse outcome than not splitting at all.
     expect(labels("qa").length, "`qa` should keep the larger half").toBeGreaterThan(labels("analyse").length);
-    for (const probe of ['enqueueAndWait(api, pid, "clash_detect"', "api.modelHealth(", "api.rulesRun(", "api.dataQa("]) {
+    // FIRM-RULES-OPTIONAL moved the rule check's probe. It was `api.rulesRun(`, and that call now
+    // lives in `tools/ruleCheckView.ts`: `qaSection.ts` is on an exact line pin and the eager shell
+    // was 5 bytes over its budget, so the whole control body — fetch, toast, status line and
+    // render — was deferred behind the click. The property this loop asserts is unchanged (Review
+    // still owns the rule check) and the probe follows the call rather than the call being kept
+    // where the probe could see it. *A probe is a way of asking; moving the subject is not
+    // weakening the question, but keeping the subject in reach of a stale probe would be.*
+    for (const probe of ['enqueueAndWait(api, pid, "clash_detect"', "api.modelHealth(",
+                         'await import("./ruleCheckView")', "api.dataQa("]) {
       expect(sectionBody("qa"), `\`qa\` lost ${probe}`).toContain(probe);
     }
   });

@@ -175,11 +175,96 @@
  *  element diff, cost delta, and the submit/approve/reject review gate. They were **not**
  *  contiguous (`reviewModelVersion` sat with share-token decisions). Clash imports stayed.
  */
-import { HttpError } from "./httpCore";
+import { HttpError, type LiveStatus } from "./httpCore";
 import type { LiveStream } from "./httpCore";
 import type { ViewerLoadTiming, ProjectPulse, PropLayer, ModelCiReport, NeedsEditIfc } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
+
+/** BASIS-UNREAD — one envelope assembly as `envelope.check_assembly` rules on it.
+ *
+ *  Every thermal field is OPTIONAL and which ones arrive depends on the verdict, so the type says
+ *  so rather than flattening it: an assembly the engine could not rule on carries `issue` and no
+ *  requirement at all; an opaque one carries the R pair; a fenestration one the U pair. */
+export interface EnvelopeAssemblyCheck {
+  name: string;
+  element_type: string;
+  /** `null` when the engine could not evaluate it — `issue` then says which input was missing. */
+  compliant: boolean | null;
+  /** Why there is no verdict. Present exactly when `compliant` is `null`. */
+  issue?: string;
+  /** The zone the check ran under — already narrowed to 1–8, or `null` if unreadable. */
+  climate_zone?: number | null;
+  r_value?: number | null;
+  u_factor?: number | null;
+  /** Opaque assemblies: IECC 2021 prescriptive minimum, and what the assembly provides. */
+  required_min_r?: number;
+  provided_r?: number | null;
+  /** Fenestration: IECC 2021 prescriptive maximum, and what the assembly provides. */
+  required_max_u?: number;
+  provided_u?: number | null;
+  /** Signed as HEADROOM in both directions — `provided_r - required` for opaque,
+   *  `required - provided_u` for fenestration — so positive is compliant by that much. */
+  margin?: number;
+}
+
+/** BASIS-UNREAD — `GET /projects/{pid}/envelope/audit`.
+ *
+ *  `checked` is the assemblies the engine could RULE on and `total` is every assembly registered;
+ *  `compliance_pct` is over the former. The two diverge the moment somebody registers an assembly
+ *  before dimensioning it, which is the normal order of work. */
+export interface EnvelopeAudit {
+  /** Every `envelope_assembly` record in the project. */
+  total: number;
+  /** Those with a readable climate zone AND a readable R or U — the population the verdict covers. */
+  checked: number;
+  compliant: number;
+  /** Of `checked`, never of `total`. `null` when nothing was evaluable. */
+  compliance_pct: number | null;
+  results: EnvelopeAssemblyCheck[];
+  /** The engine's own statement of what the numbers mean: which tables, and that it is a first-pass
+   *  screen rather than a stamped energy model. */
+  note: string;
+}
+
+/** LOD-TARGET-INERT — `GET /projects/{pid}/lod/assessment`.
+ *
+ *  NAMED rather than inline, which is the action `apps/web/src/api/deadFieldTyped.test.ts`'s
+ *  inline ceiling asked for when this change added four keys to it: a response declared in the
+ *  `this.json<{…}>` type argument has no named shape, so none of its fields are in that axis's
+ *  population. *The gate redirected the change rather than just counting it*, which is the whole
+ *  point of stating both options in its failure message. */
+export interface LodAssessmentResponse {
+  model_scored: boolean;
+  elements: number;
+  distribution: Record<string, number>;
+  ceiling_distribution: Record<string, number>;
+  limited_by: Record<string, number>;
+  elements_with_an_undecidable_aspect: number;
+  elements_without_readable_geometry: number;
+  avg_information_score: number;
+  information_score_max: number;
+  compliance: Record<string, {
+    meeting_target: number; short_of_target: number; no_target: number;
+    pct_meeting: number | null; short_by_rule: Record<string, number>;
+  }>;
+  by_discipline: { discipline: string; elements: number; avg_lod: string }[];
+  /** The firm's authored matrix, as `lod.matrix` projects it. Empty exactly when `using_default`.
+   *  `element_category` is the register's only REQUIRED field and is NOT one of the three matching
+   *  keys (`ifc_class`, `uniformat`, `discipline`) — which is the whole of LOD-TARGET-INERT. */
+  targets: { element_category?: string; discipline?: string; ifc_class?: string;
+    uniformat?: string; phase?: string; target_lod?: string; state?: string }[];
+  /** The built-in RIBA/AIA stage matrix, in force exactly when `using_default`. */
+  default: { phase?: string; target_lod?: string }[];
+  /** True when nothing is authored, so the compliance table is against the built-in defaults
+   *  rather than the firm's standard. The table's own header never said which. */
+  using_default: boolean;
+  /** Authored rows that resolved against no element — "nobody wrote a rule" versus "the rule you
+   *  wrote cannot be resolved", which the table could not distinguish. */
+  targets_matching_nothing: { element_category: string; phase: string; target_lod: string;
+    why: string }[];
+  note: string;
+}
 
 /** MODEL-SETUP — the whole-model setup state behind `modelSetup()`.
  *
@@ -234,11 +319,197 @@ export interface EffectiveProp {
 }
 
 
+/**
+ * The coordination-freshness response, declared ONCE and shared by the read and the write, because
+ * `recheck` runs the same scan and returns it plus `flagged`. Two copies would be two answers the
+ * moment either grew a field — which is what `noRespelledShapes.test.ts` exists to refuse.
+ */
+export interface CoordStale {
+  from: number; to: number;
+  changed_elements: number;
+  open_coordination_issues: number;
+  /** Open topics that carry at least one element GlobalId, i.e. the ones the check can rule on. */
+  assessable: number;
+  /** Open topics with no anchors at all. NOT "fresh" — the check does not apply to them. */
+  unanchored: number;
+  unanchored_topics: { id: string; guid: string; title: string }[];
+  stale: { id: string; guid: string; title: string; changed_guids: string[];
+           already_flagged: boolean }[];
+  stale_count: number;
+  /** False when nothing changed, or when nothing could be assessed. A `stale_count` of 0 with this
+   *  false is an absence of evidence, not a clean bill. */
+  comparable: boolean;
+  note: string;
+}
+
+/** FIRM-RULES-OPTIONAL — the firm version a project rule displaced, carried so an override reads
+ *  AS an override rather than as the standard. */
+export interface FirmRuleVersion {
+  id: string;
+  name: string;
+  scope: string;
+  require: string;
+  severity: string;
+}
+
+/** One rule in the set that applies to a project. `source`: `firm` · `project` · `starter`. */
+export interface EffectiveRule {
+  id: string;
+  name: string;
+  scope: string;
+  require: string;
+  severity: string;
+  source?: string | null;
+  overrides?: FirmRuleVersion | null;
+}
+
+/** Where the rules a check just evaluated came from.
+ *
+ *  `using_starter` is the load-bearing field: true means neither this project nor the firm has
+ *  authored anything and the three SAMPLE rules ran, so a clean result is unassessable rather than
+ *  a pass. `GET /projects/{pid}/rules` has always returned `seeded` for the same fallback — this is
+ *  that honesty arriving at the two places that EVALUATE the rules. */
+export interface RuleProvenance {
+  using_starter: boolean;
+  firm_count: number;
+  inherited_count: number;
+  overridden_count: number;
+  project_only_count: number;
+  overridden: { id: string; name: string; firm_require: string; project_require: string }[];
+  note: string;
+}
+
+/** VIEW-TEMPLATES / R21-VG-OVERRIDES — a graphic override is a PARTIAL, and that is load-bearing.
+ *  `view_templates._norm_override` says so: a rule naming only a colour must leave the weight and
+ *  pattern beneath it exactly as the object style had them, because a full replacement would
+ *  silently flatten the cut/projection weight distinction it knows nothing about. Every member is
+ *  therefore optional, and an override that sets NOTHING is refused by the server rather than stored
+ *  as an empty one. `weight` is millimetres on the sheet (0.05–4.0). */
+export interface GraphicOverride {
+  color?: string;
+  weight?: number;
+  pattern?: string;
+  halftone?: boolean;
+}
+
+/** MEP-DISCIPLINE-DARK — MEP elements read off the model. `by_discipline` is the division a
+ *  contractor BUYS by and was undeclared, so the card could only show IFC classes — a modeller's
+ *  vocabulary, not a buyer's. Named, not inline, per DEADFIELD-INLINE. */
+export interface MepModelExtract {
+  model_scored: boolean;
+  mep_elements: number;
+  by_class: { ifc_class: string; label: string; count: number }[];
+  /** How many DISTINCT classes are present, so a paged class table can say what it is paging. */
+  class_count: number;
+  by_discipline: { discipline: string; count: number }[];
+  /** Elements whose discipline the classifier could not place. Measured at 0 across all 25 MEP
+   *  classes, and `services/api/test_mep.py` keeps it that way — but it is declared so a screen can
+   *  say so rather than a reader assuming the columns are exhaustive. */
+  unattributed: number;
+  note: string;
+}
+
+/** VG-DARK — the resolved graphic state of a view template, as
+ *  `GET /projects/{pid}/view-templates/{tid}/graphics` returns it.
+ *
+ *  Named, not inline: `apps/web/src/api/deadFieldTyped.test.ts` builds its population from exported
+ *  interface declarations, and the inline declaration this replaces had **two phantom members** —
+ *  top-level `cut` and `projection`, which the server has never sent. Measured against a live route:
+ *  the top-level keys are `cut_count`, `graphics`, `hidden_count`, `name`, `note`, `template`,
+ *  `visible_count`. The cut and projection sides live PER ELEMENT, inside `graphics[guid]`. So both
+ *  members type-checked, resolved to `undefined` on every call ever served, and no compiler error
+ *  could reach them — the client-side form of SYSTEM-COLUMN-PHANTOM. */
+export interface GraphicState {
+  /** The drafting category the default weights came from: structure / enclosure / interior /
+   *  opening / mep / site / other. An unfamiliar IFC class lands in `other` by design. */
+  group: string;
+  cut: GraphicOverride;
+  projection: GraphicOverride;
+  /** Whether the view plane is claimed to cut THIS element — only ever true for a GUID the caller
+   *  named in `?cut=`. */
+  is_cut: boolean;
+}
+
+/** One distinct resolved style and how many elements carry it. This is what a screen is asking when
+ *  it asks about a view template, and it is a handful of rows where the per-element map is tens of
+ *  thousands: measured at 4 styles over 42,857 visible elements. */
+export interface GraphicStyleBucket {
+  group: string;
+  cut: GraphicOverride;
+  projection: GraphicOverride;
+  count: number;
+  /** How many of this bucket's elements the caller named in `?cut=`. */
+  cut_count: number;
+  /** Up to five GUIDs, so a reader can ask `?guids=` about one rather than paging the whole map. */
+  sample: string[];
+}
+
+export interface ViewTemplateGraphics {
+  template: string;
+  name?: string | null;
+  visible_count: number;
+  hidden_count: number;
+  /** Elements the caller named in `?cut=` AND that resolved visible. */
+  cut_count: number;
+  /** Whether a cut list was supplied at all. `cut_count: 0` has two causes — nothing is cut, or
+   *  nobody said what is cut — and the engine calls the second the honest answer for a 3D view. */
+  cut_supplied: boolean;
+  styles: GraphicStyleBucket[];
+  style_count: number;
+  /** The per-element map, OPT-IN. Served unconditionally it was 8.9 MB on a 50,000-element model, in
+   *  a viewer-role GET, read by nothing. */
+  graphics: Record<string, GraphicState>;
+  /** Every visible element, whatever shipped in `graphics` — the length of a page is never the size
+   *  of the answer (TRUNC-COUNTED). */
+  graphics_count: number;
+  /** Which of the three the caller got: no map, the GUIDs they named, or the whole thing. */
+  graphics_mode: "none" | "guids" | "all";
+  /** Only `all` can set this. */
+  graphics_truncated: boolean;
+  /** Only `guids` can fill this: the GUIDs asked for that are not visible under this template. */
+  graphics_unknown: string[];
+  max_graphics: number;
+  note: string;
+}
+
+/** One stacked colour rule. Later rules win. `color` is REQUIRED — the server keeps it required so
+ *  every template saved before R21 still validates and still resolves identically. */
+export interface ViewTemplateRule {
+  selector: string;
+  color: string;
+  /** Which side of the view plane this rule paints. Defaults to `both` server-side. */
+  applies?: "both" | "cut" | "projection";
+  weight?: number;
+  pattern?: string;
+  halftone?: boolean;
+}
+
+/** A stored view template, as `GET /projects/{pid}/view-templates` returns it. */
+export interface ViewTemplate {
+  id: string;
+  name: string;
+  hide_classes: string[];
+  isolate: string | null;
+  rules: ViewTemplateRule[];
+  /** Per-IFC-class graphics, keyed lowercase. Absent when the template sets none. */
+  object_styles?: Record<string, { cut?: GraphicOverride; projection?: GraphicOverride }>;
+}
+
+/** A template on the way IN: the server assigns `id` when it is omitted. */
+export interface ViewTemplateDraft {
+  id?: string;
+  name: string;
+  hide_classes?: string[];
+  isolate?: string | null;
+  rules?: ViewTemplateRule[];
+  object_styles?: ViewTemplate["object_styles"];
+}
+
 export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   return class Model extends Base {
   /** Subscribe to the model-edit SSE stream; onMessage fires with the collab snapshot on each change. */
   modelStream(pid: string, onMessage: (snap: unknown) => void,
-              onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+              onStatus?: (s: LiveStatus, why?: string) => void): LiveStream {
     return this.liveStream(`/projects/${pid}/model/stream`, onMessage, onStatus);
   }
 
@@ -361,6 +632,31 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       by_type: Row[]; spaces: { guid: string | null; name: string; type: string; area_m2: number; capacity: number }[]; note: string;
     }>(`/projects/${pid}/model/space-utilization?area_per_person=${encodeURIComponent(areaPerPerson)}`);
   }
+  /**
+   * SPACE-UTIL benchmarking — the same question across the whole book: every modelled project's
+   * m² per space against the portfolio median, with capacity at a chosen m²/person standard.
+   *
+   * **Moved here from `client.ts` by BENCH-DARK, and the extraction ratchet is why.** Declaring
+   * `no_spaces`/`candidates` grew `client.ts` past its cap in `services/api/test_file_sizes.py`, and
+   * the answer to that is not a bigger cap — it is the move the ratchet exists to drive. It belongs
+   * beside `modelSpaceUtilization` because grouping here is by **what a method answers**, not by
+   * scope: this is the portfolio aggregate of the per-project computation directly above it.
+   *
+   * `no_spaces` is the exclusion the response did not carry until this work — a model that opens
+   * fine and models no `IfcSpace` was dropped from every count — and `candidates` is the
+   * denominator, so `projects + skipped_over_cap + unreadable_models + no_spaces === candidates` is
+   * a property a caller can CHECK rather than a promise it has to trust.
+   */
+  spaceUtilBenchmarks(areaPerPerson = 10) {
+    return this.json<{
+      area_per_person: number; projects: number; skipped_over_cap: number; unreadable_models: number;
+      no_spaces: number; candidates: number;
+      rows: { project_id: string; project: string; space_count: number; total_area_m2: number;
+        capacity: number; m2_per_space: number; top_type: string | null; top_type_area_m2: number | null }[];
+      portfolio: { total_area_m2: number; total_capacity: number; median_m2_per_space: number | null };
+      note: string;
+    }>(`/benchmarks/space-utilization?area_per_person=${encodeURIComponent(areaPerPerson)}`);
+  }
   /** SPACE-UTIL — a headcount program ({space_type: headcount}) vs the modelled inventory → the area gap. */
   modelSpaceDemand(pid: string, program: Record<string, number>, areaPerPerson = 10) {
     type Row = { type: string; headcount: number; required_m2: number; supplied_m2: number; gap_m2: number; status: string };
@@ -459,7 +755,12 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   }
   /** INTEROP-RT — round-trip fidelity: serialize → reparse → compare, with a single verdict. */
   modelRoundtrip(pid: string) {
-    return this.json<{ fidelity_ok: boolean; element_count: number;
+    return this.json<{ fidelity_ok: boolean;
+      /** NEGATED-VERDICT: `fidelity_ok` was `not missing and not added and not changed`, which is
+       *  True over an empty snapshot — so a model with no `IfcProduct` reported LOSSLESS. It now
+       *  requires `bool(before)`, and this says which kind of False you have. Declared, so a
+       *  derivation over declarations can see it. */
+      nothing_compared: boolean; element_count: number;
       counts: { missing: number; added: number; changed: number };
       missing: string[]; added: string[];
       changed: { guid: string; class: string; aspects: string[] }[] }>(
@@ -538,8 +839,55 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/model/roundtrip/diff`), { method: "POST", body: fd, headers: this.authHeaders() });
     if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new HttpError(e.detail || `diff -> ${res.status}`, res.status); }
+    // THREE BOUNDS, all now declared. `changes` and `unknown_guids` are PAGES; `change_count` and
+    // `unknown_count` are the totals a screen should print. `truncated` shipped on the wire and was
+    // declared nowhere here, so `qaSection.ts` could not read it even though the same file reads the
+    // identical flag on another response — a field absent from the declaration is invisible to every
+    // audit over declarations, which is what CLASH-TRUNC paid to learn.
     return res.json() as Promise<{ checked: number; changes: { guid: string; pset: string; prop: string; old: string | null; new: string }[];
-      unknown_guids: string[]; unchanged: number }>;
+      truncated: boolean; change_count: number;
+      unknown_guids: string[]; unknown_count: number;
+      rows_read: number; rows_cap: number; rows_truncated: boolean;
+      unchanged: number }>;
+  }
+  /** SCAN → LOD 500 — attribute an uploaded point cloud to individual ELEMENTS and stamp the ones
+   *  that verify. `/scan/deviation` compares the cloud to the whole model and returns one aggregate,
+   *  which is useful for QA and useless for verification because it cannot say WHICH element is
+   *  right. This runs the query per element, and unlike the aggregate it never truncates the model.
+   *
+   *  Three outcomes, and the distinction is the whole value: covered and inside tolerance → stamped
+   *  with its measured deviation, so the LOD 500 assertion states an accuracy; covered and outside →
+   *  returned as a finding and deliberately NOT stamped, because verified-as-wrong is a punch item;
+   *  never scanned → reported uncovered, because absence of points is not evidence.
+   *
+   *  `apply=false` returns the same plan without writing, so a team can see what a scan would assert
+   *  before it touches the model. Added 2026-09-25: the route shipped complete and was frozen in
+   *  `services/api/test_route_reachability.py` as having no client — and `scan_deviation`'s own
+   *  refusal message points at it, so the refusal was directing people to something unreachable. */
+  async scanVerifyLod500(pid: string, file: File, opts: { tolerance?: number; apply?: boolean;
+                                                          verifiedBy?: string } = {}) {
+    const fd = new FormData(); fd.append("file", file);
+    const q = new URLSearchParams({ tolerance: String(opts.tolerance ?? 0.05),
+      apply: String(opts.apply ?? false), verified_by: opts.verifiedBy ?? "" });
+    const res = await fetch(this.url(`/projects/${pid}/scan/verify-lod500?${q}`),
+      { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new HttpError(e.detail || `verify-lod500 -> ${res.status}`, res.status);
+    }
+    return res.json() as Promise<{
+      applied: boolean; verified: number; stamped: number; accuracy_recorded: number;
+      findings: { guid: string; ifc_class: string | null; p95_deviation: number | null;
+        max_deviation: number | null }[];
+      findings_count: number; uncovered: number; uncovered_guids: string[];
+      tolerance: number | null; note: string;
+      deviation: { elements?: never; tolerance: number; coverage_band: number; scan_points: number;
+        covered: number; uncovered: number; within_tolerance: number; out_of_tolerance: number;
+        note: string };
+      elements: { guid: string; ifc_class: string | null; name: string | null; covered: boolean;
+        within_tolerance: boolean | null; sampled?: number; scanned_points?: number;
+        mean_deviation?: number; max_deviation?: number; p95_deviation?: number; note?: string }[];
+    }>;
   }
   /** QUERY-DSL — select elements by a selector string (`IfcWall & Pset_WallCommon.FireRating=2HR &
    *  storey=L3`) → matching GUIDs + parsed predicates. One grammar for filter / isolate / scope. */
@@ -713,10 +1061,30 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   layoutDxfUrl(pid: string, classes?: string) {
     return this.url(`/projects/${pid}/layout.dxf${classes ? `?classes=${encodeURIComponent(classes)}` : ""}`);
   }
-  /** layoutVerify — as-installed total-station shots against the design setout. */
-  layoutVerify(pid: string, measured: { number: string; e: number; n: number; z: number }[], toleranceM = 0.02) {
+  /**
+   * layoutVerify — as-installed total-station shots against the design setout.
+   *
+   * `description` is the exporter's D column and carries the element's IFC GlobalId, which is the
+   * **stable** join key: `number` is `P1..` in export order, so a number match is a match on where a
+   * point sat in one particular export (LAYOUT-RENUMBER). Pass the column through unchanged and the
+   * server matches by GlobalId first.
+   *
+   * The response's second half is what could NOT be compared — `unshot`, `unmatched_shots`,
+   * `coverage_pct` — and `comparable` is false when nothing matched at all, because an unmatched
+   * file otherwise returns the response of a perfect as-built.
+   */
+  layoutVerify(pid: string,
+               measured: { number: string; e: number; n: number; z: number; description?: string }[],
+               toleranceM = 0.02) {
     return this.json<{ tolerance_m: number; checked: number; in_tolerance: number; max_deviation_m: number;
-      out_of_tolerance: { number: string; guid: string; ifc_class: string; deviation_m: number }[]; note: string }>(
+      out_of_tolerance: { number: string; guid: string; ifc_class: string; deviation_m: number }[];
+      deviations: { number: string; guid: string; ifc_class: string; deviation_m: number;
+        in_tolerance: boolean; matched_on: "guid" | "number" }[];
+      design_points: number; shots_supplied: number;
+      matched_on_guid: number; matched_on_number: number; number_matched_points: string[];
+      unshot: number; unshot_numbers: string[];
+      unmatched_shots: number; unmatched_numbers: string[];
+      coverage_pct: number; comparable: boolean; note: string }>(
       `/projects/${pid}/layout/verify`, { method: "POST", body: JSON.stringify({ measured, tolerance_m: toleranceM }) });
   }
 
@@ -737,20 +1105,29 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       disclaimer: string }>(`/projects/${pid}/loads/takedown`, { method: "POST", body: JSON.stringify(params) });
   }
 
-  /** viewTemplates — reusable layered view presets (class visibility, isolate, stacked colors). */
+  /** viewTemplates — reusable layered view presets (class visibility, isolate, stacked colors).
+   *
+   *  VIEWTPL-DARK declared the shape the server actually stores. The rule type was
+   *  `{ selector, color }` and `view_templates._norm` has validated and stored **`applies`** —
+   *  `both` / `cut` / `projection` — plus optional `weight`, `pattern` and `halftone` since
+   *  R21-VG-OVERRIDES, and `object_styles` was undeclared entirely. `applies` is the cut-versus-seen
+   *  axis that module calls *"the single distinction that separates a drawing from a dump"*: with it
+   *  undeclared, no editor could offer it and no reader could resolve it, whatever the server held.
+   *  Same class as CLASH-TRUNC's `truncated` — a field no property access can reach is invisible to
+   *  every derivation over declarations. */
   viewTemplates(pid: string) {
-    return this.json<{ templates: { id: string; name: string; hide_classes: string[];
-      isolate: string | null; rules: { selector: string; color: string }[] }[] }>(
-      `/projects/${pid}/view-templates`);
+    return this.json<{ templates: ViewTemplate[] }>(`/projects/${pid}/view-templates`);
   }
   /** saveViewTemplates — replace the project's saved view-template list. */
-  saveViewTemplates(pid: string, templates: { id?: string; name: string; hide_classes?: string[];
-    isolate?: string | null; rules?: { selector: string; color: string }[] }[]) {
+  saveViewTemplates(pid: string, templates: ViewTemplateDraft[]) {
     // The route validates and NORMALISES every template before writing (ids assigned, colors and
     // selectors canonicalised) and returns the stored form as `templates`. Declaring only `saved`
     // left a caller with no way to learn what was actually persisted except by re-reading it.
-    return this.json<{ saved: number; templates: { id: string; name: string; hide_classes: string[];
-      isolate: string | null; rules: { selector: string; color: string }[] }[] }>(
+    //
+    // It REPLACES the whole list, which is why `ViewTemplateDraft` carries `object_styles` and the
+    // rule-level overrides even though the editor does not author them: a caller that sends a
+    // narrower object deletes them, and only on the templates somebody touched.
+    return this.json<{ saved: number; templates: ViewTemplate[] }>(
       `/projects/${pid}/view-templates`,
       { method: "PUT", body: JSON.stringify({ templates }) });
   }
@@ -820,15 +1197,62 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       review_status: "draft" | "in_review" | "approved"; reviewed_by: string | null;
       reviewed_at: string | null; review_note: string | null }[]>(`/projects/${pid}/versions`);
   }
-  /** Diff two model versions — added/removed/modified elements (with change labels) + unchanged count. */
+  /**
+   * Diff two model versions — added/removed/modified elements (with change labels), **the before
+   * and after VALUE of each changed property**, and what the comparison could not read.
+   *
+   * VERSION-VALUES: `from` and `to` on a `changed_properties` row, plus `property_values_available`
+   * and `values_truncated`, were all undeclared — so `versions.diff` has computed
+   * `FireRating: 1HR → 2HR` since VERSION-COMPARE landed and the compare card could only print
+   * `FireRating`. The engine pays to store that snapshot and bounds it on three axes precisely so
+   * it can be shown; *a snapshot the server pays to store and bound, that no type names, is work
+   * nobody can spend.*
+   *
+   * **`from` is the `a` side.** `versions.diff` reads `before = fa.get(g)` for version `a` and
+   * assigns `from` from it — even though the locals holding the two snapshots are spelled `vb`/`va`,
+   * which reads the other way round. `apps/web/src/viewer/tools/versionDiffRead.test.ts` pins the
+   * direction, because rendering it backwards is a correct-looking lie about which way the building
+   * moved.
+   *
+   * The three "not available" flags are three different facts and the reading keeps them apart: no
+   * fingerprints (re-publish), fingerprints without per-property hashes, and a value snapshot that
+   * hit a cap. Both value fields are optional per ROW as well: an added property has no `from`.
+   */
   versionDiff(pid: string, a: number, b: number) {
     return this.json<{
       from: number; to: number; added: string[]; removed: string[];
       modified: { guid: string; name: string | null; ifc_class: string | null; changes: string[];
-        changed_properties?: { property: string; status: "added" | "removed" | "changed" }[] }[];
+        changed_properties?: { property: string; status: "added" | "removed" | "changed";
+          from?: string | null; to?: string | null }[] }[];
       modified_available: boolean; property_detail_available?: boolean;
+      property_values_available?: boolean; values_truncated?: boolean;
       added_count: number; removed_count: number; modified_count: number; unchanged_count: number;
     }>(`/projects/${pid}/versions/diff?a=${a}&b=${b}`);
+  }
+  /**
+   * COORD-FRESH — open clash/coordination topics whose anchored elements changed between two
+   * published versions, **beside the ones the check could not rule on** (COORD-UNANCHORED).
+   *
+   * The whole test is `topic.element_guids ∩ changed`, so a topic carrying no element GlobalIds can
+   * never be stale by construction — it was folded into `open_coordination_issues` and omitted from
+   * `stale`, which reads as "still valid". `assessable` + `unanchored` sum to the open count, and
+   * `comparable` is false both when the diff found nothing and when nothing could be assessed, so
+   * the reasons for a zero stay apart.
+   */
+  coordinationStale(pid: string, a: number, b: number) {
+    return this.json<CoordStale>(`/projects/${pid}/coordination/stale?a=${a}&b=${b}`);
+  }
+  /**
+   * Flag each stale topic with a `model-changed` label and a re-verify comment.
+   *
+   * Idempotent, and **never closes a topic** — a changed element can mean the clash is gone or
+   * worse, so the coordinator decides. It writes only to what the read above ruled stale: an
+   * unanchored topic gets no label, because nothing was measured about it.
+   */
+  coordinationStaleRecheck(pid: string, a: number, b: number) {
+    return this.json<CoordStale & { flagged: number }>(
+      `/projects/${pid}/coordination/stale/recheck`,
+      { method: "POST", body: JSON.stringify({ a, b }) });
   }
   /** REVISION-DELTA — conceptual cost impact of a revision (added priced, removed counted, modified flagged). */
   versionCostDelta(pid: string, a: number, b: number) {
@@ -885,18 +1309,40 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
         specs: { name: string; ifc_class: string; applicable: number; passing: number; pct: number | null }[] };
       use_case: string | null }>(`/projects/${pid}/openbim/quality${qs}`);
   }
-  /** LOD assessment — element distribution and average LOD per discipline. `using_default` marks a model scored against the fallback rules. */
+  /**
+   * LOD assessment — the achieved band distribution, **its ceiling**, why each element was capped,
+   * and per-stage target compliance. `using_default` marks a model scored against the fallback rules.
+   *
+   * LOD-UNREAD: this type declared five of fifteen keys, and the ten it dropped were every one of
+   * the engine's caveats. `lod.assess` computes the band as the MINIMUM across five ISO 7817-1
+   * aspects, so an element with one aspect the index cannot read gets a FLOOR rather than a
+   * reading — which is why the engine also returns `ceiling_distribution`,
+   * `elements_with_an_undecidable_aspect`, `elements_without_readable_geometry` and `limited_by`,
+   * and why its own note says *"the gap is unread model, not missing model."* None of that reached
+   * the screen, so "most elements at LOD 200" read as under-modelled when it may have meant unread.
+   *
+   * `compliance[phase].no_target` is the same distinction one layer along, and the engine's comment
+   * names it: *"A model element table that covers a third of the model and reports 100% is the
+   * failure this whole item exists to remove."* It kept the uncovered count out of the percentage;
+   * `lodCoverage.complianceRows` keeps it on the screen.
+   *
+   * `targets`, `default` and `note` are deliberately NOT declared: the targets matrix has its own
+   * route and its own card, and re-declaring it here would make two screens able to disagree about
+   * it. The caveat keys are declared because nothing else serves them.
+   */
   lodAssessment(pid: string) {
-    return this.json<{ model_scored: boolean; elements: number; using_default: boolean;
-      distribution: Record<string, number>;
-      by_discipline: { discipline: string; elements: number; avg_lod: string }[] }>(
-      `/projects/${pid}/lod/assessment`);
+    return this.json<LodAssessmentResponse>(`/projects/${pid}/lod/assessment`);
   }
-  /** Envelope audit — how many envelope elements were checked and how many comply, with the per-element verdict. */
+  /** Envelope audit — how many envelope elements were checked and how many comply, with the per-element verdict.
+   *
+   *  BASIS-UNREAD. `checked` counts only the assemblies the engine could RULE on; `total` is every
+   *  assembly registered, and `compliance_pct` is over the former. An assembly with no climate zone
+   *  or no R/U carries an `issue` saying which, and no verdict — so a register of 40 rows where 4
+   *  are dimensioned reports `4/4` at `100%`. The per-assembly `required_min_r`/`provided_r` (opaque)
+   *  and `required_max_u`/`provided_u` (fenestration) are what makes a FAIL actionable, and `margin`
+   *  is signed as headroom in both directions: positive is compliant by that much. */
   envelopeAudit(pid: string) {
-    return this.json<{ total: number; checked: number; compliant: number; compliance_pct: number | null;
-      results: { name: string; element_type: string; compliant: boolean | null }[] }>(
-      `/projects/${pid}/envelope/audit`);
+    return this.json<EnvelopeAudit>(`/projects/${pid}/envelope/audit`);
   }
 
   // --- How does this project get its source model? Upload, the paid RVT bridge, and whether that bridge is available ---
@@ -934,14 +1380,64 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   ciLatest(pid: string) {
     return this.json<ModelCiReport>(`/projects/${pid}/ci/latest`);
   }
-  /** RULE-LIB — check the loaded model against the user-authored rule library → per-rule pass/fail
-   *  + offending GUIDs + a by-severity rollup. */
+  /** RULE-LIB — check the loaded model against the rules that APPLY here → per-rule pass/fail +
+   *  offending GUIDs + a by-severity rollup.
+   *
+   *  FIRM-RULES-OPTIONAL. `provenance` and the per-row `source` / `overrides` are what make the
+   *  rollup readable: this route used to evaluate `rule_library.load(pid) or STARTER_RULES`, so a
+   *  firm standard a project inherits was checked by nothing, and a project with no library of its
+   *  own was checked against three SAMPLE rules with nothing in the response saying so. A clean
+   *  result over samples is not a pass — `provenance.using_starter` is how the screen knows. */
   rulesRun(pid: string) {
     return this.json<{ model_scored: boolean; total_rules: number; failing_rules?: number;
       total_violations?: number; by_severity?: Record<string, number>; note?: string;
+      provenance?: RuleProvenance;
       rules: { id: string; name: string; severity: string; scope: string; require: string;
-        scoped: number; passed: number; failed: number; fail_guids: string[]; status: string }[] }>(
+        scoped: number; passed: number; failed: number; fail_guids: string[]; status: string;
+        source?: string | null; overrides?: FirmRuleVersion | null }[] }>(
       `/projects/${pid}/rules/run`);
+  }
+  /** FIRM-RULES-OPTIONAL slice ② — this project's own rule library, and whether it HAS one.
+   *
+   *  `seeded` is the field that matters: true means nothing is saved for this project and the three
+   *  SAMPLE rules came back instead. The route has always returned it; until slice ② there was no
+   *  client method here at all, so the library could not be read or written from the product and
+   *  every check in it ran against the fallback. */
+  rulesLibrary(pid: string) {
+    return this.json<{ rules: EffectiveRule[]; seeded: boolean }>(`/projects/${pid}/rules`);
+  }
+  /** Replace this project's rule library. Every selector is validated server-side with the same
+   *  QUERY-DSL parser a check uses, so an unrunnable rule is a 422 and NOTHING is saved. */
+  saveRules(pid: string, rules: { id: string; name: string; scope: string; require: string;
+                                  severity: string }[]) {
+    return this.json<{ saved: number; rules: EffectiveRule[] }>(
+      `/projects/${pid}/rules`, { method: "PUT", body: JSON.stringify({ rules }) });
+  }
+  /** The firm's standard rules — the ones every project inherits. */
+  firmRules() {
+    return this.json<{ rules: EffectiveRule[]; scope: string }>(`/firm/rules`);
+  }
+  /** Replace the firm library. **Platform**-admin only, and deliberately not project-admin: on a
+   *  path with no `{pid}`, `require_role("admin")` turned `pid` into a caller-supplied query
+   *  parameter, so any user could create a throwaway project they owned and replace — and thereby
+   *  DELETE — the firm's standards. A 403 here is that gate, not a bug. */
+  saveFirmRules(rules: { id: string; name: string; scope: string; require: string;
+                         severity: string }[]) {
+    return this.json<{ saved: number; rules: EffectiveRule[] }>(
+      `/firm/rules`, { method: "PUT", body: JSON.stringify({ rules }) });
+  }
+  /** FIRM-RULES-OPTIONAL — the standards that apply to this project: the firm's library with this
+   *  project's layered over it by rule id, every row saying which it is and what it displaced.
+   *
+   *  The engine behind this has existed and been tested since v0.3.778 and was reachable from
+   *  nothing — `services/api/test_route_reachability.py` carried the route as uncalled while
+   *  `firm_standards`'s own docstring named the failure mode: *"a firm discovering its standards
+   *  were quietly optional"*. */
+  rulesEffective(pid: string) {
+    return this.json<{ rules: EffectiveRule[]; count: number; firm_count: number;
+      inherited_count: number; overridden_count: number; project_only_count: number;
+      overridden: { id: string; name: string; firm_require: string; project_require: string }[];
+      note: string }>(`/projects/${pid}/rules/effective`);
   }
   /** RULE-LIB-2 — geometric rule checks over the model's baked AABBs (clearance / escape-distance /
    *  clear-width). Omit `checks` for the server's starter set. */
@@ -1017,4 +1513,114 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       `/projects/${pid}/element-connections`);
   }
   };
+}
+
+/**
+ * HEALTH-WEIGHT-COVER — one lens of the composite Model Health scorecard.
+ *
+ * `weight` is this lens's share of the composite, and it is on the lens rather than in a map
+ * beside it so a reader of one row can see what the row is worth. The five sum to 1.0, asserted
+ * in `services/api/test_model_health.py`.
+ */
+export interface ModelHealthLens {
+  key: string;
+  label: string;
+  /** The rail tool or Report Center page that acts on this lens. */
+  tool: string;
+  /** `null` when the lens had no inputs — excluded from the composite rather than guessed. */
+  score: number | null;
+  status: "good" | "warn" | "poor" | "na";
+  headline: string;
+  /** This lens's share of the composite, 0–1. */
+  weight: number;
+}
+
+/**
+ * HEALTH-WEIGHT-COVER — the composite, and the two different things "how much was measured" can
+ * mean.
+ *
+ * `overall_score` is a WEIGHTED mean over the lenses that produced a score, with the weights
+ * renormalised over exactly those — so an unscored lens does not drag the number down, which is
+ * right. What follows from it is that the coverage of that mean is a **weight**, not a count, and
+ * the screen was printing the count: `2 of 5 checks scored` covers **30%** of the intended basis
+ * when the two are `verified` + `readiness` and **50%** when they are `hygiene` + `information`.
+ * Both print the same caption and both report the same `80`.
+ */
+export interface ModelHealth {
+  /** Weighted mean over the scored lenses. `null` when nothing could be scored. */
+  overall_score: number | null;
+  band: string;
+  /** How MANY lenses scored. True, and not the basis the score is over — see `weight_scored`. */
+  scored_lenses: number;
+  /** The share of the composite the score actually covers, 0–1. */
+  weight_scored: number;
+  model_available: boolean;
+  lenses: ModelHealthLens[];
+  /** The engine's own sentence naming all five lenses and the n/a rule. */
+  note: string;
+  /** Why a count of lenses is not the coverage of a weighted mean. */
+  weight_basis: string;
+}
+
+/**
+ * MODELOPT-DARK — one model-option BRANCH: a whole saved IFC, not a set of metrics.
+ *
+ * `model_options`'s own header draws the line: *"The metrics-comparison module
+ * (`design_options.py`) compares numbers; THIS module carries the actual model files."* So this is
+ * not a second view of the `design_option` register — it is the geometry half, and the two were
+ * dark in different ways. The register's economics reached a screen (OPTION-DISAGREE fixed what it
+ * said there); the branches reached nothing at all.
+ */
+export interface ModelOptionBranch {
+  slug: string;
+  name: string;
+  note: string | null;
+  created_at: string;
+  size_bytes: number;
+  /** `null` when the IFC could not be opened to count — a count never blocks a snapshot. */
+  elements: number | null;
+  /** False when the index has an entry whose `.ifc` is gone from storage. */
+  available?: boolean;
+  /** Byte-identical to the project's current source. More than one branch can be current. */
+  current?: boolean;
+}
+
+export interface ModelOptionList {
+  options: ModelOptionBranch[];
+  count: number;
+}
+
+export interface ModelOptionActivated {
+  activated: string;
+  source_ifc: string;
+  /** `"running"` when the viewer republish was kicked off. Absent when `publish: false`. */
+  publish?: string;
+}
+
+/**
+ * MODELOPT-DARK — what separates the current model from a branch, at the GUID-set level.
+ *
+ * **The two GUID lists are capped at 100 server-side and the counts are not**, so a consumer that
+ * renders `added_in_current.length` prints a page length as a total — the TRUNC-COUNTED defect this
+ * repo has now paid for several times. `added_count` / `removed_count` are the totals.
+ *
+ * `identical` is true for two element-less models and that is deliberate, not vacuous: the question
+ * *do these differ at the IfcElement GUID-set level?* is genuinely answered "no" for two empty
+ * models. What a reader needs beside it is the POPULATION, which is why both element counts are
+ * here — the engine's own comment calls that the fix for a vacuous truth: *"sometimes it is to say
+ * what it is true of."*
+ */
+export interface ModelOptionDiff {
+  option: string;
+  /** Capped at 100. Use `added_count` for the total. Direction is option → current. */
+  added_in_current: string[];
+  added_count: number;
+  /** Capped at 100. Use `removed_count` for the total. */
+  removed_in_current: string[];
+  removed_count: number;
+  /** Per IFC class, only where the counts differ. `delta` is current − option. */
+  class_deltas: Record<string, { current: number; option: number; delta: number }>;
+  current_element_count: number;
+  option_element_count: number;
+  identical: boolean;
 }

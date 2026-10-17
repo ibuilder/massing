@@ -87,7 +87,11 @@ export async function renderMasterBuilder(ctx: PanelContext) {
     // --- share read-only: mint / list / revoke tokens for the public readiness digest --------------
     const share = document.createElement("div"); share.className = "dash-card"; share.style.marginTop = "10px";
     share.innerHTML = `<div class="section-title">🔗 Share read-only</div>`
-      + `<div class="meta" style="margin:2px 0 6px">Give an owner or stakeholder a link to a <b>read-only readiness digest</b> — high-level only, no record-level data. Revoke anytime.</div>`;
+      // PORTAL-TXN-DARK: "read-only" described the DISCLOSURE and was read as describing the link.
+      // The share page has carried two public write routes since PORTAL-TXN phase 1; what it lacked
+      // was any control that reached them. Now that it has them, the copy says what the recipient
+      // can do, because an owner minting a link should know it can be answered.
+      + `<div class="meta" style="margin:2px 0 6px">Give an owner or stakeholder a link to a <b>readiness digest</b> — high-level only, no record-level data. They can approve, acknowledge or decline from that page and message the team; what comes back lands below. Revoke anytime.</div>`;
     const shareBody = document.createElement("div"); shareBody.innerHTML = `<div class="meta">loading…</div>`;
     const mkRow = document.createElement("div"); mkRow.style.cssText = "display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap";
     const labelI = document.createElement("input"); labelI.className = "portal-filter"; labelI.placeholder = "label (e.g. Owner review)"; labelI.style.cssText = "flex:1 1 160px;font-size:12px";
@@ -158,6 +162,49 @@ export async function renderMasterBuilder(ctx: PanelContext) {
       finally { mkBtn.disabled = false; }
     };
     void loadTokens();
+
+    // --- PORTAL-TXN-DARK: what came BACK through those links --------------------------------------
+    // The other end of the loop the share card opens. `clientDecisions` had no caller and
+    // `POST /shared/{token}/decision` had no control — two halves of one feature, which is why
+    // reading either alone read as a missing button rather than a missing transaction.
+    const fb = document.createElement("div"); fb.className = "dash-card"; fb.style.marginTop = "10px";
+    const fbHead = document.createElement("div"); fbHead.className = "section-title";
+    fbHead.textContent = "📩 Client responses";
+    const fbNote = document.createElement("div"); fbNote.className = "meta"; fbNote.style.margin = "2px 0 6px";
+    fbNote.textContent = "Approvals, acknowledgements and declines recorded through the links above — newest first.";
+    const fbBody = document.createElement("div"); fbBody.innerHTML = `<div class="meta">loading…</div>`;
+    fb.append(fbHead, fbNote, fbBody); body.appendChild(fb);
+    // A BOUND, not a total. The route returns a desc-limited page and no count, so printing
+    // `decisions.length` as "12 responses" would be TRUNC-COUNTED again: a project may hold 200
+    // responses per link across 50 links. At the cap the header says `200+` and the footer says the
+    // page is the newest ones, which is true without a total nobody serves.
+    const FEED_LIMIT = 200;
+    const loadDecisions = async () => {
+      try {
+        const { decisions } = await ctx.host.api.clientDecisions(pid, FEED_LIMIT);
+        const atCap = decisions.length >= FEED_LIMIT;
+        fbHead.textContent = `📩 Client responses${decisions.length ? ` (${decisions.length}${atCap ? "+" : ""})` : ""}`;
+        if (!decisions.length) {
+          fbBody.innerHTML = `<div class="meta">Nothing back yet — a recipient can respond from the share page itself.</div>`;
+          return;
+        }
+        fbBody.innerHTML = decisions.map((x) => {
+          const col = x.action === "approved" ? "var(--status-good)"
+            : x.action === "declined" ? "var(--status-crit)" : "var(--status-warn)";
+          return `<div style="display:flex;gap:8px;align-items:baseline;margin:3px 0;flex-wrap:wrap">`
+            + `<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;`
+            + `color:${col};border:1px solid ${col};border-radius:10px;padding:1px 7px;flex:0 0 auto">${esc(x.action)}</span>`
+            + `<span style="flex:1 1 180px">${esc(x.item_type)} · ${esc(x.item_ref)}</span>`
+            + `<span class="meta">${esc(x.client_name || "unnamed")} · ${esc((x.created_at || "").slice(0, 10))} · …${esc(x.token.slice(-8))}</span>`
+            + (x.note ? `<div class="meta" style="flex:1 1 100%;opacity:.85;white-space:pre-wrap">“${esc(x.note)}”</div>` : "")
+            + `</div>`;
+        }).join("")
+          + (atCap ? `<div class="meta" style="margin-top:6px;opacity:.8">Showing the newest ${FEED_LIMIT} — there are more.</div>` : "");
+      } catch (e) {
+        fbBody.innerHTML = `<div class="meta">Client responses unavailable: ${esc((e as Error).message)}</div>`;
+      }
+    };
+    void loadDecisions();
 
     const disc = document.createElement("div"); disc.className = "meta";
     disc.style.cssText = "margin-top:8px;opacity:.7;font-size:11px;line-height:1.4";

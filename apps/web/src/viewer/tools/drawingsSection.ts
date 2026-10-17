@@ -119,24 +119,55 @@ export function buildDrawingsSection(d: DrawingsDeps): HTMLElement[] {
 
   // W11 C4: computed door / window / room schedules from the model.
   const openSchedules = async () => {
+    // Reached with `await import()` rather than statically, the way `ruleCheckView`,
+    // `indexCoverage` and `egressTravel` are reached. SCHEDULE-TRUNC's own entry recorded this as
+    // the honest next step and left it for "whatever next needs the room" — CLASSIFY-DARK is that,
+    // and spent the half-kilobyte it predicted. `viewer/tools/*` is the EAGER chunk, so a static
+    // import of a module only a click can reach is paid for by every first load.
+    const { SCHEDULE_ROW_CAP, scheduleHeadHtml, scheduleReading } = await import("./scheduleView");
     let sc;
     try { sc = await d.api.drawingSchedules(d.pid); }
     catch (e) { d.notify(`schedules failed: ${(e as Error).message}`, "error"); return; }
     showResult("Schedules (door / window / room)", (body) => {
       for (const [kind, label] of [["doors", "Door schedule"], ["windows", "Window schedule"], ["rooms", "Room schedule"]] as const) {
         const t = sc[kind];
-        body.appendChild(resultNote(`<b>${label}</b> — ${t.rows.length} row(s)`, ""));
+        // SCHEDULE-TRUNC. This printed the table's full row COUNT directly above a table of the
+        // first sixty and said nothing in between — the honest total one line above the subset.
+        // The route returns every row, so the cap was entirely the screen's.
+        //
+        // The defect's own spelling is deliberately NOT quoted here: `scheduleView.test.ts` pins
+        // the absence of that literal, and a comment quoting it satisfies the pin's own needle —
+        // the third time on this branch that a pin keyed on text matched the explanation beside it.
+        const r = scheduleReading(label, t);
+        body.appendChild(resultNote(scheduleHeadHtml(label, t), r.capped ? "warn" : ""));
         if (!t.rows.length) continue;
         const tbl = document.createElement("table"); tbl.className = "kv-table"; tbl.style.marginBottom = "6px";
         const hr = document.createElement("tr");
         for (const c of t.columns) { const th = document.createElement("th"); th.textContent = c; hr.appendChild(th); }
         tbl.appendChild(hr);
-        for (const row of t.rows.slice(0, 60)) {
+        for (const row of t.rows.slice(0, SCHEDULE_ROW_CAP)) {
           const tr = document.createElement("tr");
           for (const cell of row) { const td = document.createElement("td"); td.textContent = cell; tr.appendChild(td); }
           tbl.appendChild(tr);
         }
         body.appendChild(tbl);
+        if (r.capped) {
+          // The two escapes, each labelled with what IT loses. `/drawings/schedule.svg` was dark
+          // and is named in this button's own tooltip.
+          const esc2 = document.createElement("div");
+          esc2.style.cssText = "display:flex;gap:8px;margin:-2px 0 8px;flex-wrap:wrap";
+          const svg = document.createElement("a"); svg.className = "file-btn";
+          svg.textContent = `▦ Drafted table — all ${r.total} rows`;
+          svg.title = "Every row, as a drafted SVG table. Long cell values are clipped to 22 "
+            + "characters by the renderer.";
+          svg.href = d.api.drawingScheduleSvgUrl(d.pid, kind); svg.target = "_blank"; svg.rel = "noopener";
+          const csv = document.createElement("a"); csv.className = "file-btn";
+          csv.textContent = "⤓ CSV — all rows, in full";
+          csv.title = "Every row with every value complete — the only output that loses nothing.";
+          csv.href = d.api.drawingSchedulesCsvUrl(d.pid, kind); csv.target = "_blank"; csv.rel = "noopener";
+          esc2.append(svg, csv);
+          body.appendChild(esc2);
+        }
       }
     });
   };
@@ -224,7 +255,26 @@ export function buildDrawingsSection(d: DrawingsDeps): HTMLElement[] {
   });
   sectBtn.title = "Cut sections (auto-centred on the model) and projected N/S/E/W elevations — vector "
     + "linework from the model geometry, the other half of the drawing set alongside plans.";
+  // DETAIL-REFS-DARK — can a reader follow the callouts in this set? The card body is in
+  // `./detailRefsCard`, behind `await import()`, because `viewer/tools/*` is the app-shell chunk and
+  // it sits at its Brotli cap: the button has to be eager because the rail is built up front, and
+  // nothing else does. The overlay opens only after the fetch succeeds, so a failure is a toast
+  // rather than an empty card — the same shape `recipeLogTool.ts` settled on.
+  // The label lost "(dangling & orphan)" to 8 BYTES. That is the measured overage after the overlay
+  // moved into the lazy module — `node --input-type=module` over the brotli'd shell assets put the
+  // total at 225.008 KB against 225.000 — and the parenthetical repeats what the title says one
+  // hover away. *Trimming my own prose is the right price for a shared allowance*: the budget's
+  // message offers "bump BUNDLE_BUDGET_KB deliberately with a note" and taking that for a feature
+  // of mine, when nineteen characters would do, is how a shared ceiling becomes a formality.
+  const refsBtn = d.toolBtn2("⇄ Detail references", async () => {
+    const card = await import("./detailRefsCard");
+    await card.openDetailRefsCard({ api: d.api, pid: d.pid, container: d.container, notify: d.notify });
+  });
+  refsBtn.title = "Callouts pointing at details that do not exist, and details nothing points at. "
+    + "A set with no callouts recorded reads as UNCHECKED, never as clean.";
+
   // Returned in rail order. Picker first so Issue/PDF/Place all read the same stored size.
   // `planPaneBtn` before `planBtn`: the docked pane is the daily surface, the SVG export the occasional one.
-  return [paperPicker(), planPaneBtn, planBtn, sheetBtn, pdfBtn, placeBtn, schedBtn, schedPdfBtn, schedCsvBtn, manualBtn, sectBtn];
+  return [paperPicker(), planPaneBtn, planBtn, sheetBtn, pdfBtn, placeBtn, schedBtn, schedPdfBtn,
+          schedCsvBtn, manualBtn, sectBtn, refsBtn];
 }

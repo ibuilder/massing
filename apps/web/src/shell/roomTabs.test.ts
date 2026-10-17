@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ROOM_IDS } from "./spine";
-import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./roomTabs";
+import {
+  buildRoomTabs, renderLiveRefusal, renderRoomTabs, roomForWorkspace,
+} from "./roomTabs";
 
 /**
  * The rooms as primary navigation.
@@ -147,5 +149,132 @@ describe("rendering", () => {
     expect(badge.getAttribute("aria-label")).toMatch(/in your court/i);
     // exactly one badge in the whole bar
     expect(host.querySelectorAll(".room-tab-count").length).toBe(1);
+  });
+});
+
+describe("FIELD-STREAM-POISON — the live-notification chip", () => {
+  const strip = () => {
+    const host = document.createElement("div");
+    document.body.replaceChildren(host);
+    return host;
+  };
+  const chip = (host: HTMLElement) => host.querySelector<HTMLElement>(".room-tab-live");
+
+  it("lands on the room `construction` resolves to, not on a guessed tab", () => {
+    // Derived, never a second list: the old consumer named the Construction WORKSPACE, and the
+    // workspace→room map already answers where that went.
+    const room = roomForWorkspace("construction");
+    const host = strip();
+    renderRoomTabs(host, buildRoomTabs(null, null, { room, count: 3 }), "model", () => {});
+    const on = host.querySelector<HTMLElement>(`.room-tab[data-room="${room}"] .room-tab-live`);
+    expect(on?.textContent).toBe("3");
+    expect(host.querySelectorAll(".room-tab-live")).toHaveLength(1);
+  });
+
+  it("is a SECOND chip — it never replaces the ball-in-your-court count", () => {
+    // "Items in your court" and "unread notifications" are different numbers. Overloading one
+    // badge with both would make neither readable.
+    const host = strip();
+    renderRoomTabs(host, buildRoomTabs(null, 6, { room: "work", count: 2 }), "model", () => {});
+    const work = host.querySelector<HTMLElement>('.room-tab[data-room="work"]')!;
+    expect(work.querySelector(".room-tab-count")?.textContent).toBe("6");
+    expect(work.querySelector(".room-tab-live")?.textContent).toBe("2");
+  });
+
+  it("renders nothing at zero unread — no permanent zero in the bar", () => {
+    const host = strip();
+    renderRoomTabs(host, buildRoomTabs(null, null, { room: "schedule", count: 0 }), "model",
+                   () => {});
+    expect(chip(host)).toBeNull();
+  });
+
+  it("NOTHING inside a tab button is focusable or interactive", () => {
+    // The chip began as a focusable `<span>` with `role="button"` INSIDE the tab `<button>`, which
+    // is invalid HTML — `<button>` permits no interactive content — so assistive technology need
+    // not expose or activate it however many ARIA attributes it carries. Asserted structurally
+    // rather than by dispatching at it, because dispatching is exactly what hid the defect.
+    const host = strip();
+    renderRoomTabs(host, buildRoomTabs(null, 6, { room: "work", count: 2 }), "model", () => {});
+    for (const b of host.querySelectorAll(".room-tab")) {
+      expect(b.querySelectorAll("button, a, input, select, textarea, [tabindex], [role=button]"))
+        .toHaveLength(0);
+    }
+  });
+
+  it("no live state at all leaves every tab exactly as before", () => {
+    const host = strip();
+    renderRoomTabs(host, buildRoomTabs(null, 6), "model", () => {});
+    expect(host.querySelectorAll(".room-tab-live")).toHaveLength(0);
+    expect(host.querySelectorAll(".room-tab")).toHaveLength(ROOM_IDS.length);
+  });
+});
+
+describe("renderLiveRefusal — the refusal is a real button, outside the tablist", () => {
+  const box = () => {
+    const host = document.createElement("div");
+    document.body.replaceChildren(host);
+    return host;
+  };
+
+  it("renders nothing, and hides itself, when there is no refusal", () => {
+    const host = box();
+    renderLiveRefusal(host, null, () => {});
+    expect(host.hidden).toBe(true);
+    expect(host.children).toHaveLength(0);
+  });
+
+  it("THE POINT: the reason is VISIBLE TEXT, not a title a touch user cannot reach", () => {
+    // The first draft labelled the button "Live updates stopped" and put the reason in `title` and
+    // `aria-label`, so on a touch device — and this product ships a tablet field mode — a sighted
+    // user could not read why. A reason carried but not shown is the defect this branch is about.
+    const host = box();
+    renderLiveRefusal(host, "No longer permitted on this project", () => {});
+    expect(host.hidden).toBe(false);
+    expect(host.textContent).toContain("No longer permitted on this project");
+    expect(host.querySelector(".live-refused-why")?.textContent)
+      .toContain("Live updates stopped");
+    const b = host.querySelector("button")!;
+    expect(b.tagName).toBe("BUTTON");
+    expect(b.type).toBe("button");
+    // The button's VISIBLE text is its accessible name: an `aria-label` that differs from the
+    // visible label is its own failure (WCAG 2.5.3), so there is none to drift.
+    expect(b.textContent).toBe("Try again");
+    expect(b.getAttribute("aria-label")).toBeNull();
+    expect(b.title).toBe("");
+  });
+
+  it("an EMPTY reason still renders the control — only null means no refusal", () => {
+    // `main.ts` builds this with `why ?? "…"`, which preserves an empty string, so a truthiness
+    // check hid the control for a stream that IS refused: silence about a refusal, the worst
+    // available outcome. Not reachable through `permanentRejection` today and fixed anyway —
+    // it is the empty-versus-absent confusion this branch has corrected six times.
+    const host = box();
+    renderLiveRefusal(host, "", () => {});
+    expect(host.hidden).toBe(false);
+    expect(host.querySelector("button")).not.toBeNull();
+    expect(host.textContent).toContain("refused by the server");
+  });
+
+  it("activating it retries, with no stopPropagation workaround needed", () => {
+    // A real button needs no `role`, no `tabindex` and no event-swallowing: the browser gives it a
+    // tab stop and Enter/Space for free. The nested span needed all three, and the workaround was
+    // read at the time as a feature rather than as evidence the nesting was wrong.
+    let retries = 0;
+    const host = box();
+    renderLiveRefusal(host, "Gone", () => { retries++; });
+    const b = host.querySelector("button")!;
+    expect(b.getAttribute("tabindex")).toBeNull();
+    expect(b.getAttribute("role")).toBeNull();
+    expect(host.textContent).toContain("Gone");
+    b.click();
+    expect(retries).toBe(1);
+  });
+
+  it("clears the control when the refusal lifts", () => {
+    const host = box();
+    renderLiveRefusal(host, "Gone", () => {});
+    renderLiveRefusal(host, null, () => {});
+    expect(host.children).toHaveLength(0);
+    expect(host.hidden).toBe(true);
   });
 });

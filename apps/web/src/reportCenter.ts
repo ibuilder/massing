@@ -29,12 +29,36 @@ export function verificationCoverageCard(c: {
         : "");
 }
 import type { ApiClient, ProfessionalLicense, StampTemplate } from "./api/client";
-import { money } from "./ui/charts";
+import { money, usd } from "./ui/charts";
+import {
+  decisionAlignment,
+  decisionAxisBasis,
+  decisionCategories,
+  decisionRowNote,
+  decisionStates,
+  exposureCaveat,
+  veReading,
+  veTargetFromAlignment,
+} from "./preconReadings";
 import { toast, escapeHtml } from "./ui/feedback";
+import { issuanceLine, orderWarning, supersededRows } from "./drawingRegisterReadings";
+import { itbCoverageLine, itbHeadline, itbSuspect, rateCell, unmatchedLine }
+  from "./portal/panels/itbCoverage";
+import { closedStatesCaveat, overdueCell, resubmittalLine, submittalCoverageLine, submittalHeadline,
+  submittalSuspect, turnaroundLine } from "./portal/panels/submittalCoverage";
+import { coverageLine, draftLine } from "./fieldLogReadings";
+import { unbilledCaveat, unbilledLine } from "./tmReadings";
 import { modalShell } from "./ui/modal";
 import { askText } from "./ui/prompt";
 import { REPORT_MOMENTS, REPORT_PACKAGE_KIND, missingReportIds, packageJobParams, resolveMoment } from "./ui/reportMoments";
 import { showResult } from "./ui/result";
+import { coHeadline, coReconciles, coScheduleNote, coStateRows, rejectedShareNote } from "./coLogReadings";
+import {
+  INSTRUMENTS, TONE_CSS as REV_TONE, carryReconciles, carryVerdict, nextRev, revisionLine,
+  sheetOptions,
+} from "./reviseReadings";
+import { actionHeadline, historicBy, meetingLine, openPriorities, owedBy,
+  rollupBasis } from "./actionReadings";
 
 /** REL-4 leaf — the Report Center modal: every exportable report (PDF/Excel/markup) plus the
  *  interactive project tools & analytics (drawing-set register + issuance + pre-flight gate,
@@ -48,6 +72,108 @@ import { showResult } from "./ui/result";
  *   is a shortcut into this surface, not a replacement for it, and the packages above the row are
  *   often the better answer to what the reader actually wanted.
  */
+/**
+ * What the feasibility scheme comparison is OVER, and what it left out. TOTAL-EXCLUDED.
+ *
+ * `feasibility.compare` ranks LIVE schemes: it drops SUPERSEDED zoning records and names them in
+ * `superseded_excluded`, saying so in the response's own `note` — *"a replaced scheme cannot be the
+ * baseline the live ones are measured against"*. Neither field was declared in this client, so
+ * `count` was printed as the size of the field and both failures below shipped.
+ *
+ * **`empty` is the worse one.** With every scheme superseded, `count` is 0 and the panel said *"Add
+ * two or more Zoning & Site records (one per scheme) to compare"* — instructing somebody to create
+ * records they already have, because nothing distinguished *no schemes recorded* from *every scheme
+ * replaced*. That is the empty-versus-absent confusion this tree keeps correcting, in its most
+ * expensive form: the advice is actionable and wrong.
+ *
+ * Pure and exported for the same reason `buyoutOutcome` is: the renderer needs a live api and a
+ * mounted DOM, and the choice between these three messages is the part worth asserting.
+ */
+export function feasibilityScope(count: number, supersededCount: number):
+    { empty: string | null; caveat: string | null } {
+  const live = Math.max(0, Math.trunc(count) || 0);
+  const gone = Math.max(0, Math.trunc(supersededCount) || 0);
+  if (!live) {
+    return {
+      empty: gone
+        ? `No LIVE scheme to compare — ${gone} recorded scheme(s) are SUPERSEDED and are excluded `
+          + "from the ranking. Reinstate one, or add a current Zoning & Site record."
+        : "Add two or more Zoning & Site records (one per scheme) to compare.",
+      caveat: null,
+    };
+  }
+  return {
+    empty: null,
+    caveat: gone
+      ? `${gone} superseded scheme(s) are excluded from this ranking — the count above is the live `
+        + "field, not everything on record."
+      : null,
+  };
+}
+
+/** DRAFT-BASELINE — one ranked zoning scheme, as much of it as the baseline question needs. */
+export interface RankedScheme {
+  ref?: string;
+  workflow_state?: string;
+  unit_yield?: number | null;
+  allowed_gfa_sf?: number | null;
+  delta_units?: number;
+  delta_gfa_sf?: number;
+}
+
+/** The scheme's governance state, marked. `superseded` never reaches a consumer — `compare` drops
+ *  those into `superseded_excluded` — so the pair that matters here is approved versus draft. */
+export function schemeStateMark(state: string | undefined): string {
+  const s = (state ?? "").trim().toLowerCase();
+  if (s === "approved") return "✅ approved";
+  if (s === "draft") return "✏️ DRAFT";
+  if (!s) return "—";
+  return s;
+}
+
+/**
+ * Is the scheme every delta is measured against actually APPROVED? DRAFT-BASELINE.
+ *
+ * `feasibility.compare` ranks by unit yield, then allowed GFA, and measures every other scheme's
+ * `delta_units` / `delta_gfa_sf` against whichever scheme wins. Its own `note` states the rule it
+ * enforces for one state — *"a replaced scheme cannot be the baseline the live ones are measured
+ * against"* — and then states, correctly, that *"Drafts ARE ranked: an unapproved scheme is a real
+ * option to test."* Both are right. What was missing is that the reader is never told WHICH it is.
+ *
+ * Measured against a live server on two schemes on one 20,000 SF site:
+ *
+ * | scheme | state | FAR | allowed GFA | units | Δ units | Δ GFA |
+ * |---|---|---|---|---|---|---|
+ * | ZON-002 | **draft** | 8 | 144,000 | 136 | 0 | 0 |
+ * | ZON-001 | approved | 4 | 72,000 | 68 | **−68** | **−72,000** |
+ *
+ * The headline read `2 scheme(s) ranked by buildable yield · best: ZON-002`, the table rendered no
+ * state column, and `delta_gfa_sf` was computed and never shown — so the APPROVED scheme appeared
+ * as a 68-unit shortfall against an envelope nobody has approved, with the SF half of that
+ * shortfall invisible. *That is the same hazard the engine already guards against for superseded
+ * records, one step milder, and the guard it built does not extend to it — because a draft SHOULD
+ * be rankable. The fix belongs on the screen, not in the ranking.*
+ *
+ * `workflow_state` was sent on every scenario and undeclared. It is nested on `scenarios[]`, so
+ * `apps/web/src/api/responseUndeclared.test.ts` — which compares a route's TOP-LEVEL keys — could
+ * not see it, the same blind spot MC-UNDEFINED and BASIS-UNREAD both record.
+ */
+export function baselineCaveat(scenarios: RankedScheme[]): string | null {
+  const best = scenarios[0];
+  if (!best) return null;
+  if ((best.workflow_state ?? "").trim().toLowerCase() === "approved") return null;
+  const state = (best.workflow_state ?? "").trim() || "no recorded state";
+  const approved = scenarios.filter(
+    (s) => (s.workflow_state ?? "").trim().toLowerCase() === "approved");
+  const against = approved.length
+    ? ` ${approved.length} approved scheme(s) below it are shown as a shortfall against an envelope `
+      + "nobody has approved."
+    : " No scheme in this comparison is approved.";
+  return `⚠ The baseline every delta is measured against — ${best.ref ?? "the top scheme"} — is `
+    + `${state.toUpperCase()}, not approved.${against} Ranking a draft is deliberate; reading its `
+    + "yield as the target is not.";
+}
+
 export async function openReportCenter(api: ApiClient, projectId: string | null, focusId?: string) {
   if (!projectId) { toast("Open a project first", "info"); return; }
   const pid = projectId;
@@ -184,7 +310,15 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
       body.innerHTML = `<div class="meta">Loading…</div>`;
       try {
         const d = await api.drawingSet(pid);
-        body.innerHTML = `<div class="meta">${d.current_count} current · ${d.new_count} new · ${d.revised_count} revised · ${d.superseded_count} superseded · ${d.sheet_count} sheets</div>`;
+        // SET-REVISED. These five counts were right only for a drawing-log import. `register`
+        // classified issuance by counting RECORDS per sheet while `revise` appends to one record's
+        // own revision list, so a set revised through this app read `N new · 0 revised · 0
+        // superseded` on every sheet. The engine counts revisions now; `orderWarning` surfaces the
+        // sheets whose revision ORDER is the register's ranking rather than a recorded fact, and
+        // the superseded revisions get the table they never had.
+        const ordWarn = orderWarning(d);
+        body.innerHTML = `<div class="meta">${escapeHtml(issuanceLine(d))}</div>`
+          + (ordWarn ? `<div class="meta" style="color:var(--status-warn);margin-top:4px">${escapeHtml(ordWarn)}</div>` : "");
         // generate a full discipline sheet set (one NCS series per discipline: S-/A-/M-/E-/P-/FP-/FA-/T-)
         const gen = document.createElement("button"); gen.className = "file-btn"; gen.textContent = "⚙ Generate discipline sheet set";
         gen.style.margin = "6px 6px 6px 0";
@@ -204,6 +338,15 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
         if (Object.keys(d.by_discipline || {}).length)
           body.insertAdjacentHTML("beforeend", `<div class="meta" style="margin:4px 0">By discipline: ${Object.entries(d.by_discipline).map(([k, v]) => `${escapeHtml(k)} ${v}`).join(" · ")}</div>`);
 
+        // SET-REVISED: `superseded` has always carried every earlier revision with the revision
+        // that replaced it, the date, what changed and the driving instrument. It was undeclared on
+        // the client, so the register could say how many sheets were superseded and never which.
+        const supRows = supersededRows(d);
+        if (supRows.length) {
+          body.insertAdjacentHTML("beforeend", `<div class="section-title" style="margin-top:8px">Superseded revisions <span class="meta">(void — build from the current set)</span></div>`);
+          table(body, ["Sheet", "Rev", "Superseded by", "Date", "What changed", "Instrument"], supRows);
+        }
+
         // --- AIA issuance: issue the set for a purpose + issuance register + sheet×issuance matrix ---
         const iss = document.createElement("div"); iss.style.margin = "10px 0 4px";
         iss.innerHTML = `<div class="section-title">Issuances (AIA)</div>`;
@@ -220,6 +363,15 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
           for (const c of g.checks) {
             const line = document.createElement("div"); line.className = "meta"; line.style.margin = "2px 0";
             line.textContent = `${STATUS_ICON[c.status] ?? "•"} ${c.label} — ${c.detail}`;
+            // DRAWQA-UNMEASURED: when a check evaluated less than everything it says so in
+            // `coverage`, and it is rendered as its own marked line rather than left inside the
+            // detail sentence — a reader who has seen the icon has already stopped reading the prose.
+            if (c.coverage && c.coverage.trim().toLowerCase() !== "ok") {
+              const cov = document.createElement("div"); cov.className = "meta";
+              cov.style.cssText = "margin:0 0 2px 18px;color:var(--status-warn)";
+              cov.textContent = `partial: ${c.coverage}`;
+              line.appendChild(cov);
+            }
             if (c.link) {
               const a = document.createElement("a"); a.href = api.url(c.link); a.target = "_blank"; a.rel = "noopener";
               a.textContent = " ↗"; a.title = `Open ${c.link}`; line.appendChild(a);
@@ -293,6 +445,81 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
               [r.sheet_number, r.rev ?? "", r.date ?? "", r.description ?? "", r.instrument ? `${r.instrument.type ?? ""} ${r.instrument.ref ?? ""}`.trim() : ""]));
           }
         } catch { /* revisions optional */ }
+
+        // --- REVISE-DARK: issue a revision ---------------------------------------------------
+        //
+        // `reviseDrawing` sat in `clientCallers.test.ts`'s frozen callerless set: the register above
+        // could be READ and a revision could never be ISSUED, so the AIA revision discipline had no
+        // door. The picker is built from the module records rather than the register, because
+        // `drawingset.register` carries `ref` and `sheet_number` and no record id, and this route is
+        // keyed by the id. `apps/web/src/reviseReadings.ts` holds the readings.
+        try {
+          const dwgRecs = await api.moduleRecords(pid, "drawing");
+          const opts = sheetOptions(dwgRecs);
+          if (opts.length) {
+            const wrap = document.createElement("div"); wrap.style.margin = "10px 0 4px";
+            wrap.innerHTML = `<div class="section-title">Issue a revision</div>`
+              + `<div class="meta">Records an AIA revision delta on one sheet, bumps its revision, `
+              + `and tags that sheet's markups carried-forward for re-check.</div>`;
+            const fr = document.createElement("div");
+            fr.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0";
+            const sheetSel = document.createElement("select"); sheetSel.className = "portal-filter";
+            for (const o of opts) {
+              const el = document.createElement("option"); el.value = o.id; el.textContent = o.label;
+              sheetSel.appendChild(el);
+            }
+            const revIn = document.createElement("input"); revIn.className = "portal-filter";
+            revIn.placeholder = "rev"; revIn.size = 5; revIn.required = true;
+            // A SUGGESTION, refreshed when the sheet changes. `_rev_key` ranks alpha and numeric
+            // revisions separately, so `nextRev` returns "" rather than guessing wrong and
+            // reordering which revision counts as current.
+            const suggest = () => {
+              const cur = opts.find((o) => o.id === sheetSel.value);
+              revIn.value = cur ? nextRev(cur.revision) : "";
+            };
+            suggest(); sheetSel.onchange = suggest;
+            const descIn = document.createElement("input"); descIn.className = "portal-filter";
+            descIn.placeholder = "description"; descIn.style.flex = "1"; descIn.style.minWidth = "160px";
+            const dateIn = document.createElement("input"); dateIn.className = "portal-filter";
+            dateIn.type = "date"; dateIn.value = new Date().toISOString().slice(0, 10);
+            const instSel = document.createElement("select"); instSel.className = "portal-filter";
+            for (const i of INSTRUMENTS) {
+              const el = document.createElement("option"); el.value = i;
+              el.textContent = i || "no instrument"; instSel.appendChild(el);
+            }
+            const refIn = document.createElement("input"); refIn.className = "portal-filter";
+            refIn.placeholder = "instrument ref"; refIn.size = 12;
+            const btn = document.createElement("button"); btn.className = "file-btn";
+            btn.textContent = "Issue revision";
+            const out = document.createElement("div"); out.style.margin = "4px 0";
+            btn.onclick = async () => {
+              const rev = revIn.value.trim();
+              if (!rev) { toast("A revision identifier is required", "error"); revIn.focus(); return; }
+              btn.disabled = true;
+              try {
+                const r = await api.reviseDrawing(pid, sheetSel.value, {
+                  rev, description: descIn.value.trim(), date: dateIn.value || undefined,
+                  instrument_type: instSel.value || undefined,
+                  instrument_ref: refIn.value.trim() || undefined,
+                });
+                // The slip-sheet verdict is rendered beside the revision, never folded into it:
+                // the tagging can fail while the revision stands, and that is the whole item.
+                const v = carryVerdict(r);
+                const mismatch = carryReconciles(r);
+                out.innerHTML = `<div class="meta">${escapeHtml(revisionLine(r))}</div>`
+                  + `<div class="meta" style="color:${REV_TONE[v.tone]}">${escapeHtml(v.text)}</div>`
+                  + (mismatch
+                    ? `<div class="meta" style="color:${REV_TONE.crit}">${escapeHtml(mismatch)}</div>`
+                    : "");
+                toast(`Rev ${r.revision} recorded`, "success");
+                await load();
+              } catch (e) { toast((e as Error).message, "error"); }
+              btn.disabled = false;
+            };
+            fr.append(sheetSel, revIn, descIn, dateIn, instSel, refIn, btn);
+            wrap.append(fr, out); body.appendChild(wrap);
+          }
+        } catch { /* the drawing register is optional on a project with no sheets */ }
 
         body.insertAdjacentHTML("beforeend", `<div class="section-title" style="margin-top:10px">Sheet index</div>`);
         table(body, ["Sheet", "Title", "Discipline", "Rev", "Status"], d.sheet_index.map((s: any) => [s.sheet_number, s.title ?? "", s.discipline ?? "", s.current_revision ?? "", s.change]));
@@ -436,13 +663,31 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   }));
   tool("📋 ITB coverage (bid invitations)", () => showResult("ITB coverage", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const t = await api.itb(pid); body.innerHTML = `<div class="meta">${t.package_count} packages · ${t.total_responses}/${t.total_invited} responses · ${t.packages_without_bids} with no bids</div>`;
-      table(body, ["Package", "Invited", "Responses", "Coverage"], t.rows.map((r: any) => [r.package, r.invited, r.responses, r.coverage])); }
+    try { const t = await api.itb(pid);
+      // ITB-DOUBLE. `${t.total_responses}/${t.total_invited} responses` was the two-population
+      // ratio in fraction form: a numerator over every package against a denominator over only
+      // the ones that recorded an invite list. The engine computes the rate over the rated
+      // packages now and states the split; the table carries each row's basis, and a bid that
+      // matched no package is reported instead of vanishing.
+      const unmatched = unmatchedLine(t);
+      body.innerHTML = `<div class="meta">${escapeHtml(itbHeadline(t))}</div>`
+        + `<div class="meta"${itbSuspect(t) ? ` style="color:var(--status-warn)"` : ""}>${escapeHtml(itbCoverageLine(t))}</div>`
+        + (unmatched ? `<div class="meta" style="color:var(--status-warn);margin-top:2px">${escapeHtml(unmatched)}</div>` : "");
+      table(body, ["Package", "Invited", "Responses", "Rate", "Coverage"],
+        t.rows.map((r) => [r.package, r.invited || "—", r.responses, rateCell(r), r.coverage])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   tool("💵 T&M / eTicket rollup", () => showResult("Time & Material rollup", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const s = await api.tmSummary(pid); body.innerHTML = `<div class="meta">${s.ticket_count} tickets · labor ${money(s.labor_total)} · material ${money(s.material_total)} · equipment ${money(s.equipment_total)} · <b>total ${money(s.grand_total)}</b> · unbilled ${money(s.unbilled_total)}</div>`;
+    try { const s = await api.tmSummary(pid);
+      // TM-UNBILLED. `unbilled ${money(s.unbilled_total)}` printed $90,000 of unsigned drafts and
+      // $90,000 of GC-ACCEPTED T&M as the same sentence -- the engine measured both at
+      // `unbilled_total: 90000`, and `by_status` carried the split the card discarded. `unbilledLine`
+      // names the states the figure is made of; `unbilledCaveat` fires when a state arrives that
+      // this screen cannot place, instead of folding it into one of the named buckets.
+      const caveat = unbilledCaveat(s);
+      body.innerHTML = `<div class="meta">${s.ticket_count} tickets · labor ${money(s.labor_total)} · material ${money(s.material_total)} · equipment ${money(s.equipment_total)} · <b>total ${money(s.grand_total)}</b> · billed ${usd(s.billed_total)} · ${escapeHtml(unbilledLine(s))}</div>`
+        + (caveat ? `<div class="meta" style="color:var(--status-warn);margin-top:4px">${escapeHtml(caveat)}</div>` : "");
       table(body, ["Ref", "Subject", "Total", "Status"], s.rows.map((r: any) => [r.ref ?? "", r.subject ?? "", money(r.total), r.status]));
       // T&M rolled up by the change event each ticket is linked to (field T&M -> CO -> billing)
       const bce = await api.tmByChangeEvent(pid);
@@ -480,13 +725,25 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   tool("▟ Compare feasibility scenarios", () => showResult("Compare feasibility scenarios", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
     try { const c = await api.feasibilityCompare(pid);
-      if (!c.count) { body.innerHTML = `<div class="meta">Add two or more <b>Zoning &amp; Site</b> records (one per scheme) to compare.</div>`; return; }
+      const scope = feasibilityScope(c.count, (c.superseded_excluded ?? []).length);
+      // TOTAL-EXCLUDED — the empty branch used to say "Add two or more Zoning & Site records", which
+      // is advice to create records the user already has whenever every scheme is SUPERSEDED.
+      if (scope.empty) { body.innerHTML = `<div class="meta">${escapeHtml(scope.empty)}</div>`; return; }
       const sf = (v: number | null | undefined) => (typeof v === "number" ? `${Math.round(v).toLocaleString()} SF` : "—");
-      body.innerHTML = `<div class="meta"><b>${c.count} scheme(s)</b> ranked by buildable yield · best: ${escapeHtml(c.best_ref ?? "—")}</div>`;
-      table(body, ["Scheme", "Site", "FAR", "Floors", "Allowed GFA", "Binds on", "Units", "Parking", "Δ units"],
-        c.scenarios.map((s) => [s.ref ?? "", s.site ?? "", s.far ?? "—", s.max_floors ?? "—", sf(s.allowed_gfa_sf),
+      // DRAFT-BASELINE: the deltas are measured against whichever scheme ranks first, and a DRAFT
+      // can rank first — deliberately, per the engine's own note. The caveat and the State column
+      // are what stop an approved scheme reading as a shortfall against an unapproved envelope.
+      const baseline = baselineCaveat(c.scenarios);
+      body.innerHTML = `<div class="meta"><b>${c.count} scheme(s)</b> ranked by buildable yield · best: ${escapeHtml(c.best_ref ?? "—")}</div>`
+        + (baseline
+          ? `<div class="meta" style="color:var(--status-crit)">${escapeHtml(baseline)}</div>` : "")
+        + (scope.caveat
+          ? `<div class="meta" style="color:var(--status-warn)">${escapeHtml(scope.caveat)}</div>` : "");
+      table(body, ["Scheme", "State", "Site", "FAR", "Floors", "Allowed GFA", "Binds on", "Units", "Parking", "Δ units", "Δ GFA"],
+        c.scenarios.map((s) => [s.ref ?? "", schemeStateMark(s.workflow_state), s.site ?? "", s.far ?? "—", s.max_floors ?? "—", sf(s.allowed_gfa_sf),
           s.binding_constraint ?? "—", s.unit_yield ?? "—", s.parking_required ?? "—",
-          (s.delta_units ?? 0) === 0 ? "—" : String(s.delta_units)])); }
+          (s.delta_units ?? 0) === 0 ? "—" : String(s.delta_units),
+          (s.delta_gfa_sf ?? 0) === 0 ? "—" : sf(s.delta_gfa_sf)])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   tool("§ Spec submittal log (from specs)", () => showResult("Spec-driven submittal log", async (body) => {
@@ -530,9 +787,66 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   tool("✔ Decision log", () => showResult("Decision log", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
     try { const s = await api.decisionLog(pid);
-      body.innerHTML = `<div class="meta">${s.decision_count} decisions · ${s.open_count} open · ${s.disputed_count} disputed · cost exposure ${money(s.open_cost_exposure)} · ${s.open_schedule_exposure_days} sched days</div>`;
-      table(body, ["Decision", "Category", "Alignment", "State", "Cost"], s.rows.map((r: any) => [r.subject ?? "", r.category ?? "", r.alignment ?? "", r.state ?? "", money(r.cost_impact)])); }
+      // VE-DARK: the exposure is a sum over the open rows that carry a figure, and `open_count`
+      // counts all of them. This register was the one of the three already on screen, so the
+      // subset problem was live here rather than latent.
+      const cv = exposureCaveat(s.open_without_cost_impact, s.open_count, "cost", "open decision");
+      const sv = exposureCaveat(s.open_without_schedule_impact, s.open_count, "schedule",
+                                "open decision");
+      // DECISION-AXES: `open` is a STATE and `disputed` is an ALIGNMENT, and this line printed them
+      // as one series over the same total — so "7 decisions · 2 open · 2 disputed" read as three
+      // slices of seven while one of the disputed had already been DECIDED. The two cuts are two
+      // lines now, and the states account for the total. `apps/web/src/preconReadings.ts` holds the
+      // readings and the measurement.
+      const align = decisionAlignment(s);
+      const cats = decisionCategories(s);
+      const rowNote = decisionRowNote(s);
+      body.innerHTML = `<div class="meta">${escapeHtml(decisionStates(s))}</div>`
+        + (align ? `<div class="meta">${escapeHtml(align)}</div>` : "")
+        + `<div class="meta">Open exposure: ${money(s.open_cost_exposure)} · ${s.open_schedule_exposure_days} sched days</div>`
+        + (cv ? `<div class="meta">⚠ ${escapeHtml(cv)}</div>` : "")
+        + (sv ? `<div class="meta">⚠ ${escapeHtml(sv)}</div>` : "")
+        + (cats ? `<div class="meta">${escapeHtml(cats)}</div>` : "")
+        + `<div class="meta">${escapeHtml(decisionAxisBasis(s))}</div>`;
+      table(body, ["Decision", "Category", "Alignment", "State", "Cost"], s.rows.map((r: any) => [r.subject ?? "", r.category ?? "", r.alignment ?? "", r.state ?? "", money(r.cost_impact)]));
+      if (rowNote) body.insertAdjacentHTML("beforeend", `<div class="meta">${escapeHtml(rowNote)}</div>`); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+  }));
+  // VE-DARK: both of these had no caller anywhere — frozen in `api/clientCallers.test.ts`. They
+  // are the two money registers a precon team actually argues over, and they sit beside the
+  // decision log because they answer the same question at different stages.
+  tool("✂ Value engineering", () => showResult("Value engineering", async (body) => {
+    body.innerHTML = `<div class="meta">Loading…</div>`;
+    try {
+      // The target is the project's OWN over-budget gap, and the basis travels with it — a VE
+      // target with no stated basis is a number nobody can check.
+      let basis: { target: number | null; basis: string };
+      try { basis = veTargetFromAlignment(await api.preconAlignment(pid)); }
+      catch { basis = { target: null, basis: "the alignment read failed, so no target is claimed" }; }
+      const v = await api.veLog(pid, basis.target ?? undefined);
+      const r = veReading(v, basis.basis);
+      const miss = exposureCaveat(v.rows_without_savings, v.ve_count, "savings", "idea");
+      body.innerHTML = `<div class="meta"><b>${escapeHtml(r.headline)}</b></div>`
+        + `<div class="meta">${escapeHtml(r.detail)}</div>`
+        + (miss ? `<div class="meta">⚠ ${escapeHtml(miss)}</div>` : "");
+      table(body, ["Ref", "Idea", "Status", "Savings"], v.rows.map((x) => [
+        x.ref ?? "", x.subject ?? "", x.status,
+        x.savings_given ? money(x.savings) : "not priced"]));
+    } catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+  }));
+  tool("❕ Assumptions & clarifications", () => showResult("Assumptions & clarifications", async (body) => {
+    body.innerHTML = `<div class="meta">Loading…</div>`;
+    try {
+      const a = await api.assumptionsRegister(pid);
+      const miss = exposureCaveat(a.open_without_cost_impact, a.open_count, "cost",
+                                  "open assumption");
+      body.innerHTML = `<div class="meta">${a.assumption_count} assumption(s) · ${a.open_count} open · `
+        + `${a.confirmed_count} confirmed · open allowance exposure ${money(a.open_cost_exposure)}</div>`
+        + (miss ? `<div class="meta">⚠ ${escapeHtml(miss)}</div>` : "");
+      table(body, ["Ref", "Assumption", "Category", "State", "Owner", "Cost impact"], a.rows.map((x) => [
+        x.ref ?? "", x.subject ?? "", x.category, x.state, x.owner ?? "",
+        x.cost_impact_given ? money(x.cost_impact) : "no figure"]));
+    } catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   tool("Σ Estimate continuity (preconstruction)", () => showResult("Estimate continuity", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
@@ -545,27 +859,71 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   }));
   tool("💲 Change-order log", () => showResult("Change-order log", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const s = await api.coLog(pid); body.innerHTML = `<div class="meta">${s.co_count} COs · total ${money(s.total_value)} · pending ${money(s.pending_value)} · approved ${money(s.approved_value)} · <b>executed ${money(s.executed_value)}</b> · ${s.total_schedule_days} sched days · CE ROM exposure ${money(s.change_event_rom_exposure)}</div>`;
+    // CO-REJECTED. This printed `total_value` beside pending/approved/executed — four of five
+    // figures — so the rejected CORs were inside the total and named nowhere: $575k total against
+    // $175k of named states on a four-COR fixture. The LIVE figure leads now and the refusal is
+    // named, with the response's own arithmetic checked rather than presented.
+    try { const s = await api.coLog(pid);
+      const bad = coReconciles(s) === false;
+      body.innerHTML = `<div class="meta">${escapeHtml(coHeadline(s))} · ${escapeHtml(coScheduleNote(s))} · CE ROM exposure ${money(s.change_event_rom_exposure)}</div>`;
+      const share = rejectedShareNote(s);
+      if (share) body.insertAdjacentHTML("beforeend", `<div class="meta" style="color:var(--status-warn)">${escapeHtml(share)}</div>`);
+      if (bad) body.insertAdjacentHTML("beforeend", `<div class="meta" style="color:var(--status-crit)">The server's change-order figures do not reconcile — live ≠ pending + approved + executed, or total ≠ live + rejected. Treat the decomposition above as approximate.</div>`);
+      const states = coStateRows(s);
+      if (states.length) body.insertAdjacentHTML("beforeend", `<div class="meta">By state: ${states.map((x) => `${escapeHtml(x.state)} ${x.count}`).join(" · ")}</div>`);
       table(body, ["Ref", "Subject", "State", "Ball in court", "Reason", "Amount"], s.rows.map((r: any) => [r.ref ?? "", r.subject ?? "", r.state ?? "", r.ball_in_court ?? "", r.reason ?? "", money(r.amount)])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   tool("✅ Meeting action-item tracker", () => showResult("Meeting action-item tracker", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const s = await api.actionTracker(pid); body.innerHTML = `<div class="meta">${s.action_count} action items · ${s.open_count} open · ${s.overdue_count} overdue · <b>${s.completion_pct ?? "—"}% complete</b> · ${s.meeting_count} meetings · last ${s.last_meeting ?? "—"}</div>`;
-      table(body, ["Ref", "Subject", "Assignee", "Priority", "Due", "State"], s.rows.map((r: any) => [r.ref ?? "", r.subject ?? "", r.assignee ?? "", r.priority ?? "", (r.overdue ? "OVERDUE " : "") + (r.due_date ?? ""), r.state ?? ""])); }
+    try { const s = await api.actionTracker(pid);
+      // ACTION-SUBSET: the two rollups are over the WHOLE register while every other number here is
+      // about the open subset — measured, `by_assignee` named the person with ZERO outstanding items
+      // first. `apps/web/src/actionReadings.ts` holds the readings and the measurement.
+      const owed = owedBy(s);
+      const pri = openPriorities(s);
+      const hist = historicBy(s);
+      body.innerHTML = `<div class="meta"><b>${escapeHtml(actionHeadline(s))}</b></div>`
+        + (owed ? `<div class="meta">${escapeHtml(owed)}</div>` : "")
+        + (pri ? `<div class="meta">${escapeHtml(pri)}</div>` : "")
+        + (hist ? `<div class="meta">${escapeHtml(hist)}</div>` : "")
+        + `<div class="meta">${escapeHtml(meetingLine(s))}</div>`
+        + `<div class="meta">${escapeHtml(rollupBasis(s))}</div>`;
+      // The row shape is declared now, so these reads are checked rather than cast through `any`.
+      table(body, ["Ref", "Subject", "Assignee", "Priority", "Due", "State"], s.rows.map((r) => [r.ref ?? "", r.subject ?? "", r.assignee, r.priority, (r.overdue ? "OVERDUE " : "") + (r.due_date ?? ""), r.state])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   tool("📑 Submittal register", () => showResult("Submittal register", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const s = await api.submittalRegister(pid); body.innerHTML = `<div class="meta">${s.submittal_count} submittals · ${s.open_count} open · ${s.overdue_count} overdue · avg turnaround ${s.avg_turnaround_days ?? "—"} d</div>`;
-      table(body, ["Ref", "Spec", "Title", "Turn (d)", "Status"], s.rows.map((r: any) => [r.ref ?? "", r.spec_section ?? "", r.title ?? "", r.turnaround_days ?? "", (r.overdue ? "OVERDUE " : "") + r.status])); }
+    // SUBMITTAL-RETURNED. Four figures, each of which could be wrong for its own reason: `returned`
+    // was treated as closed, so a Revise & Resubmit row was neither open nor capable of being late;
+    // `overdue_count` can only count a row with a required-on-site date; and the turnaround average
+    // is over the rows carrying both review dates. The row shape is declared now, so these reads
+    // are checked rather than cast through `any`.
+    try { const s = await api.submittalRegister(pid);
+      const warn = submittalSuspect(s) ? ` style="color:var(--status-warn)"` : "";
+      const resub = resubmittalLine(s), wf = closedStatesCaveat(s);
+      body.innerHTML = `<div class="meta">${escapeHtml(submittalHeadline(s))}</div>`
+        + `<div class="meta">${escapeHtml(turnaroundLine(s))}</div>`
+        + `<div class="meta"${warn}>${escapeHtml(submittalCoverageLine(s))}</div>`
+        + (resub ? `<div class="meta" style="color:var(--status-warn)">${escapeHtml(resub)}</div>` : "")
+        + (wf ? `<div class="meta">${escapeHtml(wf)}</div>` : "");
+      table(body, ["Ref", "Spec", "Title", "Disposition", "Turn (d)", "Late?", "Status"],
+        s.rows.map((r) => [r.ref ?? "", r.spec_section ?? "", r.title ?? "", r.disposition ?? "",
+          r.turnaround_days ?? "", overdueCell(r),
+          (r.needs_resubmittal ? "RESUBMIT " : "") + r.status])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   tool("🏁 Closeout dashboard", () => showResult("Closeout dashboard", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
     try { const s = await api.closeoutSummary(pid); const p = s.punchlist, cx = s.commissioning, w = s.warranties, om = s.om_manuals;
       body.innerHTML = `<div class="meta">Punch <b>${p.complete_pct ?? "—"}% complete</b> (${p.open_count} open, ${p.overdue_count} overdue, ${money(p.open_cost)} open cost) · `
-        + `Cx pass ${cx.pass_rate ?? "—"}% (${cx.cx_count} tests) · warranties ${w.active} active / ${w.expiring_soon} expiring / ${w.expired} expired · O&M ${om.accepted_pct ?? "—"}% accepted</div>`;
+        + `Cx pass ${cx.pass_rate ?? "—"}% (${cx.cx_count} tests) · warranties ${w.active} active / ${w.expiring_soon} expiring / ${w.expired} expired`
+        // EXPIRY-UNDATED: these three buckets do NOT add up to `warranty_count`. The engine has
+        // always counted the rest as `no_expiry`; this line printed three of five numbers, so 37
+        // undated warranties on a 40-warranty project read as "3 warranties, none expired".
+        + (w.no_expiry ? ` · <b>${w.no_expiry} with NO expiry date</b> (of ${w.warranty_count})` : "")
+        + ` · O&M ${om.accepted_pct ?? "—"}% accepted</div>`;
       table(body, ["Punch item", "Ball in court", "Trade", "Due", "Cost"], p.rows.map((r: any) => [r.description ?? "", r.ball_in_court ?? "", r.trade ?? "", (r.overdue ? "OVERDUE " : "") + (r.due_date ?? ""), money(r.cost)])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
@@ -580,7 +938,13 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   }));
   tool("☼ Field-log rollup", () => showResult("Field-log rollup", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const s = await api.fieldLogSummary(pid); body.innerHTML = `<div class="meta">${s.report_count} daily reports · coverage ${s.coverage_pct ?? "—"}% · total manpower ${s.total_manpower} · avg ${s.avg_manpower ?? "—"}/day · peak ${s.peak_manpower.count} (${s.peak_manpower.date ?? "—"}) · weather lost-days ${s.weather_lost_days} · ${s.delay_days} delay days</div>`;
+    try { const s = await api.fieldLogSummary(pid);
+      // FIELDLOG-WINDOW. `coverage ${s.coverage_pct}%` was 100% for a single report and for any
+      // unbroken run, because the denominator is the span of the logged dates. `coverageLine` names
+      // the window; `draftLine` says when the figures count unsigned reports, which nothing did.
+      const draft = draftLine(s);
+      body.innerHTML = `<div class="meta">${s.report_count} daily reports · ${escapeHtml(coverageLine(s))} · total manpower ${s.total_manpower} · avg ${s.avg_manpower ?? "—"}/day · peak ${s.peak_manpower.count} (${s.peak_manpower.date ?? "—"}) · weather lost-days ${s.weather_lost_days} · ${s.delay_days} delay days</div>`
+        + (draft ? `<div class="meta" style="color:var(--status-warn);margin-top:4px">${escapeHtml(draft)}</div>` : "");
       table(body, ["Date", "Weather", "Impact", "Manpower", "Delay"], s.rows.map((r: any) => [r.report_date ?? "", r.weather ?? "", r.weather_impact ?? "", r.manpower ?? "", r.has_delay ? "yes" : "—"])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));

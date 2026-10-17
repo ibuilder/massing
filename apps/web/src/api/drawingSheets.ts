@@ -9,10 +9,33 @@
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
-import { HttpCore, HttpError, type LiveStream } from "./httpCore";
+import { HttpCore, HttpError, type LiveStatus, type LiveStream } from "./httpCore";
 import type { SheetLayout } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
+
+/** REVISE-DARK — what recording a sheet revision reports back.
+ *
+ *  Slip-sheeting tags every existing markup on that sheet `carried_from` so a reviewer re-checks it
+ *  against the revised sheet. The tagging is deliberately wrapped so it can never block a revision,
+ *  which means it can FAIL while the revision lands — so the three markup fields are a verdict plus
+ *  its coverage, not one number. Named rather than inline so the fields are visible to the audits
+ *  built on these declarations (DEADFIELD-INLINE). */
+export interface RevisionResult {
+  drawing_id: string;
+  revision: string;
+  /** Every delta on this sheet, including the one just recorded. */
+  delta_count: number;
+  /** Markups whose carried-forward tag was COMMITTED. Zero when the tagging failed. */
+  markups_carried: number;
+  /** Markups the tagging attempted. Equals `markups_carried` on success. */
+  markups_to_carry: number;
+  /** The exception TYPE when the tagging did not land, `null` when it did. The revision is
+   *  recorded either way: a reviewer seeing untagged markups on a revised sheet has no way to
+   *  know they are stale unless this is rendered. */
+  markups_carry_failed: string | null;
+}
+
 
 export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class DrawingSheets extends Base {
@@ -27,13 +50,27 @@ export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
 
   /** Record a revision (delta) on a sheet, optionally citing the driving instrument (ASI/CCD/Addendum). */
   reviseDrawing(pid: string, drawingId: string, body: { rev: string; description?: string; date?: string; instrument_type?: string; instrument_ref?: string }) {
-    return this.json<{ drawing_id: string; revision: string; delta_count: number }>(
+    return this.json<RevisionResult>(
       `/projects/${pid}/drawings/${drawingId}/revise`, { method: "POST", body: JSON.stringify(body) });
   }
   /** W11 C4: computed door / window / room schedules from the model. */
   drawingSchedules(pid: string) {
     return this.json<Record<"doors" | "windows" | "rooms", { columns: string[]; rows: string[][] }>>(
       `/projects/${pid}/drawings/schedules`);
+  }
+  /**
+   * One schedule (doors|windows|rooms) as a drafted SVG table — **every row**, with long cell
+   * values clipped to 22 characters by the renderer.
+   *
+   * SCHEDULE-TRUNC. The Schedules button's own tooltip has always said *"Also at GET
+   * /drawings/schedule.svg"* and nothing reached it, while the on-screen table showed the first 60
+   * rows under a heading that printed the real count. This is the escape for *reading* a long
+   * schedule; `drawingSchedulesCsvUrl` is the one that loses nothing at all. Both limits are stated
+   * on screen, because pointing a reader at an output that silently clips a 40-character type name
+   * would be the same defect one click along.
+   */
+  drawingScheduleSvgUrl(pid: string, kind: "doors" | "windows" | "rooms") {
+    return this.url(`/projects/${pid}/drawings/schedule.svg?kind=${encodeURIComponent(kind)}`);
   }
   /** Door / window / room schedules as a CSV download (`kind` omits for all three). */
   drawingSchedulesCsvUrl(pid: string, kind?: "doors" | "windows" | "rooms") {
@@ -82,7 +119,7 @@ export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /** MARKUP-2d — SSE stream of the drawing-markup change-signature; fires whenever anyone saves a
    *  markup so open sheets live-refresh (live co-markup). */
   markupStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void,
-               onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+               onStatus?: (s: LiveStatus, why?: string) => void): LiveStream {
     return this.liveStream(`/projects/${pid}/drawings/markup/stream`,
                            onMessage as (d: unknown) => void, onStatus);
   }

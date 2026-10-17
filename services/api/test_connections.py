@@ -67,6 +67,21 @@ with TestClient(app) as c:
     q2 = c.post("/connections/local/query", headers=BEARER(tok),
                 json={"sql": "SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3", "limit": 2}).json()
     assert q2["row_count"] == 2, q2
+    # SQL-CAP. `row_count` is the length of the page, so the cap and whether anything was DISCARDED
+    # travel with it. The two cases below are the whole point: three rows capped at two, and three
+    # rows capped at three, agree on `row_count == limit` and disagree on the only thing a reader
+    # wants to know. Before `truncated` the two were indistinguishable in the response, and the SQL
+    # console printed the same sentence over both.
+    assert q2["limit"] == 2 and q2["truncated"] is True, q2
+    q3 = c.post("/connections/local/query", headers=BEARER(tok),
+                json={"sql": "SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3", "limit": 3}).json()
+    assert q3["row_count"] == 3 and q3["limit"] == 3 and q3["truncated"] is False, q3
+    # the extra row fetched to detect truncation is never RETURNED
+    assert len(q3["rows"]) == 3 and len(q2["rows"]) == 2, (q2, q3)
+    # a query well under the cap is not truncated, and the cap reported is the clamped one
+    q4 = c.post("/connections/local/query", headers=BEARER(tok),
+                json={"sql": "SELECT 1 AS n", "limit": 99999}).json()
+    assert q4["truncated"] is False and q4["limit"] == 1000, q4
     # security: writes / DDL / multiple statements are rejected
     for bad in ("DELETE FROM users", "DROP TABLE users", "UPDATE users SET role='admin'",
                 "SELECT 1; DROP TABLE users", "INSERT INTO users VALUES ('x')"):

@@ -1,6 +1,7 @@
 import type { ApiClient, DrawingMarkupItem } from "../api/client";
 import type { Measure } from "./pdfTakeoff";
 import { noProjectHtml } from "../ui/empty";
+import { liveDisplay } from "../ui/liveState";
 import { askConfirm, askText } from "../ui/prompt";
 import { sanitizeSvg } from "../ui/sanitizeSvg";
 import { escapeHtml } from "../ui/feedback";
@@ -66,13 +67,67 @@ export class DrawingsUI {
     const pid = this.host_.projectId();
     if (pid && !this.markupSub) {
       let first = true;
+      // LIVE CO-MARKUP COULD STOP AND THE SHEET WOULD LOOK CURRENT. This caller passed no
+      // `onStatus`, so slice ⑥'s classification was disabled for it and a refused stream retried
+      // for ever. Nothing was wrong on screen — which is the problem: the pins just stop updating,
+      // so two people mark up the same sheet believing they are seeing each other's work.
+      // *A stale drawing is indistinguishable from a quiet one, and only one of them is safe.*
       this.markupSub = this.host_.api.markupStream(pid, () => {
         if (first) { first = false; return; }
         void this.loadPins();
-      });
+      }, (st, why) => this.paintMarkupLive(st, why));
     }
   }
   private markupSub: import("../api/client").LiveStream | null = null;
+
+  /** The live-co-markup state. **STATE, not a one-shot paint** — found by review of slice ⑦, and
+   *  it is this branch's own defect reintroduced inside the fix for it. The notice lives in
+   *  `#dwg-toolbar`, and `buildToolbar()` opens with `bar.innerHTML = ""`, which runs on **every
+   *  sheet selection** (and on the ✎ Markup and ⧉ Compare toggles, and on `aec:model-published`
+   *  through `show()`); the ⊞ Paper space button rewrites the same bar outright. So the first click
+   *  after a refusal erased the only thing saying live markup had stopped, and the screen went back
+   *  to looking healthy **while the stream was still refused** — exactly the silence slice ⑥ exists
+   *  to end. *A notice that any unrelated redraw can erase is not a notice, it is a notification.*
+   *
+   *  `string | null`, not a boolean and not a bare string: `null` is "not refused", `""` is
+   *  "refused and the server gave no reason". Collapsing those is the empty-versus-absent
+   *  confusion this branch has now corrected nine times. */
+  private liveRefused: string | null = null;
+
+  /** Record the stream's state. Only a REFUSAL is ever shown: "reconnecting…" on every transient
+   *  drop would cry wolf over a dropped packet, and slice ⑥'s own review established that a retry
+   *  the user can see is not the problem — a refusal they cannot is. */
+  private paintMarkupLive(st: import("../api/client").LiveStatus, why?: string) {
+    this.liveRefused = st === "refused" ? (why ?? "") : null;
+    this.renderMarkupRefusal();
+  }
+
+  /** Paint (or clear) the notice from stored state. Called on every status change AND at the end of
+   *  every toolbar rebuild, so a rebuild cannot outlive the refusal it hides. */
+  private renderMarkupRefusal() {
+    const existing = this.root.querySelector<HTMLElement>("#dwg-live-refused");
+    if (this.liveRefused === null) { existing?.remove(); return; }
+    const bar = this.root.querySelector<HTMLElement>("#dwg-toolbar");
+    if (!bar) return;
+    const note = existing ?? document.createElement("span");
+    if (!existing) {
+      note.id = "dwg-live-refused";
+      note.className = "meta";
+      note.style.cssText = "margin-left:8px;color:var(--status-crit);display:inline-flex;gap:6px;align-items:center";
+    }
+    if (note.parentElement !== bar) bar.appendChild(note);
+    note.replaceChildren();
+    const msg = document.createElement("span");
+    // Visible text, and it names what stopped rather than the transport: the reason a reader needs
+    // is "other people's markups will not appear", not "the SSE stream closed".
+    msg.textContent = `⚠ ${liveDisplay("refused", this.liveRefused, "Live markup").text} `
+      + `Other people's markups will not appear until you reload.`;
+    const again = document.createElement("button");
+    again.type = "button"; again.className = "file-btn"; again.textContent = "Try again";
+    again.style.cssText = "font-size:11px;padding:1px 6px";
+    again.onclick = () => { this.liveRefused = null; note.remove(); this.markupSub?.retry(); };
+    note.append(msg, again);
+  }
 
   private build() {
     this.root.innerHTML = "";
@@ -95,6 +150,7 @@ export class DrawingsUI {
       const vp = this.root.querySelector<HTMLElement>(".dwg-viewport")!;
       const bar = this.root.querySelector<HTMLElement>("#dwg-toolbar")!;
       bar.innerHTML = `<span class="meta">⊞ Paper space — viewport composition (server-rendered)</span>`;
+      this.renderMarkupRefusal();        // this wipe is one of the two that erased an active refusal
       void import("./layoutEditor").then((m) => m.openLayoutEditor(this.host_.api, pid, vp));
     };
     side.appendChild(layoutBtn);
@@ -221,6 +277,9 @@ export class DrawingsUI {
       // revision (red); differences pop where the tints don't cancel.
       btn("⧉ Compare", "Overlay a prior revision (SVG/PDF) on this sheet — light-table compare", () => void this.startCompare(), !!this.compareLayer),
       btn("🖊 PDF markup", "Open this sheet in the 2D editor — measure / mark up / persist (promotable to RFI)", () => void this.openPdfMarkup()));
+    // The `bar.innerHTML = ""` at the top of this method ran on every sheet selection and erased an
+    // active refusal notice, so re-paint it from state here rather than hoping nothing clears it.
+    this.renderMarkupRefusal();
   }
 
   /** Composed sheets use the server PDF; generated plans/elevations/sections wrap the live SVG. */

@@ -19,8 +19,11 @@ router = APIRouter()
 @router.post("/projects/{pid}/share-tokens")
 def create_share_token(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
                        actor: str = Depends(require_role("editor"))):
-    """Mint a revocable, read-only share token for the project (owner/editor only). The returned token
-    string is the shareable credential — anyone with it can read the project's readiness digest.
+    """Mint a revocable share token for the project (owner/editor only). The returned token string is
+    the shareable credential — anyone with it can read the project's readiness digest, and can answer
+    back: the holder may record responses on shared items (approve / acknowledge / decline) and post
+    messages to the project team, both whitelisted and hard-capped per link. READ-ONLY describes what
+    the token DISCLOSES, not what the holder can do with it.
     `show_payments: true` is the explicit OPT-IN for THIS token's digest to carry the owner-invoice
     payment schedule (display only); the default digest exposes no financials.
 
@@ -39,7 +42,8 @@ def create_share_token(pid: str, body: dict = Body(default={}), db: Session = De
 
 @router.get("/projects/{pid}/share-tokens")
 def list_share_tokens(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
-    """List the project's share tokens with their view counts (editor only)."""
+    """List the project's share tokens with their view counts (editor only). The responses and
+    messages those tokens sent back are a separate feed: GET /projects/{pid}/client-decisions."""
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
     return {"tokens": client_portal.list_tokens(db, pid)}
@@ -133,8 +137,10 @@ def shared_digest(token: str, db: Session = Depends(get_db)):
 
 @router.get("/shared/{token}")
 def shared_page(token: str, db: Session = Depends(get_db)):
-    """PUBLIC (no auth) — a self-contained read-only HTML page rendering the share digest (the same
-    curated readiness data as the .json digest). All values are HTML-escaped. Unknown/revoked → 404."""
+    """PUBLIC (no auth) — a self-contained HTML page rendering the share digest (the same curated
+    readiness data as the .json digest), plus the controls that reach the two public write routes
+    below: a response (approve / acknowledge / decline) and a message to the project team. All values
+    are HTML-escaped and nothing is interpolated into its script. Unknown/revoked → 404."""
     try:
         d = client_portal.digest(db, token)
     except KeyError:

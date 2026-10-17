@@ -58,6 +58,39 @@ export function orderRooms(rooms: RoomDef[], workspace: string | null | undefine
   return [...head, ...rooms.filter((r) => r.id !== first)];
 }
 
+/**
+ * The room strip's ORDER for a persona, derived from the workspaces that persona is seated in.
+ *
+ * **WS-BTN-DEAD's open half, and the behavioural question it was left open for is answered three
+ * paragraphs above this one.** `applyPersona` filtered `.ws-btn`, a class nothing renders, so for
+ * as long as the room spine has shipped every persona's `ws` allowlist has had no effect at all —
+ * every room showed to everyone. The roadmap recorded the remainder as a product decision
+ * (*"which rooms does a subcontractor see"*), and it is not one: `orderRooms` already states the
+ * spine's position in its own docstring — ***weighting rather than filtering*** — because *"a room
+ * that disappears is a room the user has to relearn where to find"*.
+ *
+ * **Measured before trusting that, because the filtering reading is the one a reader reaches for.**
+ * Mapping each persona's `ws` list through `preselectedRoom` and HIDING the rest reaches **3 of the
+ * 7 rooms across all seven personas that declare a list**: `planning`, `cost`, `operate` and
+ * `work` are named by none of them, `engineer` comes out at one room of seven, and every persona
+ * loses **Work** — the one room the design calls a summons and the only one that carries a count.
+ * *A filter derived from a table that collapses seven workspaces onto four rooms cannot be a room
+ * allowlist*, and the three-of-seven number is asserted in `personaRooms.test.ts` so the next reader
+ * does not have to re-derive why this weights.
+ *
+ * So the allowlist keeps its meaning — these are the workspaces this role is seated in — and the
+ * strip puts their rooms first. `ws` of `null` (the `all` persona) is canonical order, which is also
+ * what every caller gets before a persona has been applied.
+ *
+ * Returns **all** of `ROOM_IDS`, always. That is the invariant worth more than the ordering, and
+ * `roomTabs.test.ts` asserts it over every persona rather than trusting this sentence.
+ */
+export function personaRooms(ws: readonly string[] | null | undefined): readonly string[] {
+  if (!ws?.length) return ROOM_IDS;
+  const seated = new Set(ws.map(preselectedRoom));
+  return [...ROOM_IDS.filter((r) => seated.has(r)), ...ROOM_IDS.filter((r) => !seated.has(r))];
+}
+
 export interface SpineState {
   alloc: RoomAllocation;
   /** Modules the API could not place. Must be empty; surfaced rather than swallowed. */
@@ -211,6 +244,56 @@ export const ROOM_HOST: Record<string, string> = {
   schedule: "construction", operate: "developer", deal: "developer",
   work: "construction",
 };
+
+/**
+ * Which PORTAL owns a room — the instance whose sticky `activeRoom` the tab strip has to agree with.
+ *
+ * Derived from `portalRooms` over the three filters rather than written as a fourth table, because
+ * `design` is special-cased there (its room is hosted by `model` but served by the design portal)
+ * and a hand-copy of that exception is the thing that drifts.
+ */
+export function portalForRoom(room: string): string | null {
+  for (const f of ["construction", "developer", "design"]) {
+    if (portalRooms(f).includes(room)) return f;
+  }
+  return null;
+}
+
+/** Which portal serves a workspace — the one that owns the room that workspace preselects. */
+export function portalForWorkspace(workspace: string | null | undefined): string {
+  return portalForRoom(preselectedRoom(workspace)) ?? "construction";
+}
+
+/**
+ * Which room the tab strip should mark once `workspace` is the open one, given the room that
+ * workspace's PORTAL last had opened. WS-BTN-SELECT, corrected by review (CR-REVIEW-9).
+ *
+ * **This is now the portal's own expression, because the first version mirrored the expression and
+ * not the STATE SHAPE, and that is where it broke.** `portal.room()` is
+ * `activeRoom ?? preselectedRoom(wsFilter)`, and `activeRoom` is **sticky**: nothing but an
+ * `aec:room` event ever changes it. The first version instead passed the LAST MARKER and asked
+ * whether the incoming workspace hosts it — recomputed on every workspace change — so a detour
+ * destroyed it:
+ *
+ *   `goToRoom("cost")` → portal `activeRoom = "cost"`, marker `cost`
+ *   `setWorkspace("drawings")` → marker `design`  (no `aec:room`, so the portal still holds `cost`)
+ *   `setWorkspace("construction")` → marker `schedule`, **portal still renders `cost`**
+ *
+ * which is the disagreement the rule existed to prevent, arriving by the one path its tests did not
+ * take. *Mirroring a rule means mirroring the data it reads, not just the branch it writes* — and
+ * the docstring claiming it "mirrors the portal's own rule exactly" was the loudest thing in the
+ * file, which is why it went unexamined.
+ *
+ * `remembered` is therefore per-PORTAL sticky state, not the previous marker, and the ownership
+ * test the old version needed is gone: a room remembered under a portal key is owned by that portal
+ * by construction. The `ROOM_IDS` check is a fail-safe on the one input that is a bare string, not
+ * a second rule — a marker naming no tab would mark nothing at all, which is the pre-fix bug.
+ */
+export function roomForOpenWorkspace(remembered: string | null | undefined,
+                                     workspace: string): string {
+  const r = String(remembered || "");
+  return (ROOM_IDS as readonly string[]).includes(r) ? r : preselectedRoom(workspace);
+}
 
 /**
  * The rooms a portal instance can be ACTIVE in, by its workspace filter.

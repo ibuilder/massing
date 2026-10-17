@@ -115,4 +115,27 @@ with TestClient(app) as c:
     assert per.get("Alpha LP", 0) > 0, per
     assert round(sum(per.values()), 2) == round(w["total_distributable"], 2), (per, w)
 
+# --- CAPTABLE-PIPELINE: the relation a SCREEN needs to reconcile its own total -------------------
+#
+# Every key above was already asserted, so this file proved the engine right and nothing asked
+# whether the two totals add up to the column they sit under. `proforma.ts` renders a Commit column
+# of `row.commitment` and a Total row of `total_commitment` — which EXCLUDES the pipeline — so on
+# the fixture above the column summed to $16,000,000 under a total of $6,000,000, and the
+# $10,000,000 difference was `pipeline_commitment`, undeclared on the client type. *A total whose
+# own parts do not sum to it leaves the reader to invent the difference.*
+for _t in (ct, allp, mixed, ex):
+    _col = round(sum(r["commitment"] for r in _t["rows"]), 2)
+    assert _col == round(_t["total_commitment"] + _t["pipeline_commitment"], 2), \
+        (_col, _t["total_commitment"], _t["pipeline_commitment"])
+# And the split follows `counts_toward_ownership` exactly, so a screen can group the rows by it
+# rather than re-deriving the rule — which is why the engine carries it on the row.
+for _t in (ct, allp, mixed, ex):
+    _own = round(sum(r["commitment"] for r in _t["rows"] if r["counts_toward_ownership"]), 2)
+    _pipe = round(sum(r["commitment"] for r in _t["rows"] if not r["counts_toward_ownership"]), 2)
+    assert _own == round(_t["total_commitment"], 2), (_own, _t["total_commitment"])
+    assert _pipe == round(_t["pipeline_commitment"], 2), (_pipe, _t["pipeline_commitment"])
+
+print("CAPTABLE-PIPELINE OK - across all four fixtures the Commit column sums to "
+      "total_commitment + pipeline_commitment, and the split follows counts_toward_ownership "
+      "exactly, so a screen can group by the flag instead of re-deriving the rule")
 print("test_cap_table_state OK")

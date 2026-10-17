@@ -284,6 +284,7 @@ def setup_facts(model: ifcopenshell.file) -> dict[str, Any]:
         # to decide whether to offer the control at all, so the two must agree — a control offered
         # for something the server will refuse is the "dropdown holding FOOT" failure one field down,
         # arriving through the SOURCE unit instead of the target.
+        # COVERAGE: unconvertible_reason
         "convertible": bool(named) and all(u.is_a("IfcSIUnit") for u in named),
         "unconvertible_reason": (
             None if not named else

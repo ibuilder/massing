@@ -27,6 +27,186 @@ import type { BidLevelingDetail, SpecSubmittalLog } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** One NCS discipline in the model takeoff, with the classes behind its tally. */
+export interface ScopeGapDiscipline {
+  discipline: string;
+  element_count: number;
+  classes: { ifc_class: string; count: number }[];
+}
+
+/** SCOPE-GAP (R14) — does every element in the model land in someone's bid package?
+ *
+ *  **Four states, not two**, and the consumer read two. `scope_gap.analyze`'s own note:
+ *
+ *  > Gaps = disciplines present in the model with no covering package — their quantities aren't in
+ *  > any bid. `covered_without_specs` flags disciplines covered by a package that cites no CSI spec
+ *  > section (thin, non-traceable coverage).
+ *
+ *  Coverage is matched at the DISCIPLINE level, so "covered" means a package claimed the discipline
+ *  — not that anybody wrote down which spec sections they were pricing. The fourth state is the
+ *  engine refusing to call that coverage, and the card printed a green tick over it.
+ *
+ *  The module's own docstring enumerates three of the four outputs and never mentions the thin one,
+ *  the same shape as `EntitlementConditions.status` listing three of its four values. *A list that
+ *  stopped being extended reads exactly like a complete one.* */
+export interface ScopeGapResult {
+  package_count: number;
+  element_count: number;
+  /** Elements whose discipline a package CLAIMS, over all elements. Discipline-level: a 100% here
+   *  is compatible with every package citing no spec section at all. */
+  covered_pct: number;
+  gap_element_count: number;
+  covered: (ScopeGapDiscipline & {
+    packages: string[];
+    /** The CSI sections the covering packages cite for this discipline. Empty means the coverage is
+     *  a claim with no traceability, and this discipline then also appears in
+     *  `covered_without_specs`. Undeclared until SCOPE-THIN — the ROOT `spec_sections` was in the
+     *  undeclared-key list and this nested one was invisible to it. */
+    spec_sections?: string[];
+  })[];
+  /** Disciplines in the model that NO package claims — quantities in nobody's bid. GUIDs so the
+   *  viewer can highlight them; an IFC GlobalId is the only identity that survives a reload. */
+  gaps: (ScopeGapDiscipline & { sample_guids: string[] })[];
+  /** THE FOURTH STATE: covered by discipline, by a package citing no CSI spec section. Not a gap —
+   *  somebody is pricing it — and not traceable coverage either. */
+  covered_without_specs?: {
+    discipline: string;
+    packages: string[];
+    element_count: number;
+    sample_guids: string[];
+  }[];
+  /** Every CSI section cited by any package, across the project. */
+  spec_sections?: string[];
+  /** `0` is the measurable signal that no package on this job cites a section at all. */
+  spec_section_count?: number;
+  /** Packages whose discipline has no model elements — over-scoped, nothing to price. */
+  packages_without_model_scope: string[];
+  note: string;
+}
+
+/** ITB-DOUBLE — one bid package in the invitation-to-bid rollup. */
+export interface ItbPackageRow {
+  ref: string | null;
+  package: string;
+  trade?: string | null;
+  budget?: number | null;
+  /** How many were invited, or 0 when nobody recorded an invite list. */
+  invited: number;
+  responses: number;
+  bonded: number;
+  low_bid?: number | null;
+  due_date?: string | null;
+  /** `null` when no invite list is recorded — which is not a rate of 0%, the value this used to
+   *  carry on a row whose `coverage` read "covered". */
+  response_rate: number | null;
+  /** `no bids` | `thin` (<3) | `covered` (>=3). About the ABSOLUTE number of bids in hand, so it
+   *  is sound whether or not anyone recorded who was invited. */
+  coverage: "no bids" | "thin" | "covered";
+  /** `invited`, or `no invite list recorded` — why `response_rate` is what it is. */
+  rate_basis: string;
+}
+
+/** ITB-DOUBLE — the invitation-to-bid rollup.
+ *
+ *  Five defects lived in `itb.summarize` and every one flattered the coverage, on the screen that
+ *  decides whether a trade has enough bidders to award. Bids were counted TWICE whenever a
+ *  package's name equalled its ref (5 bids -> `responses: 10`, `bonded: 10`, rate 100% instead of
+ *  50%, `coverage` flipping to "covered"); an unrecorded invite list gave `response_rate: 0.0`,
+ *  indistinguishable from nobody bidding; the headline rate divided every package's responses by
+ *  only the invited counts that were recorded (measured 80% where the one rated package was 30%),
+ *  which also let it exceed 100%; and a bid naming no package vanished from the response entirely.
+ *  `rows` was additionally `Record<string, unknown>[]` — the opaque bucket — so none of these
+ *  fields were in any audit built on declarations. */
+export interface ItbSummary {
+  package_count: number;
+  total_invited: number;
+  total_responses: number;
+  total_bonded: number;
+  packages_without_bids: number;
+  /** Over the packages that record an invite list ONLY, so numerator and denominator are the same
+   *  population. `null` when none do — there is no rate, which is not 0%. */
+  overall_response_rate: number | null;
+  /** Packages that record an invite list, and so are in the rate above. */
+  rated_packages: number;
+  /** Packages that do not, and so are not. */
+  unrated_packages: number;
+  /** The responses the rate's numerator is over — less than `total_responses` when any package
+   *  is unrated. */
+  rated_responses: number;
+  /** Bids naming a package that does not exist: submitted by somebody, counted in no package. */
+  unmatched_submissions: number;
+  submission_count: number;
+  /** The engine's sentence about what the rate covers and what is missing from it. */
+  coverage_note: string;
+  rows: ItbPackageRow[];
+}
+
+/** SUBMITTAL-RETURNED — the submittal register, and the three states a row can be in.
+ *
+ *  The engine's `CLOSED_STATES` was hand-written as `("returned", "closed")`, and `returned` is not
+ *  terminal: the shipped workflow gives it two outgoing transitions, `close` and `revise_resubmit`.
+ *  So a submittal the A/E sent back marked *"Revise & Resubmit"* counted as CLOSED — out of
+ *  `open_count`, and unable to be overdue at all. Measured, one such row six weeks past its
+ *  required-on-site date: `0 open, 0 overdue`, identical to an `Approved` one on every figure the
+ *  card printed. `needs_resubmittal_count` is what separates them now — *a state says where the
+ *  record is; the disposition says which way it is going.*
+ *
+ *  And two counts were over populations the response never stated: `overdue_count` can only count a
+ *  row carrying a `required_on_site` date (40 submittals in review with none gave `0 overdue`,
+ *  reading as *nothing is late*), and `avg_turnaround_days` only a row carrying both review dates
+ *  (3.5 days over 2 of 40). `dated_count` / `undated_count` and `turnaround_count` are those
+ *  populations, with `coverage_note` as the engine's sentence. See
+ *  `portal/panels/submittalCoverage.ts`. */
+export interface SubmittalRow {
+  ref: string | null;
+  title: string | null;
+  spec_section: string;
+  type: string | null;
+  responsible: string | null;
+  /** The A/E's verdict: `Approved`, `Approved as Noted`, `Revise & Resubmit`, `Rejected`,
+   *  `For Record Only`. Independent of the workflow state, and the thing that says it is coming
+   *  back. */
+  disposition: string | null;
+  status: string;
+  required_on_site: string | null;
+  turnaround_days: number | null;
+  overdue: boolean;
+  /** Whether this row COULD be overdue — it carries a required-on-site date. `overdue: false`
+   *  means two different things and a register that cannot tell them apart reports an undated
+   *  backlog as on time. */
+  overdue_assessed: boolean;
+  /** Sent back and not closed: the subcontractor owes a resubmittal. */
+  needs_resubmittal: boolean;
+  /** Whether the row's state is terminal in the workflow this project runs. */
+  closed: boolean;
+  ball_in_court: string;
+}
+
+export interface SubmittalRegister {
+  submittal_count: number;
+  open_count: number;
+  overdue_count: number;
+  /** The population `overdue_count` is over — rows carrying a required-on-site date. */
+  dated_count: number;
+  /** The rest. Not late, and not known to be on time either. */
+  undated_count: number;
+  avg_turnaround_days: number | null;
+  /** The population the average is over — rows carrying both review dates. */
+  turnaround_count: number;
+  /** Open and sent back. Counted as closed before this item, so invisible on every screen. */
+  needs_resubmittal_count: number;
+  /** The states this register treats as done, derived from the workflow in force rather than
+   *  hardcoded — a fact this side cannot derive, which is why it is on the wire. */
+  closed_states: string[];
+  /** Whether that workflow is an override rather than the shipped one (WORKFLOW-DARK). */
+  workflow_overridden: boolean;
+  by_status: Record<string, number>;
+  by_section: Record<string, number>;
+  /** The engine's sentence about which submittals each count is over. */
+  coverage_note: string;
+  rows: SubmittalRow[];
+}
+
 export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Procurement extends Base {
   /** PROCURE-LEVEL: group QTO line items into buyout packages (each with an RFQ scope to send out). */
@@ -36,7 +216,13 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
       rfq_scope: { item: string; qty: number | null; unit: string }[];
       lines: { item: string; qty: number | null; unit: string; unit_price: number | null }[];
     };
-    return this.json<{ grouped_by: string; package_count: number; total_est_cost: number; packages: Pkg[]; note: string }>(
+    // TOTAL-EXCLUDED — `skipped_unidentifiable` was returned by `procurement.buyout_packages` and
+    // declared NOWHERE in this client, so every unread-field audit that starts from these
+    // declarations was blind to it by construction (the hole `excluded_comparables` fell through).
+    // The engine counts it deliberately: *"a caller seeing \"0 packages\" deserves to know lines were
+    // discarded, not conclude there is no scope."*
+    return this.json<{ grouped_by: string; package_count: number; total_est_cost: number;
+      skipped_unidentifiable: number; packages: Pkg[]; note: string }>(
       `/projects/${pid}/procurement/buyout-packages`, { method: "POST", body: JSON.stringify({ qto_lines: qtoLines, by }) });
   }
   /**
@@ -136,14 +322,35 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
     }>(`/projects/${pid}/procurement/buyout-schedule`, { method: "POST", body: JSON.stringify(body) });
   }
   procurementComplianceFeed(pid: string) {
-    return this.json<{ within_days: number; vendors_flagged: number;
+    return this.json<{ within_days: number;
+      /** PREQUAL-LAPSE: the horizon actually used. `within_days` was accepted, clamped to 1–365 by
+       *  its route, echoed, and used for nothing — the windows were a literal 30 inside the COI
+       *  branch, so a caller asking for 7 days got a 30-day answer labelled 7. */
+      warn_days: number; vendors_flagged: number;
       vendors: { vendor: string; issues: string[]; can_bid: boolean; can_bill: boolean }[];
       note: string }>(`/projects/${pid}/procurement/compliance-feed`);
   }
+  /** One vendor's bid/bill readiness.
+   *
+   *  PREQUAL-LAPSE. `coi.expiring_soon` was computed on every call and declared on none, so the
+   *  one warning this gate DID produce could not reach a screen; `prequal` carried a status and no
+   *  date at all, so an approval dying in ten days read `can_bid: true · prequal approved`. The
+   *  blockers/warnings split is the state this response had no way to express — a document still
+   *  valid today is not a blocker, and that is exactly why the verdict alone is not enough.
+   */
   procurementGate(pid: string, vendor: string) {
-    return this.json<{ vendor: string; coi: { status: string; expires: string | null };
-      prequal: { status: string }; subcontract: { executed: boolean }; waiver_on_file: boolean;
-      can_bid: boolean; bid_blockers: string[]; can_bill: boolean; bill_blockers: string[] }>(
+    return this.json<{ vendor: string;
+      /** `expiring_soon` is present on every branch, `missing` included — an absent key is falsy
+       *  and reads as "not expiring soon" when the truth is "there is nothing to expire". */
+      coi: { status: string; expires: string | null; expiring_soon: boolean };
+      /** An approved prequalification has no transition out of `approved`, so `expires` is the
+       *  only thing that ends it. `expiring_soon` is false once it already has — that is a
+       *  blocker, and "expiring soon" is only said about something currently valid. */
+      prequal: { status: string; expires: string | null; expiring_soon: boolean };
+      subcontract: { executed: boolean }; waiver_on_file: boolean;
+      can_bid: boolean; bid_blockers: string[]; can_bill: boolean; bill_blockers: string[];
+      /** Documents still valid that lapse within `warn_days`. Never a reason to refuse today. */
+      bid_warnings: string[]; bill_warnings: string[]; warn_days: number; note: string }>(
       `/projects/${pid}/procurement/gate?vendor=${encodeURIComponent(vendor)}`);
   }
   // --- materials procure-to-pay (FieldMaterials) -----------------------------
@@ -186,11 +393,9 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
       { method: "POST", body: JSON.stringify(opts) });
   }
 
-  /** submittalRegister — spec-section turnaround, ball-in-court, overdue. */
+  /** submittalRegister — spec-section turnaround, ball-in-court, overdue. See `SubmittalRegister`. */
   submittalRegister(pid: string) {
-    return this.json<{ submittal_count: number; open_count: number; overdue_count: number;
-      avg_turnaround_days: number | null; by_section: Record<string, number>; rows: Record<string, unknown>[] }>(
-      `/projects/${pid}/submittals/register`);
+    return this.json<SubmittalRegister>(`/projects/${pid}/submittals/register`);
   }
   /** specSubmittalLog — required submittals per spec section vs logged, with missing gaps. */
   specSubmittalLog(pid: string) {
@@ -205,18 +410,23 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
 
   /** itb — invited vs responded vs bonded per package, plus coverage gaps. */
   itb(pid: string) {
-    return this.json<{ package_count: number; total_invited: number; total_responses: number;
-      packages_without_bids: number; rows: Record<string, unknown>[] }>(`/projects/${pid}/bidding/itb`);
+    return this.json<ItbSummary>(`/projects/${pid}/bidding/itb`);
   }
-  /** scopeGap — model-QTO coverage vs bid packages: covered disciplines, gaps, over-scoped packages. */
+  /** scopeGap — model-QTO coverage vs bid packages: covered disciplines, gaps, over-scoped packages,
+   *  **and the coverage the engine refuses to call coverage.**
+   *
+   *  SCOPE-THIN declared the fourth state. `scope_gap.analyze` matches an element's NCS discipline
+   *  to a package that CLAIMS that discipline, and flags separately — in its own words — *"a claim
+   *  with no CSI traceability"*: a discipline covered by a package citing no spec section at all.
+   *  `covered_without_specs`, `spec_sections` and `spec_section_count` were all undeclared, and the
+   *  only screen that calls this printed **"✅ Every model discipline is covered by a bid package"**
+   *  whenever `gaps` was empty — including when every one of those packages cited nothing.
+   *
+   *  `spec_sections` on a `covered` entry was undeclared too, which is the same root-only blind spot
+   *  `apps/web/src/api/responseUndeclared.test.ts` has: the root `spec_sections` was in its gap list
+   *  and the per-discipline one, nested, was not. */
   scopeGap(pid: string) {
-    type Disc = { discipline: string; element_count: number; classes: { ifc_class: string; count: number }[] };
-    return this.json<{
-      package_count: number; element_count: number; covered_pct: number; gap_element_count: number;
-      covered: (Disc & { packages: string[] })[];
-      gaps: (Disc & { sample_guids: string[] })[];
-      packages_without_model_scope: string[]; note: string;
-    }>(`/projects/${pid}/bidding/scope-gap`);
+    return this.json<ScopeGapResult>(`/projects/${pid}/bidding/scope-gap`);
   }
   /** inviteBidders — record companies invited to bid on a package. */
   inviteBidders(pid: string, packageId: string, companies: string[]) {

@@ -39,6 +39,38 @@ import type { Appraisal, DevBudgetLine, DevBudgetResponse, DevBudgetSummary, Fin
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** RENTROLL-BASIS — the operating rent roll as `rentroll.summarize` returns it.
+ *
+ *  `occupancy_basis` is the load-bearing field. `total_rentable = building_rentable_sf or
+ *  occupied_sf`, so when a project carries no rentable area the denominator becomes the numerator
+ *  and the percentage is 100% whatever the leases say. Measured on the engine with identical
+ *  leases: a 20,000 sf building gives 30.0% with 14,000 sf vacant; the same leases with the area
+ *  unset give 100.0% with 0 vacant. Nothing can be derived from the numbers — a full building
+ *  reports exactly the same four values — so the server states which denominator it used. */
+export interface RentRollResult {
+  as_of: string;
+  lease_count: number;
+  total_rentable_sf: number;
+  occupied_sf: number;
+  vacant_sf: number;
+  occupancy_pct: number;
+  /** "building" when the project's rentable area was used, "leased" when it fell back. */
+  occupancy_basis: "building" | "leased";
+  /** The project's rentable area as supplied, or null when it was not set. */
+  building_rentable_sf: number | null;
+  /** The engine's own sentence about what the basis means. READ by `occupancyLine`, which prefers
+   *  it over its own wording so the explanation exists ONCE — `assistant.py` surfaces the same
+   *  string, and two copies of one sentence in two languages is a drift hazard, not redundancy. */
+  occupancy_note: string;
+  base_rent_annual: number;
+  recoveries_annual: number;
+  in_place_gross_income: number;
+  avg_rent_psf: number;
+  walt_years: number;
+  expirations_by_year: Record<string, unknown>;
+  rows: Record<string, unknown>[];
+}
+
 export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Proforma extends Base {
   solveProforma(assumptions: unknown) {
@@ -87,12 +119,53 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
         method: "POST", body: JSON.stringify({ name, project_id: projectId, assumptions }) });
   }
 
-  /** Saved proforma scenarios for a project (with their solved returns), oldest→newest. */
+  /** Saved proforma scenarios for a project (with their solved returns), oldest→newest.
+   *
+   *  **`review_status` was returned by the route and declared nowhere here**, so the FIN-GOV state
+   *  machine — draft → in_review → approved → published — was invisible to every screen and to
+   *  every unread-field audit in this tree, which all start from the declared interfaces. It is the
+   *  field that decides whether a scenario may still be edited at all (`update_scenario` 409s on
+   *  `approved`/`published`), so a list without it cannot show which row is the committed one.
+   *
+   *  `returns: null` means the row has no solved result, which is NOT "it solved to nothing" — see
+   *  `cloneScenario`. */
   listScenarios(projectId: string) {
     return this.json<{ id: string; name: string; project_id: string | null;
+      review_status: "draft" | "in_review" | "approved" | "published";
       returns: { equity_irr?: number | null; equity_multiple?: number | null; project_irr?: number | null;
         yield_on_cost?: number | null; npv?: number | null } | null }[]>(
       `/proforma/scenarios?project_id=${encodeURIComponent(projectId)}`);
+  }
+
+  /**
+   * FIN-GOV — revise a committed scenario by cloning it.
+   *
+   * **This is the remedy `update_scenario`'s own 409 names** — *"scenario is approved and immutable
+   * in place — clone a revision to iterate"* — and it had no client method, so the refusal pointed
+   * at a door the app did not have. `models.py` says the same thing beside the column: *"Approved/
+   * published assumptions are immutable in place — clone a revision to iterate."* Cloning is not a
+   * convenience here; it is the governance design's only forward path from `published`, which
+   * `fin_gov.REVIEW_ACTIONS` makes terminal.
+   *
+   * The clone comes back in `draft` with a result it SOLVED, not the parent's stored one.
+   */
+  cloneScenario(sid: string, name: string) {
+    return this.json<{ id: string; name: string; cloned_from: string;
+      review_status: string; resolved: boolean;
+      returns: { equity_irr?: number | null; equity_multiple?: number | null;
+        project_irr?: number | null; yield_on_cost?: number | null; npv?: number | null } | null }>(
+      `/proforma/scenarios/${encodeURIComponent(sid)}/clone`,
+      { method: "POST", body: JSON.stringify({ name }) });
+  }
+
+  /** Edit a saved scenario's assumptions. The route re-solves and returns the changed paths.
+   *
+   *  409 when the scenario is locked, or when its `review_status` is `approved`/`published` — the
+   *  caller's move then is `cloneScenario`, which is what the 409 text says. */
+  updateScenario(sid: string, name: string, projectId: string | null, assumptions: unknown) {
+    return this.json<{ id: string; name: string; result: unknown; changed_assumptions: string[] }>(
+      `/proforma/scenarios/${encodeURIComponent(sid)}`,
+      { method: "PUT", body: JSON.stringify({ name, project_id: projectId, assumptions }) });
   }
 
   /**
@@ -117,6 +190,39 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
       current_revision: string | null; status_meanings: Record<string, string>;
       basis: string; note: string; message: string | null }>(
       `/proforma/scenarios/${encodeURIComponent(sid)}/provenance${q}`);
+  }
+
+  /** R22-PROVENANCE — **is this deal's output admissible in an IC memo or a claim?**
+   *
+   *  Three legs, never blended: the scenario's material assumptions, the basis-of-estimate ledger,
+   *  and the recorded agent answers. `provenance_report` is explicit that there is deliberately no
+   *  single score, because *"a single percentage lets a well-cited proforma hide an uncited
+   *  estimate, and a memo is not admissible because it scored well"*.
+   *
+   *  **Four leg statuses, and the pair that matters is `no_data` versus `not_captured`:** "you have
+   *  not filled this in" and "this system has nowhere to put it" send a reader to completely
+   *  different places — one fills a field, the other changes a schema — so a consumer that renders
+   *  them alike destroys the distinction the engine was built around.
+   *
+   *  **`uncited` is CAPPED at the engine's `MAX_NAMED` (25) while `uncited_count` is the total**, so
+   *  a reader of the list alone undercounts. The engine's own reason line says the items are *"named
+   *  below rather than counted: a count gets quoted in a memo, a list gets fixed"* — which is the
+   *  argument for naming them AND for saying when the naming stops.
+   *
+   *  PROVENANCE-DARK: this route and its stateless sibling both had NO client method, so the verdict
+   *  was computed for nobody. `services/api/test_verdict_reachable.py` is the gate.
+   */
+  projectAdmissibility(pid: string, scenarioId?: string) {
+    const q = scenarioId ? `?scenario_id=${encodeURIComponent(scenarioId)}` : "";
+    return this.json<{
+      verdict: "admissible" | "blocked" | "incomplete";
+      reason: string;
+      legs: { leg: string; status: "cited" | "has_uncited" | "no_data" | "not_captured";
+        counted: number; uncited_count?: number; uncited?: string[]; note?: string }[];
+      legs_with_data: string[]; legs_absent: string[]; legs_not_captured: string[];
+      blocking_legs: string[]; uncited_total: number;
+      project_id: string; scenario_id: string | null; note: string;
+    }>(`/projects/${pid}/provenance/admissibility${q}`);
   }
 
   /** Bridge underwriting → construction draws: the scenario's cost tree becomes Schedule-of-Values
@@ -172,6 +278,37 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ synced: boolean; hard_cost: number; budget: { lines: DevBudgetLine[]; contingency: Record<string, number> }; summary: DevBudgetSummary }>(
       `/projects/${pid}/dev-budget/sync-gmp`, { method: "POST" });
   }
+  /**
+   * MODELSYNC-DARK — set the developer hard cost from the **model takeoff**, priced through the
+   * project's pinned cost vintage.
+   *
+   * The route's own docstring: *"one click ties the underwriting to the real IFC quantities × unit
+   * rates … instead of a flat GFA×$/sf assumption … Closes the model↔proforma disconnect."* That
+   * disconnect is this product's central claim, and the route that closes it had **no caller
+   * anywhere** — frozen in `services/api/test_route_reachability.py`'s `KNOWN_UNCALLED` since
+   * 2026-08-20, while its sibling `syncGmpToHard` has had a button since it shipped.
+   *
+   * `basis` is what makes the answer readable, and the server now states it: on `gfa_benchmark` the
+   * route wrote ONE lump line because the element sum and the GFA benchmark diverged, so
+   * `by_discipline` is the element pricing and **does not add up to `hard_cost`**. The reading is
+   * `apps/web/src/proforma/modelSyncCard.ts`; it refuses to assume `per_discipline` when the key is
+   * absent, because that is the one assumption that would silently bless a mismatched table.
+   *
+   * Two distinct 409s: no accessible source IFC (load a model), and a republication landing while
+   * the takeoff ran (press it again). Only the second is retryable, and the status code cannot tell
+   * them apart — `syncFailure` matches the server's sentence.
+   */
+  syncBudgetFromModel(pid: string) {
+    return this.json<{ synced: boolean; source: string; hard_cost: number;
+      by_discipline: Record<string, number>;
+      basis?: "per_discipline" | "gfa_benchmark"; discipline_total?: number;
+      cost_vintage?: { name?: string; year?: number | null; region?: string | null } | null;
+      cost_adjustment?: { combined_factor?: number; location_factor?: number;
+                          escalation_factor?: number; note?: string } | null;
+      budget: { lines: DevBudgetLine[]; contingency: Record<string, number> };
+      summary: DevBudgetSummary }>(
+      `/projects/${pid}/dev-budget/sync-from-model`, { method: "POST" });
+  }
   /** Developer construction draw schedule sourced from the GC cost-loaded schedule + actual billed. */
   constructionDraws(pid: string) {
     return this.json<{ projected_total: number; months: number; peak_month_cost: number;
@@ -201,11 +338,17 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/proforma/scenarios/${sid}/review`, { method: "POST", body: JSON.stringify({ action, note: note ?? "" }) });
   }
 
-  /** FIN-CALC — residual land value: the land price that hits a target return (bisection over the solve). */
+  /** FIN-CALC — residual land value: the land price that hits a target return (bisection over the solve).
+   *
+   *  `bounds` was returned by the route, listed in `proforma/residual.py`'s own docstring, and
+   *  **declared nowhere here** until 2026-09-25 — so no unread-field audit in this tree could see it:
+   *  every one of them starts from the declared interfaces. It is the honest answer in the
+   *  `converged: false` case, where the `land_value` above is a bracket endpoint rather than a price,
+   *  and `proforma/residualLandCard.ts` renders it as the range. */
   residualLand(assumptions: unknown, target: string, targetValue: number, maxLand?: number) {
     return this.json<{ land_value: number | null; achieved: number | null; target: string;
       target_value: number; iterations: number; converged: boolean; at_zero_land: number | null;
-      note?: string }>(
+      bounds?: [number, number]; note?: string }>(
       `/proforma/residual-land`, { method: "POST",
         body: JSON.stringify({ assumptions, target, target_value: targetValue, max_land: maxLand ?? null }) });
   }
@@ -376,11 +519,14 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/listings/${lid}/syndicate`, { method: "POST" });
   }
 
-  /** rentRoll — occupancy, WALT, expiration schedule, in-place income. */
+  /** rentRoll — occupancy, WALT, expiration schedule, in-place income.
+   *
+   *  RENTROLL-BASIS — `occupancy_pct` is meaningless without `occupancy_basis`: the engine falls
+   *  back to the LEASED area when the project has no rentable building area, which makes it 100% by
+   *  construction. The three area fields and the basis are declared so a reader can tell that case
+   *  from a full building; see `proforma/rentRollBasis.ts`. */
   rentRoll(pid: string) {
-    return this.json<{ occupancy_pct: number; lease_count: number; base_rent_annual: number;
-      in_place_gross_income: number; walt_years: number; expirations_by_year: Record<string, unknown>;
-      rows: Record<string, unknown>[] }>(`/projects/${pid}/rent-roll`);
+    return this.json<RentRollResult>(`/projects/${pid}/rent-roll`);
   }
   /** leaseManagement — renewal pipeline, rent-escalation schedule, CAM/recovery reconciliation. */
   leaseManagement(pid: string, years?: number, recoverableOpex?: number) {

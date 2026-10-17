@@ -28,7 +28,13 @@ def _parse_date(s: Any) -> date | None:
 
 def summarize(leases: list[dict], building_rentable_sf: float | None = None,
               as_of: date | None = None) -> dict[str, Any]:
-    """leases: each lease's `data` dict + `workflow_state`. Returns the rent-roll summary."""
+    """leases: each lease's `data` dict + `workflow_state`. Returns the rent-roll summary.
+
+    `building_rentable_sf` is the DENOMINATOR of every occupancy figure here, and it is optional
+    because `project.dev_property["sqft"]` is a field nobody is obliged to fill. When it is absent
+    the fallback is the leased area -- see `occupancy_basis` below, which exists so no caller has to
+    guess whether a 100% figure means a full building or an unmeasured one.
+    """
     today = as_of or date.today()
     active = [l for l in leases if (l.get("workflow_state") in ACTIVE_STATES)]
     rows, occupied_sf, base_rent, recoveries = [], 0.0, 0.0, 0.0
@@ -60,7 +66,17 @@ def summarize(leases: list[dict], building_rentable_sf: float | None = None,
             "start_date": d.get("start_date"), "end_date": d.get("end_date"),
             "months_remaining": round(months_remaining), "status": l.get("workflow_state"),
         })
+    # RENTROLL-BASIS. The fallback stays and is now NAMED. When a project carries no rentable
+    # building area the denominator becomes the numerator, so `occupancy_pct` is 100% whatever the
+    # leases say -- measured with identical leases: a 20,000 sf building gives 30.0% with 14,000 sf
+    # vacant, the same leases with the area unset give 100.0% with 0 vacant. Nothing downstream can
+    # work that out, because a FULL building reports exactly the same four numbers: an equality
+    # cannot separate two equal things, which is why this is stated rather than left to be derived.
+    # The value is kept for the four consumers that already read it (the card, the rent-roll PDF
+    # KPI, the income basis, the assistant snapshot) and every one of them now qualifies it --
+    # WF-BASIS's shape: publish the base, do not silently change the answer.
     total_rentable = float(building_rentable_sf) if building_rentable_sf else occupied_sf
+    occupancy_basis = "building" if building_rentable_sf else "leased"
     in_place_income = base_rent + recoveries
     return {
         "as_of": today.isoformat(),
@@ -69,6 +85,15 @@ def summarize(leases: list[dict], building_rentable_sf: float | None = None,
         "occupied_sf": round(occupied_sf),
         "vacant_sf": round(max(0.0, total_rentable - occupied_sf)),
         "occupancy_pct": round(100 * occupied_sf / total_rentable, 1) if total_rentable else 0.0,
+        "occupancy_basis": occupancy_basis,
+        "building_rentable_sf": (round(float(building_rentable_sf))
+                                 if building_rentable_sf else None),
+        "occupancy_note": ("Occupancy is leased area / the project's rentable area."
+                           if occupancy_basis == "building" else
+                           "The project has NO rentable building area, so occupancy was computed "
+                           "against the leased area and is 100% by construction. `vacant_sf` is 0 "
+                           "for the same reason, not because the building is full. Set the "
+                           "project's rentable SF for a real occupancy."),
         "base_rent_annual": round(base_rent, 2),
         "recoveries_annual": round(recoveries, 2),
         "in_place_gross_income": round(in_place_income, 2),

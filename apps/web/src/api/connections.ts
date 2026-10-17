@@ -17,6 +17,28 @@ import type { ConnectionItem } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** SQL-CAP — the read-only SELECT console's response.
+ *
+ *  Every key is optional: a refused or failed query comes back as **HTTP 200** carrying `error` and
+ *  nothing else, and a successful one carries no `error` — the server never sends both.
+ *
+ *  `row_count` is the length of the PAGE, counted after the server's `LIMIT`, so `limit` and
+ *  `truncated` are part of the answer rather than plumbing: without them a 5,000-row table read at
+ *  200 and a 200-row table read in full are the same response. `connections/sqlBrowseRead.ts` is
+ *  where that reading lives. */
+export interface SqlQueryResponse {
+  columns?: string[];
+  rows?: unknown[][];
+  row_count?: number;
+  /** The cap this read actually ran under, after the server clamps to `min(limit, 1000)` — not the
+   *  limit that was asked for. */
+  limit?: number;
+  /** Whether rows were discarded. A FACT from the server, which fetches one row past the cap to
+   *  find out, rather than a comparison the client makes against `limit`. */
+  truncated?: boolean;
+  error?: string;
+}
+
 export function withConnections<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Connections extends Base {
   connections() {
@@ -43,9 +65,13 @@ export function withConnections<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ kind?: string; tables?: string[]; projects?: string[]; error?: string }>(
       `/connections/${id}/tables`);
   }
-  /** Run a read-only SELECT against a SQL connection. */
+  /** Run a read-only SELECT against a SQL connection.
+   *
+   *  SQL-CAP — `limit` and `truncated` are part of the answer, not plumbing. `row_count` is the
+   *  length of the PAGE the server returned, so without the other two a 5,000-row table and a
+   *  200-row one are the same response. See `connections/sqlBrowseRead.ts`. */
   connectionQuery(id: string, sql: string, limit = 200) {
-    return this.json<{ columns?: string[]; rows?: unknown[][]; row_count?: number; error?: string }>(
+    return this.json<SqlQueryResponse>(
       `/connections/${id}/query`, { method: "POST", body: JSON.stringify({ sql, limit }) });
   }
   /** Read an ACC (Autodesk Construction Cloud) project's issues. */

@@ -34,7 +34,14 @@ const SPINE = (over: Partial<SpineTraceability> = {}): SpineTraceability => ({
     { ref: "SPEC-011", section: "07 21 00", title: "Thermal insulation" },
     { ref: "SPEC-019", section: "09 91 00", title: "Painting" },
   ],
-  gaps: { specs_without_bid_package: [], bid_packages_without_cost_code: [], sheets_without_spec: [] },
+  // `counts` joined the response in TRUNC-COUNTED: the three lists are 100-row PAGES and the card
+  // used to print the sum of their lengths as the broken-link total, beside percentages computed
+  // over the full population. A fixture without it now blanks the card rather than showing a wrong
+  // number, which is the intended direction — server and client ship from one build, so a response
+  // missing this field is a bug, not a deployment skew to paper over.
+  gaps: { specs_without_bid_package: [], bid_packages_without_cost_code: [], sheets_without_spec: [],
+    counts: { specs_without_bid_package: 0, bid_packages_without_cost_code: 0,
+      sheets_without_spec: 0, total: 0 } },
   chain: [],
   note: "",
   ...over,

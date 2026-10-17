@@ -106,8 +106,71 @@ with TestClient(app) as c:
     got = c.get(f"/proforma/scenarios/{sid}").json()
     assert got["review_status"] == "published" and got["reviewed_by"], got
     # a clone starts back at draft and is editable
-    cid = c.post(f"/proforma/scenarios/{sid}/clone", json={"name": "Rev A"}).json()["id"]
+    cl = c.post(f"/proforma/scenarios/{sid}/clone", json={"name": "Rev A"}).json()
+    cid = cl["id"]
     assert c.get(f"/proforma/scenarios/{cid}").json()["review_status"] == "draft"
+    # FIN-GOV-DARK — the clone SOLVES what it returns rather than copying the parent's stored
+    # `result`. A stored result is a cached computation with no record of what produced it, and
+    # `solve()` is not pure in the assumptions: with no `timing.start_date` it falls back to
+    # `date.today()`, so a copy carries a number computed on a different day. `resolved` is returned
+    # so a caller can state which it has instead of asserting it.
+    assert cl["resolved"] is True and cl["cloned_from"] == sid, cl
+    assert cl["review_status"] == "draft" and cl["returns"] is not None, cl
+    # **`resolved` does not prove the re-solve, and that is the point of this block.** It only says
+    # the clone HAS a result, which a copy also does — the flag reports what happened, it cannot
+    # witness it. So poke the parent's stored `result` to a value `solve()` can never produce and
+    # clone again: a copy carries the sentinel, a solve replaces it. *An assertion on the field a
+    # fix added tests the field, not the fix.*
+    from aec_api.db import SessionLocal as _SL
+    from aec_api.models import Scenario as _Sc
+    _d = _SL()
+    try:
+        _par = _d.get(_Sc, sid)
+        _par.result = {"returns": {"equity_irr": 99.0}, "sentinel": True}
+        _d.commit()
+    finally:
+        _d.close()
+    cl2 = c.post(f"/proforma/scenarios/{sid}/clone", json={"name": "Rev B"}).json()
+    assert cl2["returns"]["equity_irr"] != 99.0, cl2
+    _d = _SL()
+    try:
+        assert "sentinel" not in (_d.get(_Sc, cl2["id"]).result or {}), "the clone copied the parent's result"
+    finally:
+        _d.close()
+    # ...and an UNSOLVABLE parent still clones, with `resolved: false` and no result — never the
+    # parent's. Cloning used to compute nothing, so a row whose stored assumptions this build can no
+    # longer solve could always be cloned; letting `solve()` raise would turn that into a 500 on the
+    # one operation the governance design offers as the way forward from a committed scenario.
+    _d = _SL()
+    try:
+        _par = _d.get(_Sc, sid)
+        _par.assumptions = {"timing": {"construction_months": 12}}        # missing debt/equity/...
+        _par.result = {"returns": {"equity_irr": 99.0}}
+        _d.commit()
+    finally:
+        _d.close()
+    r3 = c.post(f"/proforma/scenarios/{sid}/clone", json={"name": "Rev C"})
+    assert r3.status_code == 201, r3.text
+    cl3 = r3.json()
+    assert cl3["resolved"] is False and cl3["returns"] is None, cl3
+    # ...and the clone is AUDITED. `review_scenario` and the assumption change log both write a
+    # row; cloning was the one governance write with no trail — and it is the move a user makes
+    # BECAUSE the system refused their edit, so it is the one a reviewer most wants to find.
+    # Read the table, not `GET /audit`: that route takes `require_admin_user` and this module runs
+    # with RBAC off as "dev", so the request comes back as a refusal whose length is 1 — which an
+    # `if rows:` would have reported as "no audit row" for the wrong reason. *A check that cannot
+    # tell a refusal from an empty result blames the code under test for the harness's identity.*
+    from aec_api.models import AuditLog
+    _db = _SL()
+    try:
+        rows = _db.query(AuditLog).filter(AuditLog.action == "scenario.cloned").all()
+        assert len(rows) == 3, f"expected a row per clone (3), got {len(rows)}"
+        det = next(d for d in (r.detail or {} for r in rows) if d.get("scenario_id") == cid)
+    finally:
+        _db.close()
+    assert det.get("cloned_from") == sid and det.get("scenario_id") == cid, det
+    # the state it was cloned FROM is the governance fact, not the state it landed in (always draft)
+    assert det.get("from_review_status") == "published", det
     assert c.put(f"/proforma/scenarios/{cid}", json={"name": "Rev A", "project_id": pid,
                                                      "assumptions": bumped}).status_code == 200
     assert c.post(f"/proforma/scenarios/{sid}/review",
@@ -145,7 +208,10 @@ with TestClient(app) as c:
                  json={"lock_date": "June 2026"}).status_code == 400
 
 print("FIN-GOV OK - scenario review runs draft->in_review->approved->published (illegal jumps 409, "
-      "unknown action 404, who/when/note persisted, clone restarts at draft), approved/published "
+      "unknown action 404, who/when/note persisted, clone restarts at draft, RE-SOLVES rather than "
+      "copying the parent's stored result — proved with a sentinel, since `resolved` only says the "
+      "clone HAS one — still succeeds with resolved:false when the parent no longer solves, and "
+      "writes a scenario.cloned audit row naming the state it came FROM), approved/published "
       "assumptions are immutable in place (409 'clone a revision') while draft edits return the "
       "changed-assumption paths (debt.ltc); the period lock closes the books through 2026-06 — "
       "owner-invoice postings into a closed month 409 on create/update/move/delete with the lock "

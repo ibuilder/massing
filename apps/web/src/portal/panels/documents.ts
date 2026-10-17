@@ -3,6 +3,9 @@ import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { confirmModal } from "../../ui/modal";
 import type { DocFile, DocFolderNode } from "../../api/client";
 import type { PanelContext } from "../panelContext";
+import { coverageNote, healthHeadline, namingBasis, namingNote, orphanBasis, orphanNote,
+  orphanRows, renamedPageNote, renamedRows, stateRows } from "./docHealthRead";
+import { TONE_CSS, type Tone } from "./statedBasis";
 
 /**
  * Document Control — an elFinder-style file manager (F4). Two panes: the standard, role-based folder
@@ -23,10 +26,43 @@ export async function renderDocuments(ctx: PanelContext) {
   health.textContent = "loading document-control health…";
   root.appendChild(health);
   void api.documentsHealth(pid).then((h) => {
-    const p = (v: number | null) => (v == null ? "—" : `${v}%`);
-    health.innerHTML = `📄 <b>${h.total_files}</b> on file · naming <b>${p(h.naming_compliance_pct)}</b> · `
-      + `required coverage <b>${p(h.required_coverage_pct)}</b> · revision control <b>${p(h.revision_control_pct)}</b>`
-      + (h.superseded_kept ? ` · <span class="meta">${h.superseded_kept} superseded kept</span>` : "");
+    // DOCHEALTH-VACUOUS. This strip led with `naming 100%`, which is 100% by construction because
+    // the server generates every filed name, and it discarded `required_missing` and
+    // `by_cde_state` — both declared — beside a `required coverage` percentage whose complement it
+    // was holding. `apps/web/src/portal/panels/docHealthRead.ts` holds the readings.
+    health.textContent = "";
+    const line = (text: string, tone: Tone = "", strong = false) => {
+      const n = el("div", strong ? "" : "meta");
+      n.textContent = text;
+      if (tone) n.style.color = TONE_CSS[tone];
+      n.style.marginTop = "3px";
+      health.appendChild(n);
+    };
+    const head = healthHeadline(h);
+    line(`📄 ${head.text}`, head.tone, true);
+    const cov = coverageNote(h);
+    if (cov) line(cov.text, cov.tone);
+    const nm = namingNote(h);
+    if (nm) line(nm);
+    const states = stateRows(h);
+    if (states.length) {
+      line(`CDE state: ${states.map((r) => `${r.state} ${r.count}`).join(" · ")}`);
+    }
+    const orph = orphanNote(h);
+    if (orph) {
+      line(orph, "crit");
+      line(orphanRows(h).map((o) => `${o.folder}/${o.name}`).join(" · "), "crit");
+      const ob = orphanBasis(h);
+      if (ob) line(ob);
+    }
+    if (h.renamed_on_intake) {
+      // The spellings a firm's people actually typed, which is the only way the at-source number
+      // turns into a conversation.
+      line(renamedRows(h).slice(0, 5).map((r) => `${r.orig_name} → ${r.name}`).join(" · "));
+      const pg = renamedPageNote(h);
+      if (pg) line(pg);
+    }
+    line(namingBasis(h));
   }).catch(() => { health.textContent = ""; });
 
   const modelStrip = el("div", "dash-card");
@@ -223,6 +259,19 @@ export async function renderDocuments(ctx: PanelContext) {
       const g = await api.documentsPhaseGaps(pid, phaseSel.value);
       right.innerHTML = "";
       const h = el("div"); h.style.cssText = "font-weight:600;margin-bottom:6px";
+      // `known_phase` is read, and a THIRD refusal rather than padding. It cannot be false today:
+      // the value comes from a `<select>` of server-supplied phases and the route 422s on anything
+      // else. But `complete` was `not missing` over a checklist that is EMPTY for an unrecognised
+      // phase, so the day a free-text phase input lands — or a stale client sends an old name —
+      // this heading would read "all present ✅" over nothing. *A guard protects the consumer that
+      // has it*, and this is the consumer.
+      if (!g.known_phase) {
+        h.textContent = `${g.phase || "(no phase)"} is not a design phase this checklist covers`;
+        const why = el("div", "meta");
+        why.textContent = g.refused || `Known phases: ${(g.known_phases || []).join(", ")}`;
+        right.append(h, why);
+        return;
+      }
       h.textContent = `${g.phase} required documents — ${g.complete ? "all present ✅" : `${g.missing} missing`}`;
       const tb = el("table", "portal-table") as HTMLTableElement; tb.style.cssText = "width:100%;font-size:12px";
       tb.innerHTML = "<thead><tr><th scope=\"col\">Folder</th><th scope=\"col\">Needs</th>"

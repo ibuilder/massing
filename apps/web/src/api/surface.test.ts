@@ -175,7 +175,7 @@ describe("the API client's public surface", () => {
       "itb", "scopeGap", "inviteBidders", "qualitySummary", "closeoutSummary",
       "projectHealth", "safetySummary", "fieldLogSummary", "e57Status", "convertE57",
       "clashMetrics", "clashClearanceRules", "clashMatrix",
-      "chartOfAccounts", "namingConventions", "elementsByDiscipline", "pipelineFunnel",
+      "chartOfAccounts", "namingAudit", "namingValidate", "elementsByDiscipline", "pipelineFunnel",
       "twoSidedBudget", "mepPressureLoss", "mepTrayFill", "mepThermalLoads",
       "lienWaiver", "rfqStatus", "entitlementConditionChecks",
       "goldenThread", "k1Pack", "capTable", "waterfallScenario", "capitalCall", "ffeBom", "specLinks", "authoringMatrix",

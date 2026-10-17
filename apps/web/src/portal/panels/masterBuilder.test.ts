@@ -33,6 +33,7 @@ function ctx(over: Record<string, unknown> = {}) {
     shareTokens: vi.fn().mockResolvedValue({ tokens: [] }),
     createShareToken: vi.fn().mockResolvedValue({ token: "new" }),
     revokeShareToken: vi.fn().mockResolvedValue({ revoked: true }),
+    clientDecisions: vi.fn().mockResolvedValue({ decisions: [] }),
     ...over,
   };
   const c: PanelContext = {
@@ -132,5 +133,76 @@ describe("R22-PUBLIC-VIEWER — the geometry opt-in is offered, and it is READ",
     // would still pass, which would make the audit trail confidently wrong rather than absent.
     expect(plain.textContent).not.toContain("🧊");
     expect(plain.title).not.toContain("3D model");
+  });
+  // --- PORTAL-TXN-DARK: the owner's end of the loop ----------------------------------------------
+  const DEC = (over: Record<string, unknown> = {}) => ({
+    id: 1, item_type: "digest", item_ref: "Readiness digest — 62% (5/8 steps ready)",
+    action: "approved", client_name: "Pat Owner", note: null,
+    created_at: "2026-10-13T09:00:00", token: "cccccccccccccccc", ...over,
+  });
+
+  it("renders what came back through the share links, with the note and the link it came from", async () => {
+    const { c } = ctx({ clientDecisions: vi.fn().mockResolvedValue({ decisions: [
+      DEC({ id: 2, action: "declined", item_type: "selection", item_ref: "Kitchen tile B",
+            client_name: null, note: "Too dark for the north rooms.", token: "ddddddddddddeeee" }),
+      DEC(),
+    ] }) });
+    await renderMasterBuilder(c); await flush();
+    const txt = (c.root as HTMLElement).textContent ?? "";
+    expect(txt).toContain("Client responses (2)");
+    expect(txt).toContain("Kitchen tile B");
+    expect(txt).toContain("Too dark for the north rooms.");
+    expect(txt).toContain("Pat Owner");
+    // the token SUFFIX, never the whole credential — it is the thing that identifies which link
+    expect(txt).toContain("…ddddeeee");
+    expect(txt).not.toContain("ddddddddddddeeee");
+    // and an unnamed respondent is labelled, not blank
+    expect(txt).toContain("unnamed");
+  });
+
+  it("says nothing came back, not that nothing can", async () => {
+    // The roadmap's own reason for not building this half alone: "an empty screen reads as 'no
+    // client has decided anything' rather than as 'no client can'". Now that a client CAN, the
+    // empty state has to say where the responses would come from.
+    const { c } = ctx();
+    await renderMasterBuilder(c); await flush();
+    const txt = (c.root as HTMLElement).textContent ?? "";
+    expect(txt).toContain("Nothing back yet");
+    expect(txt).toContain("share page");
+    expect(txt).not.toContain("Client responses (");   // no count when there is nothing to count
+  });
+
+  it("prints a BOUND at the cap, never a page length dressed as a total", async () => {
+    // TRUNC-COUNTED, which this repo has shipped three times: the route returns a desc-limited page
+    // and no total, so 200 rows means "at least 200", and a project can hold 200 per link across 50
+    // links. The header says `200+` and the footer says the page is the newest ones.
+    const many = Array.from({ length: 200 }, (_, i) => DEC({ id: i + 1, item_ref: `r${i}` }));
+    const spy = vi.fn().mockResolvedValue({ decisions: many });
+    const { c } = ctx({ clientDecisions: spy });
+    await renderMasterBuilder(c); await flush();
+    const txt = (c.root as HTMLElement).textContent ?? "";
+    expect(txt).toContain("Client responses (200+)");
+    expect(txt).toContain("Showing the newest 200");
+    // the limit is asked for explicitly, so the "+" means something
+    expect(spy).toHaveBeenCalledWith("p1", 200);
+  });
+
+  it("escapes a response the client wrote — the note is free text from outside the org", async () => {
+    const { c } = ctx({ clientDecisions: vi.fn().mockResolvedValue({ decisions: [
+      DEC({ note: "<img onerror=alert(1)>", item_ref: "<script>alert(2)</script>" }),
+    ] }) });
+    await renderMasterBuilder(c); await flush();
+    const html = (c.root as HTMLElement).innerHTML;
+    expect(html).not.toContain("<img onerror");
+    expect(html).not.toContain("<script>alert(2)");
+    expect((c.root as HTMLElement).textContent).toContain("<img onerror=alert(1)>");
+  });
+
+  it("survives the feed failing without taking the share card with it", async () => {
+    const { c } = ctx({ clientDecisions: vi.fn().mockRejectedValue(new Error("403 forbidden")) });
+    await renderMasterBuilder(c); await flush();
+    const txt = (c.root as HTMLElement).textContent ?? "";
+    expect(txt).toContain("Client responses unavailable: 403 forbidden");
+    expect(txt).toContain("Share read-only");
   });
 });

@@ -277,6 +277,16 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: "0 line(s)" when the API key was simply unset. Both lowered the number. The complementary check
 //: is to call the endpoint with the arguments the caller actually sends and look at the response.
 //:
+//:
+//: A THIRD WAY A LINE LEAVES, and it is not "wired" or "the route was wrong": the method was on the
+//: WRONG SIDE OF A SEAM. PORTAL-TXN-DARK deleted `sharedComment` and `sharedDecision`, which posted
+//: to two public token-authenticated write routes. The person who posts to those has no account and
+//: arrives from a link in an email, so their surface is a server-rendered page — an SPA method for
+//: either could never have had a caller HERE, at any point, for any amount of work. Both sat frozen
+//: for months reading as "a screen somebody still owes", which is the cost: *a permanent entry in a
+//: list of unfinished work is indistinguishable from a backlog item, and nobody ever finishes it.*
+//: The `gone` branch below is what distinguishes removal from wiring, and it earned its keep twice.
+
 //: HOW TO CHANGE THIS LIST. Wire a method to a screen, then DELETE its line. If you delete the
 //: wrong one the gate says so by name. Do not add a line without saying in the commit why another
 //: unreachable endpoint is worth shipping.
@@ -294,29 +304,145 @@ const UNCALLED: readonly string[] = [
   "job",
   "addBasePlate", "addCurtainWall", "addMepFitting", "addRebarCage",
   "addShearTab", "addTopicComment", "applyDetailingRules", "arrayElement",
-  "assignMaterialSet", "assumptionsRegister", "attachDocument",
-  "ciLatest", "citedQuery", "clashFederated", "clausePlaybook",
-  "clientDecisions", "codeAdoptions", "codeCheck", "colorFacets",
-  "competitiveSupply", "connectElements", "costSummary", "createAssembly", "createGroup",
-  "createType", "decisionGate",
+  "assignMaterialSet", "attachDocument",
+  // `assumptionsRegister` and `veLog` left this list 2026-10-12 — VE-DARK: `reportCenter.ts` now
+  // renders both precon money registers, each with what its total leaves out. `preconSnapshot`
+  // STAYS: it is a POST that creates a milestone snapshot, and wiring a WRITE is a different
+  // question from surfacing a read — the same reason `saveMacros` stayed when its three siblings
+  // found callers hours earlier.
+  // `citedQuery` left this list 2026-10-12 — CITED-ASK-DARK: `viewer/tools/citedAnswer.ts` asks a
+  // QUERY-DSL question and renders the provenance of every claim, what the answer does NOT cite,
+  // and where two sources disagree. The roadmap already recorded this method as a deliberate
+  // EXCLUSION from VERDICT-COVERAGE's population — "its product is an ANSWER whose sourcing those
+  // annotate" — which was a true answer to a different question: that reasoning was about whether
+  // it is a verdict, and said nothing about whether anything called it.
+  "clashFederated",
+  // `codeAdoptions` left this list 2026-10-12 — CODE-ADOPT-DARK: the Data Requirements panel now
+  // resolves which code editions govern, and which of them are the jurisdiction's own rather than
+  // the national baseline. `codeCheck` left it the SAME DAY by its own work (CODE-READY-DARK,
+  // `viewer/tools/codeReadiness.ts`) — and the sentence here when `codeAdoptions` went said
+  // "`codeCheck` STAYS: that is a different endpoint, and wiring one is no evidence about the
+  // other." That was true and is kept, because it is why they needed two pieces of work rather
+  // than one: adjacent names on this list are adjacent in nothing else.
+  // `colorFacets` STAYS, and 2026-10-12 recorded WHY rather than leaving it unexplained
+  // (COLOR-UNSET). It exists "to drive the viewer's 'Color by…' picker" — every attribute and
+  // pset/qto property present, with each one's distinct-value count — and the picker in
+  // `viewer/tools/projectPanel.ts` offers two hardcoded options. The blocker is not wiring: that
+  // picker is a CLIENT-SIDE swatch mode (IFC class ↔ discipline) and not a `colorBy` caller at
+  // all, so making it enumerate the model's own properties is a product change about how colour-by
+  // works; and a new panel needs an entry point in `viewer/app.ts`, which sits at its exact size
+  // pin in `services/api/test_file_sizes.py`. What DID ship is the coverage the painter was hiding
+  // — `viewer/tools/colorCoverage.ts`, read by the phasing panel. *A dark route whose door is a
+  // product decision is not the same finding as one nobody got round to, and this list cannot tell
+  // them apart — so the distinction is written down beside the entry.*
+  "colorFacets",
+  "connectElements", "costSummary", "createAssembly", "createGroup",
+  "createType",
   "docGraph", "draftPost", "drawingSchedulesCalc", "drawingSetPlan",
   "drawingsSyncStatus", "ebcPathways", "editType", "elements5dMap",
   "energyModel", "equipmentSpecCheck",
-  "expandMacro", "feasibilityLotSupply", "feasibilitySellout", "holdSell",
-  "importFamilyPack", "layoutVerify", "listMacros", "listingReso",
-  "liveStream", "loanCovenants", "massingOptionRecipes", "mcpTools",
+  // `listMacros`, `expandMacro` and `runMacro` left this list 2026-10-12 — MACRO-DARK:
+  // `viewer/tools/macroTool.ts` is the door onto RECIPE-MACROS, which shipped complete and
+  // reachable by nothing. `saveMacros` STAYS: a macro EDITOR is a separate piece of work, and
+  // claiming it here because its three siblings found callers is how an entry goes stale in the
+  // flattering direction.
+  // `holdSell` left this list 2026-10-13 — HOLDSELL-UNMEASURED, and the ENGINE had to be fixed
+  // first. Its `recommendation` was `"hold" if clearing else "sell"` over hold periods whose IRR
+  // could not be computed, which for an over-levered asset is most of the horizon — so wiring a card
+  // would have shipped "sell" to somebody holding an asset whose sale requires writing a cheque.
+  // *A callerless method is not always a missing screen; sometimes it is a verdict nobody has yet
+  // had to look at.* `proforma/holdSellCard.ts` on the Asset Mgmt tab.
+  "feasibilityLotSupply", "feasibilitySellout",
+  // `layoutVerify` left this list 2026-10-12 — LAYOUT-RENUMBER: `viewer/tools/layoutTool.ts` carries
+  // the as-installed upload the field-layout panel's own copy had promised since it shipped ("shoot
+  // the as-installed positions with a total station, then upload that CSV"), and the download was
+  // where the round-trip stopped. `layoutPoints` was never on this list, which is why the gap read
+  // as closed: **the export half had a caller and the import half did not, and this list counts
+  // methods rather than round-trips.** The server had to be fixed first — it matched on the setout
+  // NUMBER, which is `P1..` in export order.
+  "importFamilyPack", "listingReso",
+    // `loanCovenants` left this list 2026-09-25 — `proforma/covenantCard.ts` on Budget & Capital.
+  "liveStream", "massingOptionRecipes", "mcpTools",
+  // `myWork` STAYS and is a DELIBERATE SUPERSESSION, not a hole (recorded 2026-10-12, COLOR-UNSET
+  // triage). `workQueue` has two app callers, and its own docstring says it is "Built ON `my_work`
+  // rather than beside it: a second definition of 'in my court' is how two screens come to
+  // disagree." So the capability is reachable; the method is the inner one. This is the case
+  // `test_route_reachability.py`'s docstring names — a dark route can be a DUPLICATE rather than a
+  // gap, and neither list can tell the difference — and the cost of not writing it down is that
+  // the next reader wires a second answer to "what is in my court", which is the exact thing the
+  // route was consolidated to prevent.
   "modelAdjacency", "moduleCalc", "myWork",
-  "netEffectiveRent", "normalizeT12", "parcelsDataStatus",
-  "pdfInfo", "permitsTimeline", "preconSnapshot",
-  "proformaRenovation", "proformaRollover", "progressActuals",
-  "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",
-  "rentRollScrub", "residualLand", "reviewPost",
-  "reviewScenario", "reviseDrawing", "runClash", "runMacro", "saveClausePlaybook",
-  "saveDealAuthority", "saveMacros", "saveViewTemplates",
-  "scanDeviation", "scopeRegister", "securitiesPackage", "sendDigest",
-  "setLod", "setPhase", "sharedComment", "sharedDecision",
-  "sharedDigestUrl", "spaceUtilBenchmarks", "speckleStatus", "tieredComps",
-  "topicComments", "updateConnection", "veLog", "verificationDeviations",
+  // `netEffectiveRent` and `rentRollScrub` left this list 2026-09-25 — `proforma/rentRollQuality.ts`
+  // renders both under the Operations rent roll. Shipped with R20, called by nothing.
+  // `normalizeT12` left this list 2026-09-25 — `proforma/t12Card.ts`. Its tie-out is a gate that
+  // could not fail without a caller supplying stated totals; see T12-SELFTIE in that file's header.
+  "parcelsDataStatus",
+  // `progressActuals` left this list 2026-10-12 — PROD-DARK: the Operations panel reads the field
+  // crew's STORED productivity log (an empty `actuals` list makes the route use it), and says both
+  // which rows it analysed and how many groups had a planned rate to be ahead OF.
+  // `permitsTimeline` left this list 2026-10-12 — PERMIT-BASIS-DARK: the Analytics panel reports
+  // days-to-issue AND which permits the estimate is about, because the engine broadens its cohort
+  // to "all permits" regardless of sample size and names the one it settled on in `basis`.
+  "pdfInfo", "preconSnapshot",
+  "proformaRenovation", "proformaRollover",
+  // `progressCaptureDiff` LEFT this list 2026-10-15 — CAPTURE-SESSION, and the freeze's own
+  // measured blocker is what made it findable. It read: "nothing in this product persists a
+  // capture… a screen would have to invent the concept — a stored capture with a date and a GUID
+  // set — which is a product decision and a migration, not a wiring job."
+  //
+  // **Half of that was right, and the half that was wrong is the whole finding.** It is true of a
+  // stored capture ROW. It is not true of the SET: every `field_verification` record carries a
+  // REQUIRED `guid` and an `observed_date`, so "what was observed installed as of 2026-09-30" is a
+  // filter over a register this product has had all along. *"There is no stored X" and "X is not
+  // available" are different claims, and a measured blocker can state the first while reading as
+  // the second.* `scheduleMethods.ts` has two date pickers now.
+  //
+  // The other named option could NOT have worked, which is worth recording beside it: the entry
+  // offered "let the CV bridge's ingest-batch writes become the capture record", and that bridge's
+  // payload is `{activity, percent}` — it carries no element identity at all. *An unblocking option
+  // nobody costed is a plan with a hole in it.*
+  //
+  // `progressRollup` stays frozen: it takes an installed set and no date, so it is the same
+  // derivation minus the half that makes it a capture, and its screen is the percent-complete
+  // rollup rather than a diff.
+  "progressRollup", "raisePlan", "recordDistribution",
+  // `residualLand` left this list 2026-09-25 — `proforma/residualLandCard.ts` is the Feasibility
+  // tab's inverse solve. The engine and the client method shipped with FIN-CALC; nothing called it.
+  "reviewPost",
+  // `reviewScenario` left this list 2026-10-13 — FIN-GOV-DARK. It had been frozen here as a method
+  // written ahead of its screen, and that reading was one layer too low: `PUT .../{sid}` and
+  // `POST .../{sid}/clone` had NO client method at all, so the edit path was missing, the 409 that
+  // names the clone never reached a user, and nothing ever needed either door. *A frozen callerless
+  // method records the one link of a severed chain that happens to exist.* Driven by
+  // `apps/web/src/proforma/scenarioGovernance.ts` from the Overview tab.
+  // REVISE-DARK closed 2026-10-14: `reviseDrawing` left this set because `reportCenter.ts` grew an
+  // "Issue a revision" form. The register was readable and the write was not, so an AIA revision
+  // could be SEEN and never ISSUED.
+  "runClash",
+  // `saveViewTemplates` left this list 2026-10-13 — VIEWTPL-DARK. It is the fourth stored project
+  // STANDARD this session found with a reachable reader and no writer, and the first one where TWO
+  // screens were already consuming it: `qaSection.ts` lists and APPLIES a template,
+  // `panels/standards.ts` measures its graphics, and both printed "No view templates saved" on every
+  // project that has ever existed. The editor is `portal/panels/viewTemplates.ts`, under the
+  // graphics card it makes non-empty. The population is derived by
+  // `services/api/test_stored_standard_writable.py`. `saveMacros` left this list 2026-10-13 —
+  // MACRO-CAPTURE: `viewer/tools/recipeMacroCapture.ts`, reached from the edit-recipe log reader,
+  // turns a slice of the log into a saved macro. It was the LAST member of that register's open
+  // list, which is now empty. The reason it stayed when its three siblings found callers on
+  // 2026-10-12 was written down then and was right: *"a macro EDITOR is a separate piece of work,
+  // and claiming it here because its three siblings found callers is how an entry goes stale in the
+  // flattering direction."* What made it cheap in the end was RECIPE-LOG-DARK rather than any
+  // editor — the inputs already existed, and a log entry IS a macro step.
+  "scopeRegister", "securitiesPackage", "sendDigest",
+  "setLod", "setPhase",
+  // `spaceUtilBenchmarks` left this list 2026-10-12 — BENCH-DARK: the Portfolio panel compares each
+  // modelled project's m² per space against the portfolio median, and the engine now counts the
+  // exclusion it used to drop silently (a readable model with no IfcSpace).
+  // `tieredComps` left this list 2026-10-14 — COMPTIER-DARK: `proforma/compTierCard.ts` reads the
+  // tier-resolved band on the Underwriting tab, with the weakest contributing source, the comps the
+  // band left out, the tie-breaks and the appraiser's exclusions.
+  "sharedDigestUrl", "speckleStatus",
+  "topicComments", "updateConnection", "verificationDeviations",
 ];
 
 describe("client methods the application actually calls", () => {

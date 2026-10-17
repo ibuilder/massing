@@ -3,7 +3,21 @@ import { destLabel, destTitle } from "../../shell/destinations";
 import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { bsddFailure, bsddFailureText, requestGate } from "./bsddLookup";
+import { bandRows, ceilingDiffers, complianceRows, inertTargetNote, inertTargetRows, infoScoreLine,
+  limitingRows, matrixBasis, readability, TONE_CSS } from "./lodCoverage";
 import { proxyConfirm, proxyOffer, proxySummary } from "./lodProxy";
+import { assemblyPageNote, assemblyRows, envelopeBasisNote, envelopeCoverageNote,
+  envelopeHeadline, TONE_CSS as BASIS_TONE, type Tone } from "./statedBasis";
+import { checkFieldRows, checkHeadline, conventionNote, namingHeadline, unnamedNote, unnamedRows,
+  unnamedPageNote, violationPageNote, violationRows } from "./namingRead";
+import { cascadeHeadline, coverageBasis, flowRows, missingLinkNotes, nodePageNote, rootNote,
+  rowTone } from "./cascadeRead";
+import { classPageNote, classRows, disciplineRows, mepBasis, mepHeadline,
+  unattributedNote } from "./mepExtractRead";
+import { cutCoverageNote, detailNote, elementRows, flattenedNote, graphicsHeadline, graphicsNote,
+  sampleGuids, styleRows } from "./vgRead";
+import { renderViewTemplates } from "./viewTemplates";
+import type { NamingRegisterAudit } from "../../api/types";
 import type { PanelContext } from "../panelContext";
 
 /**
@@ -181,6 +195,23 @@ export async function renderStandards(ctx: PanelContext) {
       await (await import("./jurisdictionPanel")).renderJurisdiction(ctx);
     })();
     jurCard.append(jurBtn); root.appendChild(jurCard);
+    // FIRM-RULES-OPTIONAL slice ② — the firm's own standards, and this project's. It sits beside
+    // the jurisdiction packs for the same reason those sit beside the EIR: three parties state
+    // requirements for one model — the client (EIR/BEP), the authority (packs) and the FIRM — and
+    // until slice ② the third had no authoring surface at all. `GET`/`PUT /projects/{pid}/rules`
+    // and `GET`/`PUT /firm/rules` had no client method between them, so every rule check in the
+    // product ran against the three sample rules with no way to change that.
+    const ruleCard = el("div", "dash-card"); ruleCard.style.marginBottom = "8px";
+    ruleCard.innerHTML = `<div><b>⚖ Rule standards (firm + project)</b></div>`
+      + `<div class="meta" style="margin-top:2px">The firm's parametric standards, inherited by `
+      + `every project, and this project's own layered over them by rule id. These are what `
+      + `Review → Rule check and Model CI evaluate.</div>`;
+    const ruleBtn = el("button"); ruleBtn.className = "mini-btn on"; ruleBtn.textContent = "Open";
+    ruleBtn.style.marginTop = "6px";
+    ruleBtn.onclick = () => void (async () => {
+      await (await import("./ruleStandards")).renderRuleStandards(ctx);
+    })();
+    ruleCard.append(ruleBtn); root.appendChild(ruleCard);
     // AI / data-readiness — "can an agent act on this project's data yet?"
     //
     // The card lands in a SLOT appended now rather than straight onto `root` when the read returns.
@@ -189,6 +220,16 @@ export async function renderStandards(ctx: PanelContext) {
     // gives the reader something to navigate to while this is still in flight. An empty div has no
     // visual footprint, and `isConnected` goes false the moment `root.innerHTML` is cleared, which
     // is the cheapest liveness check there is. Found in review on PR #527.
+    // DESIGN-STD-DARK — the firm's approved / preferred / prohibited standards, and the model
+    // measured against them. The ruleset was ALREADY authorable through the `design_standard`
+    // register and nothing read it; both routes were frozen unreachable. A SLOT, for the reason the
+    // comment below gives for `aiSlot` — this is the same late-write hazard, so it gets the same
+    // shape rather than a second discovery of it.
+    const stdSlot = el("div"); stdSlot.className = "dash-card"; stdSlot.style.marginBottom = "8px";
+    root.appendChild(stdSlot);
+    void (async () => {
+      await (await import("./designStandards")).renderDesignStandards(ctx, stdSlot, pid);
+    })();
     const aiSlot = el("div"); root.appendChild(aiSlot);
     void ctx.host.api.aiReadiness(pid).then((ai) => {
       if (!aiSlot.isConnected) return;    // the reader moved on; this panel is gone
@@ -269,23 +310,51 @@ export async function renderStandards(ctx: PanelContext) {
     // requirement flow-down (cascade) — OIR → PIR/AIR → EIR, and where it's broken
     if (reg.total) {
       try {
+        // CASCADE-DARK. This card was named for the flow-down and rendered three numbers over a
+        // percentage that could never reach 100% — `coverage_pct` counted the roots, which the
+        // engine itself calls legitimately unlinked, so `0/1 linked · 0%` printed beside
+        // `✅ every requirement traces up to organizational intent` in the same box.
+        // `apps/web/src/portal/panels/cascadeRead.ts` holds the readings and the measurement.
         const cas = await ctx.host.api.infoRequirementsCascade(pid);
-        const healthy = !cas.orphans.length && !cas.misdirected.length;
+        const head = cascadeHeadline(cas);
+        const findings = missingLinkNotes(cas);
         const cc = el("div", "dash-card");
-        cc.style.cssText = `border-left:3px solid var(${healthy ? "--status-good" : "--status-warn"});margin-bottom:8px`;
-        cc.innerHTML = `<b>Requirement flow-down</b> `
-          + `<span class="meta">${cas.linked}/${cas.total} linked${cas.coverage_pct != null ? ` · ${cas.coverage_pct}%` : ""}</span>`
-          + `<div class="meta">OIR → PIR/AIR → EIR → MIDP/TIDP. Each requirement should derive from a higher-level one.</div>`;
-        if (cas.orphans.length) {
-          cc.innerHTML += `<div class="meta" style="margin-top:4px">⏳ ${cas.orphans.length} not traced up: `
-            + cas.orphans.slice(0, 6).map((o) => esc(`${o.type} ${o.ref ?? ""}`.trim())).join(", ")
-            + (cas.orphans.length > 6 ? " …" : "") + `</div>`;
+        const tone = head.tone === "crit" ? "--status-crit"
+          : head.tone === "warn" ? "--status-warn"
+            : head.tone === "good" ? "--status-good" : "--line";
+        cc.style.cssText = `border-left:3px solid var(${tone});margin-bottom:8px`;
+        cc.innerHTML = `<b>Requirement flow-down</b> <span class="meta">${esc(head.text)}</span>`;
+        const casNote = (text: string, colour = "") => {
+          const n = el("div", "meta"); n.textContent = text;
+          if (colour) n.style.color = colour;
+          n.style.marginTop = "4px";
+          cc.appendChild(n);
+        };
+        const root = rootNote(cas);
+        if (root) casNote(root.text, BASIS_TONE[root.tone]);
+        for (const f of findings) casNote(f.text, BASIS_TONE[f.tone]);
+        if (!findings.length && cas.expected) {
+          casNote("✅ every requirement that should trace up does.", BASIS_TONE.good);
         }
-        if (cas.misdirected.length) {
-          cc.innerHTML += `<div class="meta">⚠️ ${cas.misdirected.length} link(s) point the wrong way: `
-            + cas.misdirected.slice(0, 6).map((m) => esc(`${m.type}→${m.parent_type}`)).join(", ") + `</div>`;
+        // The flow itself, which is what the card is named after and had never rendered: the chain
+        // each requirement derives through, indented, with the parent named by ref.
+        const rows = flowRows(cas);
+        if (rows.length) {
+          const t = el("table", "fin-table") as HTMLTableElement;
+          t.style.cssText = "width:100%;font-size:12px;margin-top:6px";
+          t.innerHTML = `<tr><th style="text-align:left">Requirement</th><th style="text-align:left">Type</th>`
+            + `<th style="text-align:left">Derives from</th><th style="text-align:left">State</th></tr>`
+            + rows.map((r) => {
+              const c = BASIS_TONE[rowTone(r)];
+              return `<tr${c ? ` style="color:${c}"` : ""}>`
+                + `<td>${"&nbsp;".repeat(r.depth * 4)}${esc(r.ref)} ${esc(r.title)}</td>`
+                + `<td>${esc(r.type)}</td><td>${esc(r.parent)}</td><td>${esc(r.state)}</td></tr>`;
+            }).join("");
+          cc.appendChild(t);
+          const pg = nodePageNote(cas);
+          if (pg) casNote(pg, BASIS_TONE.warn);
         }
-        if (healthy) cc.innerHTML += `<div class="meta">✅ every requirement traces up to organizational intent.</div>`;
+        casNote(coverageBasis(cas));
         body.append(cc);
       } catch { /* cascade is best-effort; register already rendered */ }
       // MIDP/TIDP delivery plan — requirements against programme dates
@@ -629,11 +698,83 @@ export async function renderModelAnalysis(ctx: PanelContext) {
         pick.onchange = run; q.append(pick, out); run();
     }).catch(fail(q));
 
+    // LOD-UNREAD. This card was titled "LOD coverage" and rendered ONE table of six bands — the
+    // achieved distribution — while `lod.assess` returns the ceiling, the two per-element counts of
+    // why a band is a floor, which aspect proved each cap, and per-stage target compliance with its
+    // own uncovered count. The engine's note says the distinction in as many words: *"the gap is
+    // unread model, not missing model."* So a BIM manager read "most elements at LOD 200" as
+    // under-modelled when the assessment may have been saying it could not see.
+    //
+    // The reading lives in `./lodCoverage` so it is assertable — this panel has no test file, and
+    // every verdict here (the tick, the `—` for an unscored stage, the refusal to subtract two
+    // distributions) is a judgement that can be got wrong silently.
     const lod = section("🎚 LOD coverage");
     void ctx.host.api.lodAssessment(pid).then((a) => {
         lod.textContent = "";
         if (!a.model_scored) { lod.textContent = "targets only — load a model to assess achieved LOD"; return; }
-        lod.appendChild(table(["LOD band", "Elements"], Object.entries(a.distribution).map(([k, val]) => [k, val])));
+        const read = readability(a);
+        const rd = el("div", "meta");
+        rd.style.cssText = `color:${TONE_CSS[read.tone]};margin-bottom:4px`;
+        rd.textContent = read.text;
+        lod.appendChild(rd);
+        // The Ceiling column appears only when the response CARRIES a ceiling. A column of blanks
+        // would read as "nothing could be higher", which is the opposite of "not knowable" — the
+        // same reason `bandRows` returns null rather than 0 for an absent ceiling.
+        const rows = bandRows(a);
+        const hasCeiling = a.ceiling_distribution !== undefined;
+        lod.appendChild(hasCeiling
+            ? table(["LOD band", "Elements", "Ceiling"],
+                    rows.map((r) => [r.band, r.achieved, r.ceiling ?? "—"]))
+            : table(["LOD band", "Elements"], rows.map((r) => [r.band, r.achieved])));
+        // A FLAT CEILING IS A FINDING, not an absence of one, and it is the sharpest reading this
+        // response can give: the aspects the index could not read would not move a single band, so
+        // the distribution above is the answer even though the assessment was partly blind. Said
+        // only when a ceiling was actually given, and only when `readability` has flagged
+        // unreadable elements — otherwise it restates the tick.
+        if (hasCeiling && !ceilingDiffers(a) && !read.earned && read.tone === "warn") {
+            const flat = el("div", "meta");
+            flat.textContent = "The ceiling is identical to the distribution: the aspects that could "
+                + "not be read would not raise any element's band, so this reading holds regardless.";
+            lod.appendChild(flat);
+        }
+        // WHY, which is the only part a team can act on — the engine's own comment beside
+        // `limited_by`: "A distribution says a model is at LOD 200 without saying why".
+        const lim = limitingRows(a);
+        if (lim.length) {
+            const h = el("div", "meta"); h.style.marginTop = "6px";
+            h.textContent = "Capped by — the aspect that PROVED each element's band:";
+            lod.append(h, table(["Aspect", "Elements"], lim.map((r) => [r.aspect, r.elements])));
+        }
+        const comp = complianceRows(a);
+        if (comp.length) {
+            const h = el("div", "meta"); h.style.marginTop = "6px";
+            h.textContent = "Against the target matrix, per stage. `No target` is the elements no "
+                + "rule addresses — it is OUTSIDE the percentage, not compliant within it:";
+            lod.append(h, table(["Stage", "Meeting", "Short", "No target", "Meeting %"],
+                                comp.map((r) => [r.phase, r.met, r.short, r.noTarget, r.pct])));
+            // LOD-TARGET-INERT. WHICH matrix, and which authored rules contributed nothing to it.
+            // The header above explains `No target` as "the elements no rule addresses", which
+            // reads as *you have not written rules yet* to somebody whose rules cannot resolve.
+            const basis = matrixBasis(a);
+            if (basis) {
+                const b = el("div", "meta");
+                b.style.color = TONE_CSS.warn; b.textContent = basis;
+                lod.appendChild(b);
+            }
+            const inert = inertTargetNote(a);
+            if (inert) {
+                const n = el("div", "meta"); n.style.marginTop = "6px";
+                n.style.color = TONE_CSS.warn; n.textContent = inert;
+                lod.append(n, table(["Category", "Stage", "Target", "Why it matched nothing"],
+                                    inertTargetRows(a).map((r) => [r.category, r.phase, r.target,
+                                                                   r.why])));
+            }
+        }
+        const info = infoScoreLine(a);
+        if (info) {
+            const i = el("div", "meta"); i.style.marginTop = "6px"; i.textContent = info;
+            lod.appendChild(i);
+        }
     }).catch(fail(lod));
 
     const hand = section("📋 LOD 500 handover work list");
@@ -789,53 +930,224 @@ export async function renderModelAnalysis(ctx: PanelContext) {
         sp.appendChild(m);
     }).catch(fail(sp));
 
+    // VIEWTPL-DARK — this card read `viewTemplateGraphics` for the first saved template and printed
+    // "No view templates saved." on every project that has ever existed, because `saveViewTemplates`
+    // had no caller anywhere in the app. The editor goes here, under the reading it makes possible:
+    // a graphics measurement over a template nobody could create was a card that could only ever
+    // report its own emptiness.
     const vg = section("👁 View-template graphics");
-    void ctx.host.api.viewTemplates(pid).then(async (vt) => {
-        vg.textContent = "";
-        const first = vt.templates[0];
-        const m = el("div", "meta");
-        if (!first) { m.textContent = "No view templates saved."; vg.appendChild(m); return; }
-        const g = await ctx.host.api.viewTemplateGraphics(pid, first.id);
-        const n = g.visible_count;
-        m.textContent = `${vt.templates.length} template(s) · graphics for ${first.name}`
-          + (n != null ? ` · ${n} visible` : "");
-        vg.appendChild(m);
-    }).catch(fail(vg));
+    const vgRead = el("div", "meta");
+    const vgEdit = el("div"); vgEdit.style.marginTop = "6px";
+    vg.textContent = ""; vg.append(vgRead, vgEdit);
+    void ctx.host.api.viewTemplates(pid).then((vt) => {
+        vgRead.textContent = "";
+        if (!vt.templates.length) {
+          vgRead.textContent = "No view templates saved yet — write one below and the viewer's QA "
+            + "section can apply it.";
+          return;
+        }
+        // VG-DARK. This card read `visible_count` and nothing else — 1 of 3 counts, with every
+        // resolved weight, colour and pattern discarded, and `cut`/`projection` declared as
+        // top-level keys the server has never sent. `apps/web/src/portal/panels/vgRead.ts` holds
+        // the readings and the measurement.
+        const pick = el("select") as HTMLSelectElement;
+        for (const t of vt.templates) {
+          const o = el("option") as HTMLOptionElement;
+          o.value = t.id; o.textContent = t.name || t.id; pick.appendChild(o);
+        }
+        const inspect = el("input") as HTMLInputElement;
+        inspect.type = "text"; inspect.placeholder = "GlobalId(s), comma-separated — blank for none";
+        inspect.style.cssText = "flex:1;min-width:200px";
+        const all = el("label", "meta") as HTMLLabelElement;
+        const allBox = el("input") as HTMLInputElement; allBox.type = "checkbox";
+        all.append(allBox, document.createTextNode(" whole map"));
+        // Separate from the GUID box ON PURPOSE. Passing the inspected elements as the cut list
+        // would make `cut_supplied` true because somebody typed a GlobalId, and the card would then
+        // report "N elements are cut by the view plane" about a claim the reader never made.
+        // *Asking what an element draws at and asserting the plane cuts it are two questions.*
+        const asCut = el("label", "meta") as HTMLLabelElement;
+        const cutBox = el("input") as HTMLInputElement; cutBox.type = "checkbox";
+        asCut.append(cutBox, document.createTextNode(" treat them as cut"));
+        const go = el("button", "btn") as HTMLButtonElement; go.textContent = "Resolve";
+        const bar = el("div");
+        bar.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px";
+        bar.append(pick, inspect, asCut, all, go);
+        const body = el("div");
+        vgRead.append(bar, body);
+
+        const note = (text: string, colour = "") => {
+          const n = el("div", "meta"); n.textContent = text;
+          if (colour) n.style.color = colour;
+          n.style.marginTop = "4px";
+          body.appendChild(n);
+        };
+        const run = async () => {
+          const guids = inspect.value.split(",").map((x) => x.trim()).filter(Boolean);
+          body.textContent = "resolving…";
+          try {
+            const g = await ctx.host.api.viewTemplateGraphics(pid, pick.value,
+              { guids, cut: cutBox.checked ? guids : [], detail: allBox.checked });
+            body.textContent = "";
+            const head = graphicsHeadline(g);
+            note(head.text, BASIS_TONE[head.tone]);
+            note(cutCoverageNote(g));
+            const flat = flattenedNote(g);
+            if (flat) note(flat, BASIS_TONE.crit);
+            if (g.styles.length) {
+              // Two columns, never one: collapsing cut and projection is the flattening this engine
+              // exists to prevent.
+              body.appendChild(table(["Category", "Elements", "Cut (weight · colour · pattern)",
+                "Projection", "Cut heavier by"],
+                styleRows(g).map((r) => [r.group, r.count, r.cut, r.projection, r.heavier])));
+            }
+            note(detailNote(g));
+            if (Object.keys(g.graphics).length) {
+              body.appendChild(table(["GlobalId", "Category", "Cut", "Projection", "Side"],
+                elementRows(g).map((r) => [r.guid, r.group, r.cut, r.projection, r.isCut])));
+            } else if (!guids.length && !allBox.checked) {
+              const ex = sampleGuids(g, 3);
+              if (ex.length) note(`Try one of these GlobalIds: ${ex.join(", ")}`);
+            }
+            note(graphicsNote(g));
+          } catch (e) { body.textContent = `failed: ${(e as Error).message}`; }
+        };
+        go.onclick = () => { void run(); };
+        pick.onchange = () => { void run(); };
+        void run();
+    }).catch((e: Error) => { vgRead.textContent = `failed: ${esc(e.message)}`; });
+    void renderViewTemplates(ctx, vgEdit, pid);
 
     const env = section("🧱 Envelope compliance (IECC)");
     void ctx.host.api.envelopeAudit(pid).then((a) => {
         env.textContent = "";
-        const m = el("div", "meta");
-        m.textContent = a.checked ? `${a.compliant}/${a.checked} assemblies compliant (${a.compliance_pct}%)`
-            : "no envelope assemblies registered";
-        env.appendChild(m);
-        if (a.results.length) env.appendChild(table(["Assembly", "Type", "Result"],
-            a.results.slice(0, 20).map((x) => [x.name, x.element_type,
-                x.compliant == null ? "—" : (x.compliant ? "PASS" : "FAIL")])));
+        // BASIS-UNREAD. `checked` is the assemblies the engine could RULE on and `total` is every
+        // one registered; this card read the first and never the second, so `4/4 assemblies
+        // compliant (100.0%)` was a measured headline over a 40-row register, and `checked === 0`
+        // fell to an empty-state branch reading "no envelope assemblies registered" over forty of
+        // them. `apps/web/src/portal/panels/statedBasis.ts` holds the readings and the measurement.
+        const note = (text: string, tone = "") => {
+            const n = el("div", "meta"); n.textContent = text;
+            if (tone) n.style.color = tone;
+            env.appendChild(n);
+        };
+        const head = envelopeHeadline(a);
+        note(head.text, BASIS_TONE[head.tone]);
+        const cov = envelopeCoverageNote(a);
+        if (cov) note(cov, BASIS_TONE.warn);
+        if (a.results.length) {
+            // `Required / provided` is what makes a FAIL actionable — the engine computes the IECC
+            // minimum and the margin for every assembly and the table could only say "FAIL".
+            env.appendChild(table(["Assembly", "Type", "Zone", "Required / provided", "Result"],
+                assemblyRows(a).map((x) => [x.name, x.type, x.zone, x.requirement, x.result])));
+            const page = assemblyPageNote(a);
+            if (page) note(page);
+        }
+        const basis = envelopeBasisNote(a);
+        if (basis) note(basis);
     }).catch(fail(env));
 
     const mep = section("🌀 MEP off the model");
     void ctx.host.api.mepModelExtract(pid).then((a) => {
+        // MEP-DISCIPLINE-DARK. This card counted MEP in IFC classes — a modeller's vocabulary — and
+        // `by_discipline`, the division a contractor buys by, was undeclared on the client type. The
+        // class table was also sliced at 15 of up to 25 with no note.
+        // `apps/web/src/portal/panels/mepExtractRead.ts` holds the readings.
         mep.textContent = "";
-        if (!a.model_scored) { mep.textContent = "load a model to count MEP elements"; return; }
-        const m = el("div", "meta"); m.textContent = `${a.mep_elements} MEP elements`;
-        mep.append(m, table(["IFC class", "Type", "Count"], a.by_class.slice(0, 15).map((x) => [x.ifc_class, x.label, x.count])));
+        const mNote = (text: string, tone: Tone = "") => {
+            const n = el("div", "meta"); n.textContent = text;
+            if (tone) n.style.color = BASIS_TONE[tone];
+            n.style.marginTop = "4px";
+            mep.appendChild(n);
+        };
+        const head = mepHeadline(a);
+        mNote(head.text, head.tone);
+        if (!a.model_scored) return;
+        const un = unattributedNote(a);
+        if (un) mNote(un, "warn");
+        if (a.by_discipline.length) {
+            mep.appendChild(table(["Discipline", "Elements", "Share"],
+                disciplineRows(a).map((d) => [d.discipline, d.count, d.share])));
+        }
+        if (a.by_class.length) {
+            mep.appendChild(table(["IFC class", "Type", "Count"],
+                classRows(a).map((x) => [x.ifcClass, x.label, x.count])));
+            const pg = classPageNote(a);
+            if (pg) mNote(pg, "warn");
+        }
+        mNote(mepBasis(a));
     }).catch(fail(mep));
 
     const nm = section("🔤 Naming compliance");
-    void Promise.all([
-      ctx.host.api.namingAudit(pid),
-      ctx.host.api.namingConventions(pid).catch(() => null),
-    ]).then(([a, conv]) => {
+    void ctx.host.api.namingAudit(pid).then((a) => {
         nm.textContent = "";
-        if (conv) {
-          const note = el("div", "meta");
-          note.textContent = `Container: ${conv.container.pattern}. Sheet: ${conv.sheet.pattern}`;
-          nm.appendChild(note);
+        const note = (text: string, colour = "") => {
+            const n = el("div", "meta");
+            n.textContent = text;
+            if (colour) n.style.color = colour;
+            n.style.marginTop = "4px";
+            nm.appendChild(n);
+        };
+        // The basis first, and from the audit's OWN response — `conventions` is a key on the verdict,
+        // not a second request that could fail while the percentages printed anyway.
+        note(conventionNote(a));
+        const regs: [string, NamingRegisterAudit, string, string][] = [
+            ["Containers", a.containers, "container", "Container ID (ISO 19650 naming)"],
+            ["Sheets", a.sheets, "drawing", "sheet number"],
+        ];
+        for (const [label, reg, noun, field] of regs) {
+            const h = el("div"); h.style.cssText = "font-weight:600;margin-top:10px";
+            h.textContent = label; nm.appendChild(h);
+            const head = namingHeadline(reg, noun);
+            note(head.text, BASIS_TONE[head.tone]);
+            const un = unnamedNote(reg, noun, field);
+            if (un) note(un, BASIS_TONE.warn);
+            // The violations are the actionable half and were discarded on every call. `ref` is the
+            // first column because a bad name with no register reference is a name somebody has to
+            // go and search for.
+            if (reg.violations.length) {
+                nm.appendChild(table(["Ref", "Title", "Name as recorded", "Why it fails"],
+                    violationRows(reg).map((v) => [v.ref, v.title, v.name, v.why])));
+                const pg = violationPageNote(reg, a.max_violations);
+                if (pg) note(pg, BASIS_TONE.warn);
+            }
+            if (reg.unnamed.length) {
+                nm.appendChild(table([`Ref (no ${field})`, "Title"],
+                    unnamedRows(reg).map((u) => [u.ref, u.title])));
+                const pg = unnamedPageNote(reg, a.max_violations);
+                if (pg) note(pg, BASIS_TONE.warn);
+            }
         }
-        nm.appendChild(table(["Register", "Total", "Compliant", "%"], [
-            ["Containers", a.containers.total, a.containers.compliant, a.containers.compliance_pct ?? "—"],
-            ["Sheets", a.sheets.total, a.sheets.compliant, a.sheets.compliance_pct ?? "—"]]));
+        // The fix loop: `/naming/validate` had no client method, so the audit could say a name was
+        // wrong and nothing could say whether the replacement is right.
+        const chk = el("div"); chk.style.cssText = "margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center";
+        const clab = el("span", "meta"); clab.textContent = "Check a name:";
+        const cin = el("input") as HTMLInputElement;
+        cin.type = "text"; cin.placeholder = "DR_A_GroundFloorPlan_P01_2026-07-05";
+        cin.style.cssText = "flex:1;min-width:220px";
+        const ckind = el("select") as HTMLSelectElement;
+        for (const k of ["container", "sheet"]) {
+            const o = el("option") as HTMLOptionElement; o.value = k; o.textContent = k; ckind.appendChild(o);
+        }
+        const cbtn = el("button", "btn") as HTMLButtonElement; cbtn.textContent = "Validate";
+        const cout = el("div", "meta"); cout.style.marginTop = "6px";
+        cbtn.onclick = async () => {
+            const name = cin.value.trim();
+            if (!name) { cout.textContent = "type a filename or sheet number to check"; return; }
+            cout.textContent = "checking…";
+            try {
+                const r = await ctx.host.api.namingValidate(pid, name, ckind.value as "container" | "sheet");
+                cout.textContent = "";
+                const head = checkHeadline(r);
+                const line = el("div"); line.textContent = head.text;
+                line.style.color = BASIS_TONE[head.tone]; cout.appendChild(line);
+                const rows = checkFieldRows(r);
+                if (rows.length) {
+                    cout.appendChild(table(["Field", "Read as"], rows.map((f) => [f.field, f.value])));
+                }
+            } catch (e) { cout.textContent = `failed: ${(e as Error).message}`; }
+        };
+        chk.append(clab, cin, ckind, cbtn);
+        nm.append(chk, cout);
     }).catch(fail(nm));
 
     // Interop: inspect a VIM / G3D file (G2) — schema, buffers, geometry stats. Offline.

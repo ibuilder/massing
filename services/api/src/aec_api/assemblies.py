@@ -138,7 +138,29 @@ def estimate_resource_based(rows: list[dict], mapping: dict[str, str] | None = N
     """Price a model takeoff resource-by-resource. rows: aec_data.qto per-element takeoff. Aggregates
     by IFC class, maps each class to an assembly, and builds the cost up from labor + material +
     equipment. Returns line items with the L/M/E split + labor-hours, a project total, the L/M/E
-    rollup, total crew-hours, and any classes with no assembly mapped."""
+    rollup, total crew-hours, and any classes with no assembly mapped.
+
+    ESTIMATE-ZEROQTY. There are THREE ways a class can fail to reach the total, and only one of them
+    used to be reported:
+
+    * **no assembly mapped** -- `unmapped`, which this always had. `CLASS_TO_ASSEMBLY` covers 11
+      architectural and structural classes and no MEP, furniture or proxies, so on a coordinated
+      model this is routinely most of the element count.
+    * **mapped, and the takeoff carries no quantity in the assembly's billing dimension** --
+      `_class_quantity` returns `agg.get(dim, 0.0)`, so the class was priced at **zero** and
+      appended to `lines` as a successfully-priced line. Measured: 80 `IfcSlab` with no volume
+      beside 20 `IfcWall` with area gave a line reading `IfcSlab | 80 | 0.00 m3 | $0.00`,
+      `unmapped: []`, `element_count: 100` and `total: $14,916` -- a total over 20 of 100 elements,
+      with the unmapped footnote unable to catch it because the class is not unmapped. Same shape as
+      CARBON-UNCONVERTED: matched, contributes nothing, counted as success -- here inside a cost
+      estimate. These go in `no_quantity` now, and `lines` means PRICED.
+    * nothing in the model at all, which is `element_count == 0` and already obvious.
+
+    `element_count` was declared on the client and never rendered, so no screen showed the
+    denominator the total is over. `priced_elements` / `unpriced_elements` state it, and
+    `coverage_note` is the engine's own sentence about it. *A cost total whose population is not
+    stated is read as the whole building.*
+    """
     cls_map = {**CLASS_TO_ASSEMBLY, **(mapping or {})}
     asm_lib = {**DEFAULT_ASSEMBLIES, **(assemblies or {})}
     agg: dict[str, dict[str, float]] = {}
@@ -150,7 +172,7 @@ def estimate_resource_based(rows: list[dict], mapping: dict[str, str] | None = N
             v = r.get(k)
             if isinstance(v, (int, float)):
                 a[k] += v
-    lines, unmapped = [], []
+    lines, unmapped, no_quantity = [], [], []
     roll = {"labor": 0.0, "material": 0.0, "equipment": 0.0}
     labor_hours = 0.0
     for c, a in sorted(agg.items()):
@@ -160,6 +182,14 @@ def estimate_resource_based(rows: list[dict], mapping: dict[str, str] | None = N
             unmapped.append({"ifc_class": c, "count": int(a["count"])})
             continue
         qty = _class_quantity(a, asm["unit"], c)
+        if qty <= 0:
+            # Mapped and unpriceable. NOT a $0 line in `lines`: the assembly bills per `unit` and
+            # the takeoff carries nothing in that dimension, which is a missing quantity rather
+            # than a free one. Reported with the dimension it needed, because the remedy differs
+            # from an unmapped class -- that one wants a mapping, this one wants a takeoff.
+            no_quantity.append({"ifc_class": c, "count": int(a["count"]), "assembly": asm_key,
+                                "needs": asm["unit"]})
+            continue
         priced = price_assembly(asm, qty, resources)
         for k in roll:
             roll[k] += priced["by_kind"].get(k, 0.0)
@@ -169,10 +199,49 @@ def estimate_resource_based(rows: list[dict], mapping: dict[str, str] | None = N
                       "assembly_name": asm["name"], "count": int(a["count"])})
     lines.sort(key=lambda x: x["total"], reverse=True)
     total = round(sum(x["total"] for x in lines), 2)
+    element_count = int(sum(a["count"] for a in agg.values()))
+    priced_elements = int(sum(x["count"] for x in lines))
     return {"lines": lines, "total": total, "by_kind": {k: round(v, 2) for k, v in roll.items()},
             "labor_hours": round(labor_hours, 2), "by_trade": labor_demand(lines),
-            "unmapped": unmapped, "source": "resource",
-            "element_count": int(sum(a["count"] for a in agg.values()))}
+            "unmapped": unmapped,
+            # Mapped classes the takeoff could not quantify -- a different remedy from `unmapped`,
+            # and previously a $0 line inside `lines`.
+            "no_quantity": no_quantity, "source": "resource",
+            "element_count": element_count,
+            # The population `total` is over, and the one it is not.
+            "priced_elements": priced_elements,
+            "unpriced_elements": element_count - priced_elements,
+            "coverage_note": _estimate_coverage_note(element_count, priced_elements, unmapped,
+                                                     no_quantity)}
+
+
+def _estimate_coverage_note(total_elements: int, priced: int, unmapped: list[dict],
+                            no_quantity: list[dict]) -> str:
+    """The engine's sentence about which elements the estimate's total is over.
+
+    ESTIMATE-ZEROQTY. A cost total is quoted, and a quoted number travels away from the screen that
+    produced it, so the population goes with it rather than being left for a reader to total up from
+    a footnote.
+    """
+    if not total_elements:
+        return "No elements in the takeoff -- load a model with geometry to price it."
+    head = f"{priced} of {total_elements} element(s) priced"
+    bits = []
+    if unmapped:
+        n = sum(u["count"] for u in unmapped)
+        bits.append(f"{n} in {len(unmapped)} class(es) with no assembly mapped "
+                    f"({', '.join(u['ifc_class'] for u in unmapped[:4])}"
+                    f"{', ...' if len(unmapped) > 4 else ''})")
+    if no_quantity:
+        n = sum(u["count"] for u in no_quantity)
+        dims = sorted({u["needs"] for u in no_quantity})
+        bits.append(f"{n} in {len(no_quantity)} mapped class(es) the takeoff carries no "
+                    f"{'/'.join(dims)} for, so they could not be priced at all -- NOT priced at "
+                    f"zero ({', '.join(u['ifc_class'] for u in no_quantity[:4])}"
+                    f"{', ...' if len(no_quantity) > 4 else ''})")
+    if not bits:
+        return head + ". Every element in the takeoff is in this total."
+    return head + ". Outside it: " + "; ".join(bits) + "."
 
 
 def labor_demand(estimate_lines: list[dict], crew_hours_per_week: float = 40.0,

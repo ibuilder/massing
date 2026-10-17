@@ -16,15 +16,72 @@
  */
 import { IS_DEMO, demoTextOr } from "../demo/demoApi";
 import { withClash } from "./clash";
-import { HttpCore, HttpError, type LiveStream } from "./httpCore";
-import type { LogisticsResource, MakeReady } from "./types";
+import { HttpCore, HttpError, type LiveStatus, type LiveStream } from "./httpCore";
+import type { CvBridgeStatus, LogisticsResource, MakeReady, ScheduleStatusReport } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
+
+/** One issue as `IssueLog.to_dict()` emits it. `table`/`row_key`/`field`/`raw_value` are present on
+ *  data-provenance issues and absent on engine ones, which is why only the first four are required. */
+export interface CpmIssue {
+  severity: string;
+  code: string;
+  message: string;
+  action?: string | null;
+  row_key?: string | null;
+  field?: string | null;
+  raw_value?: string | null;
+}
+
+export interface CpmRow {
+  id?: string;
+  ref: string | null;
+  name: string;
+  duration: number;
+  es: number | null;
+  ef: number | null;
+  total_float: number;
+  critical: boolean;
+}
+
+export interface CpmResult {
+  project_duration: number;
+  activity_count: number;
+  critical_count: number;
+  has_cycle: boolean;
+  critical_path: string[];
+  activities: CpmRow[];
+  cycle?: string[];
+  issues?: CpmIssue[];
+}
+
 
 export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   // Clash rides here so ApiClient's mixin expression does not grow another
   // `withX()` — one more wrapper there loses HttpCore on the type (TS mixin depth).
   return class Schedule extends withClash(Base) {
+  /**
+   * CV-BRIDGE-DARK — is the site-photo progress bridge enabled, and what does a vision vendor
+   * implement? The bridge's other two routes (`…/cv-progress/ingest`, `…/ingest-batch`) are
+   * INBOUND doors called by that vendor's service, so they deliberately get no method here: a
+   * browser caller for a webhook would be the wrong thing to build.
+   */
+  cvProgressStatus(pid: string) {
+    return this.json<CvBridgeStatus>(`/projects/${pid}/cv-progress/status`);
+  }
+
+  /**
+   * SCHED-STATUS — what is late, as of a **data date**, which is REQUIRED rather than defaulted.
+   *
+   * The server returns `checked: false` and every row `unknown` when `dataDate` is omitted, and
+   * says why. That is deliberate: assuming today would be wrong on every historical snapshot and
+   * archived project, and wrong silently. The caller passes the as-of line; nobody assumes one.
+   */
+  scheduleStatus(pid: string, dataDate?: string) {
+    return this.json<ScheduleStatusReport>(`/projects/${pid}/schedule/status`,
+      { method: "POST", body: JSON.stringify(dataDate ? { data_date: dataDate } : {}) });
+  }
+
   scheduleAlerts(pid: string) {
     return this.json<{ alerts: { level: string; type: string; title: string; detail: string; ref?: string }[];
       counts: { high: number; medium: number; low: number } }>(`/projects/${pid}/schedule/alerts`);
@@ -79,20 +136,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   sequenceClash(pid: string, minOverlapDays = 1, crewThreshold = 0) {
     const q = new URLSearchParams({ min_overlap_days: String(minOverlapDays),
                                     crew_threshold: String(crewThreshold) });
-    return this.json<{
-      analyzed: number; skipped_count: number; locations: number;
-      findings: { location: string; overlap_days: number; combined_crew: number;
-        a: { id?: string; name: string; trade: string };
-        b: { id?: string; name: string; trade: string };
-        window: { start: string; finish: string } }[];
-      finding_count: number; support_checked: boolean; support_pairs: number;
-      support_finding_count: number;
-      support_findings: { kind: string; grade: string;
-        support: { guid: string; id?: string; name: string; trade: string; start: string; finish: string };
-        supported: { guid: string; id?: string; name: string; trade: string; start: string; finish: string } }[];
-      support_unscheduled_count: number; clean: boolean; note: string; not_covered: string;
-      bound_activities: number;
-    }>(`/projects/${pid}/clash/sequence?${q}`);
+    return this.json<SequenceClashResult>(`/projects/${pid}/clash/sequence?${q}`);
   }
   /** RESOURCE-LEVEL-2 — APPLY one leveling round: shift over-allocated activities forward within
    *  their CPM float (finish never moves). Mutates the schedule — gate behind an explicit confirm. */
@@ -281,10 +325,12 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     a.href = URL.createObjectURL(blob); a.download = fmt === "msp" ? "schedule.xml" : "schedule.xer"; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
-  /** CPM analysis of the schedule activities — duration, critical path, float, cycle detection. */
+  /** CPM analysis of the schedule activities — duration, critical path, float, cycle detection.
+   *
+   *  CPM-SILENT — `cycle` and `issues` are the only things this response says when the schedule is
+   *  WRONG, and they were undeclared. See `portal/panels/cpmRead.ts`. */
   scheduleCpm(pid: string) {
-    return this.json<{ project_duration: number; activity_count: number; critical_count: number; has_cycle: boolean; critical_path: string[]; activities: { ref: string | null; name: string; duration: number; es: number; ef: number; total_float: number; critical: boolean }[] }>(
-      `/projects/${pid}/schedule/cpm`);
+    return this.json<CpmResult>(`/projects/${pid}/schedule/cpm`);
   }
   /**
    * R45-SCHED-REACH — DCMA 14-point schedule quality.
@@ -300,6 +346,24 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       optimisable: boolean | null; assessed: number; skipped: number; failed: number;
       checks: { number: number; name: string; status: "pass" | "fail" | "skipped"; value: number | null;
                 threshold: string; detail: string; offenders: string[]; offender_count: number }[];
+      /**
+       * SCHEDHEALTH-PARITY — these four were undeclared, and three of them were also absent from
+       * both of the engine's refusal shapes while its docstring promised *"every key the assessed
+       * shape carries is present"*. The test asserting that had SUBTRACTED them from the
+       * comparison and kept the universal label.
+       *
+       * `data_date` is the load-bearing one: every DCMA check that reads a date reads it relative
+       * to this, so a grade shown without it is a verdict relative to nothing — the same finding
+       * SCHED-STATUS-DARK recorded one route over. `cycle` is the actionable half of the loop
+       * refusal and was dropped by the only screen that calls this.
+       */
+      activity_count: number; relationship_count: number; data_date: string | null;
+      /** `massingplan.core.issues.Issue.to_dict()` — one thing the engine could not do as asked. */
+      issues: { severity: string; code: string; message: string; action: string;
+                table: string | null; row_key: string | null; field: string | null;
+                raw_value: string | null }[];
+      /** Present only on the cyclic refusal: the activity ids that form the loop. */
+      cycle?: string[];
     }>(`/projects/${pid}/schedule/health`);
   }
 
@@ -310,15 +374,17 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
    * cannot express crew continuity at all, so this is the number that says whether the method is
    * worth using on this job.
    */
-  scheduleFlowline(pid: string) {
-    return this.json<{
-      available: boolean; reason?: string;
-      locations: { id: string; name: string; sequence: number }[]; trades: string[];
-      duration_days: number | null; continuity_cost_days: Record<string, number>;
-      segments: { task_id: string; location_id: string; start_offset: number; finish_offset: number;
-                  duration_days: number }[];
-      interference_count: number;
-    }>(`/projects/${pid}/schedule/flowline`);
+  scheduleFlowline(pid: string, buffer?: FlowlineBuffer) {
+    const q = new URLSearchParams();
+    if (buffer?.flatDays != null) q.set("buffer_days", String(buffer.flatDays));
+    for (const [trade, days] of Object.entries(buffer?.perTrade ?? {})) {
+      // `<trade>:<days>`, repeated. The server splits on the LAST colon, so a trade whose name
+      // contains one survives the round trip.
+      q.append("buffer", `${trade}:${days}`);
+    }
+    const qs = q.toString();
+    return this.json<FlowlineResult>(
+      `/projects/${pid}/schedule/flowline${qs ? `?${qs}` : ""}`);
   }
 
   /**
@@ -349,14 +415,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
    */
   scheduleLevel(pid: string, caps: Record<string, number>,
                 horizon: "within_float" | "extend_finish" = "within_float") {
-    return this.json<{
-      available: boolean; reason?: string; horizon: string | null;
-      finish_before: string | null; finish_after: string | null; finish_moved_days: number | null;
-      moves: { activity_id: string; from_start: string; to_start: string; shifted_working_days: number;
-               blocked_by: string[]; float_remaining_days: number }[];
-      move_count: number | null; unresolved_count: number | null;
-      peak_before: Record<string, number>; peak_after: Record<string, number>;
-    }>(`/projects/${pid}/schedule/level`,
+    return this.json<LevellingResult>(`/projects/${pid}/schedule/level`,
        { method: "POST", body: JSON.stringify({ caps, horizon }) });
   }
 
@@ -675,15 +734,32 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       per_project?: { project_id: string; ppc_pct: number; tmr_pct: number; committed: number }[] }>(
       `/benchmarks/pull-planning`);
   }
-  /** leanPpc — Last-Planner percent complete plus missed-commitment reasons. */
+  /**
+   * leanPpc — Last-Planner percent complete plus missed-commitment reasons.
+   *
+   * **`ppc` AND `rating` ARE NULLABLE, and declaring them otherwise was the defect PPC-UNASSESSED
+   * closed.** `lean.ppc` returns `null` for both while the period is unmeasurable — an unanswered
+   * commitment is neither met nor missed, and its own docstring records fixing exactly this one
+   * layer down: *"Until v0.3.974 this divided by EVERY record, so … every team read as failing on a
+   * Wednesday."* With `ppc: number` declared, the health strip did `(l.ppc * 100).toFixed(0)` —
+   * `null * 100` is `0` in JavaScript — and tested `rating` against two string literals with a
+   * critical-red default branch, so a team mid-week got **"Lean PPC: 0%" in red**. *A non-nullable
+   * type is how a consumer is told there is no decision to make; this one said the opposite.*
+   *
+   * `unassessed` and `reasons_not_recorded` were undeclared (found by RESPKEY-DELEGATED) and are the
+   * two counts that make the null readable: how many promises are still open, and how many misses
+   * nobody gave a reason for. The reading is `apps/web/src/portal/ppcNote.ts`.
+   */
   leanPpc(pid: string) {
-    return this.json<{ commitments: number; completed: number; ppc: number; missed: number; rating: string; top_variance_reasons: { reason: string; count: number }[] }>(
+    return this.json<{ commitments: number; completed: number; ppc: number | null; missed: number;
+      rating: string | null; unassessed: number; reasons_not_recorded: number;
+      top_variance_reasons: { reason: string; count: number }[] }>(
       `/projects/${pid}/lean/ppc`);
   }
   /** SSE stream of the pull-board change-signature; fires whenever any trade edits a sticky note so
    *  the board can live-refresh. Returns a resilient handle so callers can close it on teardown. */
   pullPlanStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void,
-                 onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+                 onStatus?: (s: LiveStatus, why?: string) => void): LiveStream {
     return this.liveStream(`/projects/${pid}/pull-plan/stream`,
                            onMessage as (d: unknown) => void, onStatus);
   }
@@ -720,20 +796,44 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       by_level: (Grp & { level: string })[]; note: string;
     }>(`/projects/${pid}/progress/rollup`, { method: "POST", body: JSON.stringify({ installed_guids: installedGuids, elements }) });
   }
-  /** progressCaptureDiff — newly installed and disappeared between two capture timestamps. */
+  /**
+   * progressCaptureDiff — newly installed and disappeared between two capture timestamps.
+   *
+   * **The three `unmatched_*` keys are declared here and this method still has no screen**, and the
+   * two facts are worth keeping apart.
+   *
+   * PROGRESS-DARK closed the ENGINE's half of this: `capture_diff` used to filter every capture
+   * GUID the model does not know out of both sets while its note promised *"never silently
+   * dropped"* — true only among elements the current model still contains, *"which excludes exactly
+   * the case a rework flag is for, an element taken out of the model and off the site between
+   * captures."* The filter stayed and the COUNT stopped being silent: `unmatched_t1`,
+   * `unmatched_t2` and the `unmatched_guids` sample say when a capture was aimed at the wrong model
+   * version. Declaring them is free and makes them visible to every audit built on these
+   * declarations; **not declaring them would have left the correction invisible on this side too.**
+   *
+   * **It had no caller for a reason that was half right, and CAPTURE-SESSION closed it.** The note
+   * here recorded that the route needs two timestamped sets of installed GUIDs and that nothing in
+   * this product persists a capture, so a screen would have to invent the concept. The first half
+   * is true of a stored capture ROW. It is not true of the SET: every `field_verification` record
+   * carries a REQUIRED `guid` and an `observed_date`, so *"what was observed installed as of
+   * 2026-09-30"* is a filter. *"There is no stored X" and "X is not available" are different
+   * claims, and this note read the first as the second.*
+   *
+   * Pass `derive: "field_verification"` with two dates and the server fills both sets. **Read
+   * `derived`**: a derived capture is CUMULATIVE, so `disappeared` is structurally empty and this
+   * call cannot raise a rework flag — and `derived.undated` counts the verifications no date could
+   * place, which are invisible to every capture at every date.
+   */
   progressCaptureDiff(pid: string, body: {
-    installed_t1: string[]; installed_t2: string[]; t1?: string; t2?: string;
+    installed_t1?: string[]; installed_t2?: string[]; t1?: string; t2?: string;
     elements?: Record<string, unknown>[];
+    /** CAPTURE-SESSION — derive both sets from a register instead of sending them. Opt-in, never a
+     *  fallback: an empty `installed_t1` means the caller sent nothing, and answering a different
+     *  question than the one asked is how a screen shows a diff over a set nobody chose. */
+    derive?: "field_verification";
   }) {
-    return this.json<{
-      t1: string | null; t2: string | null; days: number | null;
-      installed_t1: number; installed_t2: number; newly_installed: number; disappeared: number;
-      added_guids: string[]; disappeared_guids: string[];
-      added_by_class: { ifc_class: string; count: number }[];
-      added_by_level: { storey: string; count: number }[];
-      pct_complete_t1: number; pct_complete_t2: number; pct_delta: number;
-      elements_per_day: number | null; note: string;
-    }>(`/projects/${pid}/progress/capture-diff`, { method: "POST", body: JSON.stringify(body) });
+    return this.json<CaptureDiff>(
+      `/projects/${pid}/progress/capture-diff`, { method: "POST", body: JSON.stringify(body) });
   }
 
   /** safetySummary — OSHA TRIR/DART/LTIFR, observation mix, toolbox coverage, violations. */
@@ -786,9 +886,16 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       source: string;
     }>(`/projects/${pid}/progress/actuals`, { method: "POST", body: JSON.stringify({ actuals, planned }) });
   }
-  /** fieldLogSummary — manpower trend, weather-impact lost-days, reporting coverage. */
+  /** fieldLogSummary — manpower trend, weather-impact lost-days, reporting coverage.
+   *
+   *  FIELDLOG-WINDOW — `coverage_pct`'s denominator is `span_days`, the span of the LOGGED dates,
+   *  so it is coverage of the window the reports define and never of the job: one report is 100%,
+   *  and so is an unbroken run of any length. The window and the draft split are declared because
+   *  the percentage cannot be read without them. See `fieldLogReadings.ts`. */
   fieldLogSummary(pid: string) {
-    return this.json<{ report_count: number; submitted_count: number; coverage_pct: number | null;
+    return this.json<{ report_count: number; submitted_count: number; draft_count: number;
+      first_date: string | null; last_date: string | null;
+      span_days: number; logged_days: number; coverage_pct: number | null; coverage_note: string;
       total_manpower: number; avg_manpower: number | null;
       peak_manpower: { count: number; date: string | null }; weather_lost_days: number;
       delay_days: number; by_weather: Record<string, number>; by_impact: Record<string, number>;
@@ -822,6 +929,349 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     });
   }
   };
+}
+
+/** One activity the sequence check could not read at all, with the engine's own reason. */
+export interface SequenceSkipped {
+  id?: string;
+  name: string;
+  /** `no location` · `missing start or finish` · `finish before start` — each one a missing field
+   *  on a schedule activity, which is what makes the gap fixable rather than merely reported. */
+  reason: string;
+}
+
+/** Two trades in one location in one window. */
+export interface SequenceSpaceFinding {
+  location: string;
+  overlap_days: number;
+  combined_crew: number;
+  a: { id?: string; name: string; trade: string };
+  b: { id?: string; name: string; trade: string };
+  window: { start: string; finish: string };
+}
+
+export interface SequenceSupportEnd {
+  guid: string;
+  id?: string;
+  name: string;
+  trade: string;
+  start: string;
+  finish: string;
+}
+
+/** An element scheduled to go in before the thing the IFC says holds it up. */
+export interface SequenceSupportFinding {
+  kind: string;
+  /** `structural` (IfcRelConnectsStructuralMember) or `assembly` (RelAggregates parent-before-part).
+   *  Never an unstated `IfcRelConnectsElements` join — Relating/Related is authoring order. */
+  grade: string;
+  support: SequenceSupportEnd;
+  supported: SequenceSupportEnd;
+}
+
+/** A directed support pair the schedule could not DATE, and which end was missing.
+ *
+ *  **Undeclared until SEQ-UNSCHED, which is why nothing could name the pairs.** The count was
+ *  declared and rendered; the list was not, so the panel could say *34 pair(s) missing a dated
+ *  binding* and nothing more — and the actionable half is WHICH 34, because each one is a GUID a
+ *  planner can bind to an activity. */
+export interface SequenceUnscheduledPair {
+  /** GlobalId of the supporting element. */
+  support: string;
+  /** GlobalId of the supported element. */
+  supported: string;
+  grade: string;
+  /** `support`, `supported`, or both — whichever end has no dated activity bound to it. */
+  missing: string[];
+}
+
+/** R21-4D-CLASH — space contention plus install-before-support.
+ *
+ *  **`clean` is a verdict over two populations with different coverage, and only one of them bars
+ *  it.** An unreadable activity (`skipped`) bars `clean`; a support pair with no dated activity
+ *  (`support_unscheduled`) does not. The engine states why in `clean_scope` and the asymmetry is
+ *  deliberate — `skipped` is a row of the schedule the caller asked about, while an unscheduled
+ *  pair is a relation in the MODEL that the schedule simply does not reach, and folding every one
+ *  of those in would make `clean` permanently false on any real project.
+ *
+ *  What follows for a consumer is that **`clean` alone is not an answer**: measured on a one-
+ *  activity schedule against two directed pairs, the route returns `clean: true` with
+ *  `support_evaluated: 0` — the support half ruled on nothing and the verdict says clean. Read
+ *  `support_evaluated` beside it, which is what `apps/web/src/viewer/tools/sequenceClashRead.ts`
+ *  exists to do. */
+export interface SequenceClashResult {
+  /** Activities that had a location and both dates — the population `clean` is over. */
+  analyzed: number;
+  skipped: SequenceSkipped[];
+  skipped_count: number;
+  locations: number;
+  findings: SequenceSpaceFinding[];
+  finding_count: number;
+  /** False only when the caller passed no `support_pairs` at all. This route always passes a list
+   *  (empty when there is no source IFC), so a model with no relations is distinguishable from a
+   *  caller that never asked. */
+  support_checked: boolean;
+  /** Directed pairs the IFC licensed — the denominator of the support question. */
+  support_pairs: number;
+  /** Pairs both of whose ends had a dated activity. `support_pairs` minus
+   *  `support_unscheduled_count`, published rather than left as arithmetic because this is the
+   *  number that says how much of the support question was actually asked. */
+  support_evaluated: number;
+  support_findings: SequenceSupportFinding[];
+  support_finding_count: number;
+  /** Capped at `sequence_clash.MAX_UNSCHEDULED_REPORTED` (200). The COUNT below is exact. */
+  support_unscheduled: SequenceUnscheduledPair[];
+  support_unscheduled_count: number;
+  support_unscheduled_truncated: boolean;
+  /** True of the activities that were readable AND the pairs that could be dated. Never print it
+   *  bare — see the interface doc above. */
+  clean: boolean;
+  note: string;
+  /** What this call does NOT check: unstated `IfcRelConnectsElements` joins, and the support half
+   *  entirely when no pairs were supplied. */
+  not_covered: string;
+  /** The engine's own statement of which populations `clean` ruled on, and why the two coverage
+   *  gaps are treated differently. */
+  clean_scope: string;
+  /** Activities carrying at least one `element_guids` entry — how many could be checked today if
+   *  the support relationship existed. Zero means the binding is unpopulated on this project,
+   *  which is a different problem from the engine being unable to use it. */
+  bound_activities: number;
+}
+
+/** Where two consecutive trade lines come closest, and by how much.
+ *
+ *  `massingplan/core/locations.Interference`'s own docstring: *"`gap_days` is the actual clearance
+ *  at the binding location after the line has been shifted … it is the requested buffer at exactly
+ *  one location when they do not [run at the same pace] — which is the point of reporting the
+ *  location."*
+ *
+ *  **Four of these five fields never left the server until FLOW-CLEAR.** The adapter projected the
+ *  dataclass with `{k: getattr(i, k) for k in ("task_id", "location_id") if hasattr(i, k)}` — and
+ *  `task_id` is not a field of `Interference` at all — so `hasattr` skipped it silently and the
+ *  whole record arrived as `{"location_id": "L01"}`, measured. It calls `to_dict()` now, which the
+ *  line below it had always called. */
+export interface FlowlineInterference {
+  /** The two trade lines, in handover order. */
+  predecessor_id: string;
+  successor_id: string;
+  /** Where they come closest — the point of reporting it. */
+  location_id: string;
+  /** Actual clearance there, in working days. Negative means the two trades share the space.
+   *  **Always 0 from this route today:** `compute()` shifts each line until it is exactly tight at
+   *  its tightest point, and the clearance it leaves is the declared `buffer_days`, which this
+   *  adapter never sets (FLOW-BUFFER). */
+  gap_days: number;
+  /** The clearance SHRINKS along the flow — the successor is the faster trade and is catching up.
+   *  Per the engine: *"a slip in the predecessor is felt immediately at the far end, and it is
+   *  invisible on a bar chart."* The one figure here that varies from this route. */
+  converging: boolean;
+}
+
+/** CAPTURE-SESSION — where a DERIVED capture's two sets came from, or null when the caller sent them.
+ *
+ *  `cumulative: true` is a structural fact about the derivation, not a property of this project's
+ *  data: *"observed on or before D"* can only grow, so `disappeared` is empty by construction. A
+ *  consumer should suppress the rework half rather than render an empty table, which reads as "no
+ *  rework found" — the opposite of "this source cannot tell you". */
+export interface CaptureDerivation {
+  source: "field_verification";
+  note: string;
+  t1: { as_of?: string | null; count: number };
+  t2: { as_of?: string | null; count: number };
+  /** Verifications with no readable `observed_date`. Excluded from every capture at every date, so
+   *  reporting the count is the only thing that makes them findable. */
+  undated: number;
+  /** The dated range the register actually covers — an `as_of` before `register_earliest` returns
+   *  an empty set, which is a correct answer and an alarming-looking one. */
+  register_earliest: string | null;
+  register_latest: string | null;
+  cumulative: boolean;
+}
+
+/** SCAN-4D — what got installed between two captures, per class and per level. */
+export interface CaptureDiff {
+  t1: string | null;
+  t2: string | null;
+  days: number | null;
+  installed_t1: number;
+  installed_t2: number;
+  newly_installed: number;
+  disappeared: number;
+  added_guids: string[];
+  disappeared_guids: string[];
+  added_by_class: { ifc_class: string; count: number }[];
+  added_by_level: { storey: string; count: number }[];
+  pct_complete_t1: number;
+  pct_complete_t2: number;
+  pct_delta: number;
+  elements_per_day: number | null;
+  note: string;
+  /** Capture GUIDs the model does not know — a capture aimed at the wrong model version. */
+  unmatched_t1: number;
+  unmatched_t2: number;
+  /** A SAMPLE, capped at 200 server-side. `unmatched_t1 + unmatched_t2` are the totals. */
+  unmatched_guids: string[];
+  /** Null when the caller supplied both sets itself. */
+  derived: CaptureDerivation | null;
+}
+
+/** FLOW-BUFFER — the clearance a planner WANTS between handovers.
+ *
+ *  `flatDays` applies to every handover; `perTrade` overrides it for named trades. Negative is
+ *  legal and means deliberate overlap, which is what makes the engine's `LOB.OVERLAP` error
+ *  reachable from this route at all.
+ *
+ *  **A value for the FIRST trade in the flow has no effect**, because the engine applies
+ *  `buffer_days` to the link INTO a task and the first has no predecessor. The response says whose
+ *  value was dropped (`buffer_days_ignored_first`) rather than leaving it to be inferred — the
+ *  field's own docstring in the vendored engine describes the other side, so a caller following it
+ *  sets exactly that trade. */
+export interface FlowlineBuffer {
+  flatDays?: number;
+  perTrade?: Record<string, number>;
+}
+
+/** R45-SCHED-REACH — line of balance, and whether anyone is in anyone's way.
+ *
+ *  The card's own subtitle promised the second half and rendered none of it: `interference_count`
+ *  was declared and unread, and `interferences` and `issues` were undeclared.
+ *
+ *  **`interference_count` IS NOT A COUNT OF COLLISIONS**, and a careful consumer reading it as one
+ *  would be wrong in the alarming direction. `compute()` appends an `Interference` for every
+ *  consecutive pair of trade lines, unconditionally, so the figure is `trades.length - 1`.
+ *  Measured: two trades with ample clearance through three floors return `interference_count: 1`. */
+export interface FlowlineResult {
+  available: boolean;
+  reason?: string;
+  locations: { id: string; name: string; sequence: number }[];
+  trades: string[];
+  duration_days: number | null;
+  continuity_cost_days: Record<string, number>;
+  segments: { task_id: string; location_id: string; start_offset: number; finish_offset: number;
+              duration_days: number }[];
+  /** The number of adjacent trade PAIRS examined — the population, not a finding. */
+  interference_count: number;
+  /** Pairs where the successor is catching up. This is the finding. */
+  converging_count?: number;
+  interferences?: FlowlineInterference[];
+  /** Coercions, drops and fallbacks from building the network. The third screen this session where
+   *  the engine's `IssueLog` stopped. */
+  issues?: ScheduleIssue[];
+  /** `_unavailable` extras on the inconsistent-locations refusal: what it did find. */
+  trades_found?: string[];
+  /** Pairs whose lines actually CROSS — `gap_days < 0`.
+   *
+   *  **Published only once FLOW-BUFFER made a buffer requestable.** It was written and deleted
+   *  before shipping because the adapter never set `buffer_days`, so it would have been a constant
+   *  0: *a count whose value the caller fixes reads as a measurement and carries no information.*
+   *  Now it counts crossings rather than restating the trade count. */
+  overlap_count?: number;
+  /** What was ASKED for, per trade — `{trade: days}`, over the trades the request could reach.
+   *
+   *  **Read this beside `gap_days`, because they are two different numbers.** The realised overlap
+   *  SATURATES at the predecessor's per-location duration: a successor cannot start before its
+   *  predecessor did. Measured against the engine at 2/4/6/10 crew-days per location, a request of
+   *  −5 returns −2/−4/−5/−5. */
+  buffer_days_requested?: Record<string, number>;
+  /** The requests the engine could not honour, with both numbers. Empty when every one landed
+   *  exactly — which is always the case for a non-negative buffer, since the saturation only ever
+   *  bites on overlap. */
+  buffer_days_unmet?: { trade: string; requested: number; realised: number }[];
+  /** A value sent for the FIRST trade in the flow, which is inert — see `FlowlineBuffer`. */
+  buffer_days_ignored_first?: string[];
+  /** A name that is not a trade on this project: a typo, not a misunderstanding of the model. The
+   *  two are kept apart because they are different mistakes with different fixes. */
+  buffer_days_ignored_unknown?: string[];
+  /** Trades whose request hit `max_buffer_days` and was reduced to it. Reported rather than silent:
+   *  a flowline is a planning view and one absurd number should not cost the diagram, but it must
+   *  not look honoured either. */
+  buffer_days_clamped?: string[];
+  max_buffer_days?: number;
+  /** A `buffer=<trade>:<days>` pair the ROUTE could not parse, echoed verbatim. A typo in a query
+   *  string is otherwise indistinguishable from a buffer the engine declined. */
+  buffer_malformed?: string[];
+}
+
+/** One thing the schedule engine could not do exactly as asked.
+ *
+ *  `services/api/src/massingplan/core/issues.py` exists because the code it was ported from carried
+ *  a `warnings: list[str]`, and *"a list of prose cannot be filtered by severity, counted, or
+ *  asserted on"*. The rule it states for the whole engine family is the reason this type is here:
+ *  *"every coercion, drop or fallback emits one of these. A silent default produces a plausible
+ *  schedule that is wrong, with nothing in the output to look at."* The levelling response carried
+ *  them and the client declared them nowhere, so the output had something to look at and no screen
+ *  that could. */
+export interface ScheduleIssue {
+  /** `info` · `warning` · `error`. `error` means data was dropped or is self-contradictory. */
+  severity: string;
+  /** Stable and greppable, e.g. `MASSING.PREDECESSOR_UNRESOLVED`. Tests assert on this, not on
+   *  the message, so improving the wording cannot break them. */
+  code: string;
+  message: string;
+  /** What the engine did INSTEAD, e.g. "relationship dropped". */
+  action: string;
+  table: string | null;
+  row_key: string | null;
+  field: string | null;
+  raw_value: string | null;
+}
+
+/** R45-SCHED-DEDUPE resource levelling — **and whether the caps are actually met now.**
+ *
+ *  LEVEL-UNREAD declared the second half. The response published the moves it made and the peaks
+ *  before and after, and nothing compared the second peak to the cap, so the one question levelling
+ *  exists to answer was left for a caller to assemble — and the caller rendered `move_count`,
+ *  `unresolved_count` and `finish_moved_days` instead. Measured on a four-activity fixture at a cap
+ *  of 8: a peak of 26 before and 26 after, with `move_count: 0` and `finish_moved_days: 0`. *The
+ *  three figures the card printed are the same three a perfect run produces.* */
+export interface LevellingResult {
+  available: boolean;
+  reason?: string;
+  horizon: string | null;
+  /** `advisory` — the server returns moves and never writes them. The method's doc comment makes
+   *  that claim and this field is the only thing that can check it. */
+  mode?: string | null;
+  finish_before: string | null;
+  finish_after: string | null;
+  finish_moved_days: number | null;
+  moves: { activity_id: string; from_start: string; to_start: string; shifted_working_days: number;
+           blocked_by: string[]; float_remaining_days: number }[];
+  move_count: number | null;
+  /** Conflicts the horizon would not let it solve. Under `within_float` this is the honest
+   *  remainder; an empty list here with a non-empty one under `extend_finish` is the trade-off made
+   *  visible, which is why `horizon` is a parameter rather than a default. */
+  unresolved_count: number | null;
+  peak_before: Record<string, number>;
+  peak_after: Record<string, number>;
+  /** The caps the SERVER applied, after it dropped any non-positive value. */
+  caps?: Record<string, number>;
+  /** Did every CAPPED trade end at or below its cap? `null` when the levelling did not run — not
+   *  `false`, because it did not fail to meet them either. Silent on `coverage.uncapped_trades`. */
+  within_caps?: boolean | null;
+  /** The trades still over, and by how much. Published beside `within_caps` because a boolean says
+   *  whether to act and this says on what. */
+  over_cap?: { trade: string; cap: number; peak_after: number; over_by: number }[];
+  /** What the levelling actually covered. `null` when it did not run. */
+  coverage?: {
+    activities: number;
+    /** Activities carrying BOTH a trade and a crew size — the only ones that draw on anything. */
+    with_demand: number;
+    without_demand: number;
+    /** Named, capped; `without_demand` is the exact count. */
+    without_demand_sample: string[];
+    levelled_demands: number;
+    capped_trades: string[];
+    /** Trades carrying crew that nobody capped. Unconstrained by definition, and the population
+     *  `within_caps` says nothing about. */
+    uncapped_trades: string[];
+  } | null;
+  /** Coercions, drops and fallbacks from building the network — a dropped predecessor among them. */
+  issues?: ScheduleIssue[];
+  /** `_unavailable` extras: the trades found on activities when none matched a cap (the "check the
+   *  trade spelling" diagnostic), and the logic loop when there is one. */
+  trades?: string[];
+  cycle?: string[];
 }
 
 /** One delay event as the caller states it. `days` is what detection never supplies. */

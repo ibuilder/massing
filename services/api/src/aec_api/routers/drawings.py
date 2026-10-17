@@ -571,13 +571,21 @@ async def pdf_seal(file: UploadFile = File(...), template_id: str = Form(...),
     3. `license_id` selects one of the CALLER'S OWN verified licences (`GET /licenses/mine`) and the
        seal text is built server-side from that row. An expired licence refuses with 409.
 
-    History, because the shape recurs: this route originally guarded with `Depends(current_user)`,
-    which identifies without authorising — an anonymous caller could upload any PDF and receive it
-    bearing a rendered PE or RA seal with a name and licence number of their choosing, verified end to
-    end. Gating it fixed anonymity but not impersonation, because `profile` was still free text; and
-    binding to the account would still not have fixed automation, because a token is not a person.
-    Each fix looked complete and left the next layer open.
     """
+    # A ROUTE DOCSTRING IS A PUBLIC SURFACE: FastAPI publishes it as the operation `description`, so
+    # it reaches `/docs`, the OpenAPI JSON and the committed `apps/web/src/api/schema.d.ts`. The
+    # paragraph that used to close the docstring above published a three-step history of INCOMPLETE
+    # FIXES to a professional-seal forgery path — i.e. a map of exactly where to probe a deployment
+    # that has not taken all three. *A defect history is the most valuable thing a maintainer can
+    # read and the most useful thing an attacker can read, and the docstring hands it to both.*
+    #
+    # The history, because the shape recurs: this route originally guarded with
+    # `Depends(current_user)`, which identifies without authorising — so an unauthenticated caller
+    # could upload a PDF and receive it bearing a seal with a name and licence number of their
+    # choosing, verified end to end. Gating it fixed anonymity but not impersonation, because
+    # `profile` was still free text; and binding to the account would still not have fixed
+    # automation, because a token is not a person. Each fix looked complete and left the next layer
+    # open — which is why the three conditions above are three conditions and not one.
     from datetime import date
 
     from starlette.concurrency import run_in_threadpool

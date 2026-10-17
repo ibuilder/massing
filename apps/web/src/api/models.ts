@@ -12,6 +12,7 @@
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
 import { HttpCore, HttpError } from "./httpCore";
+import type { ModelHealth, ViewTemplateGraphics } from "./model";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -26,11 +27,15 @@ const RESUMABLE_ABOVE_BYTES = 8 * 1024 * 1024;
 
 export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Models extends Base {
-  /** Composite Model Health scorecard — one score over hygiene + ISO 19650 KPIs + clash + verified. */
+  /** Composite Model Health scorecard — one weighted score over FIVE lenses.
+   *
+   *  HEALTH-WEIGHT-COVER. This docstring used to say "hygiene + ISO 19650 KPIs + clash + verified",
+   *  and the screen's own caption said the same four — both written before `readiness` (code and
+   *  permit pre-flight, 15% of the composite) was added, and neither updated. The authoritative
+   *  sentence naming all five was served in `note` and declared by nothing.
+   */
   modelHealth(pid: string) {
-    return this.json<{ overall_score: number | null; band: string; scored_lenses: number; model_available: boolean;
-      lenses: { key: string; label: string; tool: string; score: number | null; status: string; headline: string }[] }>(
-      `/projects/${pid}/models/health`);
+    return this.json<ModelHealth>(`/projects/${pid}/models/health`);
   }
   /** Model integrity scan — duplicate GUIDs, orphaned elements, overlaps, unenclosed spaces, blank names. */
   modelQa(pid: string) {
@@ -153,13 +158,51 @@ export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
   permitsGeojsonUrl(pid: string, city: string) {
     return this.url(`/projects/${pid}/opendata/permits.geojson?city=${encodeURIComponent(city)}`);
   }
-  /** Cut vs projection graphic state for one view template (weight, colour, pattern, halftone). */
-  viewTemplateGraphics(pid: string, tid: string) {
+  /** Cut vs projection graphic state for one view template (weight, colour, pattern, halftone).
+   *
+   *  VG-DARK. The inline type this replaces declared top-level `cut` and `projection`, and the
+   *  server sends neither — they live per element inside `graphics`. Both were phantoms on every
+   *  call ever served, and because the declaration was inline no audit over declarations could see
+   *  them (DEADFIELD-INLINE). `visible_count` was also optional though the server always sends it,
+   *  so the one caller guarded `!= null` against a case that cannot occur.
+   *
+   *  `guids` asks about named elements; `detail` asks for the whole per-element map, which the route
+   *  bounds. Neither is the default, because by default a screen wants `styles`. */
+  viewTemplateGraphics(pid: string, tid: string,
+                       opts: { cut?: readonly string[]; guids?: readonly string[]; detail?: boolean } = {}) {
+    const q = new URLSearchParams();
+    if (opts.cut?.length) q.set("cut", opts.cut.join(","));
+    if (opts.guids?.length) q.set("guids", opts.guids.join(","));
+    if (opts.detail) q.set("detail", "true");
+    const s = q.toString();
+    return this.json<ViewTemplateGraphics>(
+      `/projects/${pid}/view-templates/${encodeURIComponent(tid)}/graphics${s ? `?${s}` : ""}`);
+  }
+  /**
+   * The per-element quality evidence chain — ITP hold/witness points, NCRs and inspections resolved
+   * against the GlobalIds their records are attached to.
+   *
+   * TURNOVER-UNGATED. `qualityTurnoverReadiness` below reports how many elements are outstanding or
+   * unrecorded; this is the only way to see WHICH, and it had no client method and no screen while
+   * `services/api/test_route_reachability.py` carried the route as uncalled. An unverified hold or
+   * witness point — the specific thing an ITP exists to stop being skipped — is named here and
+   * appeared nowhere in the app.
+   *
+   * `guids` omitted reports the elements quality records actually name; the engine refuses to walk
+   * every GlobalId in the model, because reporting `unrecorded` for tens of thousands of elements
+   * drowns the signal.
+   */
+  qualityChain(pid: string, guids?: string[]) {
+    const q = guids?.length ? `?guids=${encodeURIComponent(guids.join(","))}` : "";
     return this.json<{
-      visible_count?: number;
-      cut?: Record<string, unknown>;
-      projection?: Record<string, unknown>;
-    }>(`/projects/${pid}/view-templates/${encodeURIComponent(tid)}/graphics`);
+      elements: { guid: string; status: string; status_note: string; record_count: number;
+                  open_count: number;
+                  unverified_hold_points: { id: string; ref: string; point_type?: string;
+                                            state: string }[] }[];
+      element_count: number; counts: Record<string, number>;
+      any_attached: boolean; coverage_pct: number; records_total: number;
+      records_without_element: Record<string, number>; message: string | null;
+    }>(`/projects/${pid}/quality/chain${q}`);
   }
   /** Quality-evidence closeout: unresolved NCRs plus elements nobody inspected. */
   qualityTurnoverReadiness(pid: string) {

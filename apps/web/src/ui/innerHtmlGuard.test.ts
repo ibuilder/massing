@@ -88,6 +88,28 @@ const BASELINE: Record<string, readonly string[]> = {
   "main.ts": [
     "it.label",
   ],
+  // DESIGN-STD-DARK. Both are pre-built HTML from the two functions above the write, and every
+  // value interpolated INSIDE them goes through `esc` — `note.kind` is a union of three literals
+  // (`ok` | `warn` | `bad`) and cannot carry input at all. Declared rather than dodged: the first
+  // attempt imported `resultNote` so the interpolation would vanish, and that hoisted `ui/result`
+  // into the shared app-shell chunk and put the Brotli budget 34 bytes over instead of 14. The
+  // one-level indirection rule below still covers the functions themselves, so a new unescaped
+  // interpolation in either of them reds here.
+  "portal/panels/designStandards.ts": [
+    "inert",
+    "note.html",
+    "note.kind",
+  ],
+  //: Same reason as the entry above, in the same release: `cvBridge.ts` is a LAZY panel chunk, and
+  //: importing `resultNote` from `ui/result` there would hoist that module into the shared eager
+  //: shell, because a module two lazy chunks both import stops being lazy. `bridgeNote` returns
+  //: `{html, kind}` whose every interpolation is either a literal sentence written here or passed
+  //: through `esc`; the one-level indirection rule still covers the function itself.
+  "portal/panels/cvBridge.ts": [
+    "note.html",
+    "note.kind",
+    "batch",
+  ],
   "portal/panels/aiassist.ts": [
     "(p.title || p.ref || p.id) as string",
     "mark",

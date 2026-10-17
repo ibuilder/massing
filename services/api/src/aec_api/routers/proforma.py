@@ -634,11 +634,19 @@ def sync_model_to_hard(pid: str, db: Session = Depends(get_db),
         budget = dict(p.dev_budget or dvb.starter_budget())
         lines = [dict(ln) for ln in (budget.get("lines") or []) if ln.get("category") != "hard"]
         priced = round(sum(by_disc.values()), 2)
+        # WHICH BASIS WON, SAID RATHER THAN INFERRED. `estimate_from_takeoff` recommends the GFA
+        # benchmark over the element sum when they diverge, and the two are different claims about
+        # the project: a per-discipline breakdown a GC could bid, or one benchmark lump. The route
+        # knew which branch it took and the response did not carry it, so a caller had to compare
+        # `sum(by_discipline)` against `hard_cost` with the server's own 2% tolerance restated on
+        # the client — *a rule duplicated across the wire is a rule that will drift.*
         if by_disc and abs(priced - total) <= max(1.0, total * 0.02):   # lines reconcile to the total
+            basis = "per_discipline"
             for disc, amt in sorted(by_disc.items(), key=lambda x: -x[1]):
                 lines.append({"category": "hard", "description": f"Construction — {disc} (model takeoff)",
                               "unit_cost": amt, "quantity": 1, "cost_code": ""})
         else:                                                        # GFA-benchmark won → one lump line
+            basis = "gfa_benchmark"
             lines.append({"category": "hard", "description": "Construction — model takeoff (synced)",
                           "unit_cost": total, "quantity": 1, "cost_code": ""})
         budget["lines"] = lines
@@ -650,6 +658,14 @@ def sync_model_to_hard(pid: str, db: Session = Depends(get_db),
     db.commit()
     from .. import cost_db as _cdb
     return {"synced": True, "source": "model_estimate", "hard_cost": total, "by_discipline": by_disc,
+            # `per_discipline`: the committed hard cost IS the sum of the priced element lines, and
+            # the breakdown below is that sum. `gfa_benchmark`: the element sum and the GFA benchmark
+            # diverged, the benchmark was recommended, and ONE lump line was written — so
+            # `by_discipline` is still the element pricing and no longer adds up to `hard_cost`.
+            # Reading the breakdown as a decomposition of the committed number is wrong on that
+            # branch, and nothing in the payload said so.
+            "basis": basis,
+            "discipline_total": round(sum(by_disc.values()), 2),
             "cost_vintage": (_cdb.dataset_dict(ds) if ds else None), "cost_adjustment": adjustment,
             "budget": budget, "summary": dvb.summarize(budget)}
 
@@ -980,8 +996,43 @@ class ScenarioIn(BaseModel):
     assumptions: Assumptions
 
 
+# A ROUTE DOCSTRING IS A PUBLIC SURFACE. FastAPI publishes it as the operation's `description`, so
+# it reaches `/docs`, the OpenAPI JSON and the committed `apps/web/src/api/schema.d.ts`. The
+# SEC-SCENARIO-LIST reasoning below was written as a docstring first, and regenerating the client
+# types is what surfaced it: a paragraph naming the exact shape of a just-closed authorisation hole,
+# published to every reader of the API docs and to any deployment that has not taken the patch.
+# *The audience for "why this guard exists" is the next maintainer, not the internet.* It lives in
+# `#` comments here and in `services/api/test_scenario_authz.py`'s docstring, and the docstrings say
+# what the route does.
+#
+# SEC-SCENARIO-LIST, `create_scenario`: this route had no `current_user` dependency at all, so it
+# had no notion of who was calling while taking `project_id` from the body — any authenticated
+# caller could write a scenario into any project. `rbac.require_role` could not have been used even
+# by someone who tried: its inner signature is `dep(pid: str, ...)`, which FastAPI resolves from the
+# path or query, never the body. That is the mechanism `test_body_pid_authz.py` records for
+# `/test-fit/optimize`, so the check is written out against `rbac.role_for`.
+#
+# `project_id: None` stays open on purpose — an unattached scenario is scratch work over numbers the
+# caller supplied, and closing it would break the feature to fix the leak.
 @router.post("/proforma/scenarios", status_code=201)
-def create_scenario(body: ScenarioIn, db: Session = Depends(get_db)):
+def create_scenario(body: ScenarioIn, db: Session = Depends(get_db),
+                    user: str = Depends(current_user)):
+    """Save a solve as a named scenario. Requires a role on `project_id` when one is given."""
+    # `is not None`, not truthiness. `project_id: ""` IS a supplied project id and the truthiness
+    # test skipped the check for it — contradicting this route's own docstring. It was not a
+    # cross-tenant write (`bool("")` is false in `_can_read` too, so the row ends up readable by
+    # nobody) but it stored an unmanageable row through a guard that had been told to refuse it.
+    # *A guard keyed on truthiness refuses the values a guard keyed on presence would admit, and
+    # admits one it was asked to refuse.*
+    if body.project_id is not None:
+        if not body.project_id:
+            raise HTTPException(422, "project_id must be a real project id, or omitted entirely")
+        # `rbac.authorize_pid`, not a hand-rolled `role_for(...) is None` — it is the named helper
+        # for a project id that arrives in the BODY, it carries the `_role_gate` tag so other gates
+        # can see it, and it raises the same 403 with the role in the message. `"viewer"` is the
+        # lowest rank in `ROLE_ORDER`, so this is exactly the "any role on the project" the
+        # hand-rolled check performed — a behaviour-preserving swap, not a new floor.
+        rbac.authorize_pid(db, user, body.project_id, "viewer")
     result = solve(body.assumptions.model_dump())
     s = Scenario(name=body.name, project_id=body.project_id,
                  assumptions=body.assumptions.model_dump(), result=result)
@@ -990,14 +1041,82 @@ def create_scenario(body: ScenarioIn, db: Session = Depends(get_db)):
     return {"id": s.id, "name": s.name, "result": result}
 
 
+def _readable_scenarios(db: Session, rows: list[Scenario], user: str) -> list[Scenario]:
+    """The subset of `rows` this caller may read — `_can_read`, applied to a collection.
+
+    A separate function rather than a comprehension at the call site so the behaviour can be
+    asserted directly: `test_pid_lock_pgxproc.py`'s lesson one layer up is that a check the guard is
+    *mentioned* is not a check that it *excludes* anybody, and a static rule over the route body can
+    only see the mention.
+
+    `role_for` is memoised per project. Without it a list of N scenarios across M projects costs N
+    membership queries, and a route that gets slower as a project accumulates scenarios is a route
+    somebody later "optimises" by removing the filter.
+
+    **Deliberately `_can_read` and NOT `rbac.member_project_ids`**, which is what the two
+    `/proforma/portfolio` routes use. The difference is `shared_with`: a roll-up must not blend a
+    scenario an LP was merely sent into another tenant's portfolio totals, while a LIST of scenarios
+    is exactly where that LP needs to see it. Same data, two correct answers, because the question
+    differs — and reusing one filter for both would have been the mirror of the `_can_read`/
+    `_can_write` conflation this file's guards already exist to avoid.
+
+    The `api-key` identity sees every ATTACHED scenario: `role_for` returns `"admin"` for it on every
+    project before any query, as it already did for the eight `{sid}` routes.
+
+    **It does NOT see unattached ones, and an earlier version of this docstring claimed it did.**
+    `bool(pid)` below short-circuits before `role_for` is called, so the `api-key` admin path is
+    never reached for a row with `project_id: None` — the exact rows the paragraph below uses to
+    justify the policy. The gate's fixture could not catch the false claim because all three of its
+    rows are attached. *A comment and a test can agree with each other and not with the code, and
+    the fixture that omits the case is what lets them.* Stated rather than silently fixed: making
+    `api-key` an exception here would give one identity a view no project role can reproduce, which
+    is a product decision about scratch scenarios and not a cleanup.
+
+    **An UNATTACHED scenario (`project_id: None`) is readable by nobody under RBAC, and that is not
+    new policy — it is the existing policy finally applied to the collection.** `_can_read` below
+    returns False for one unless the caller is in `shared_with`, so `GET /proforma/scenarios/{sid}`
+    has always 403'd it; the list was the only route that showed it, to everyone. There is no
+    `created_by` column on `Scenario`, so there is nothing to scope one BY: the choice was between
+    showing every caller's scratch work to every caller and showing none of it, and the eight routes
+    that were already right had made that choice. Measured first — no client path creates one: the
+    web app's save button refuses when no project is open, so `createScenario` is never called with
+    a null id. *Giving an unattached scenario an owner is a schema change and a product decision,
+    not a cleanup* — and until that decision is taken, a pre-existing unattached row is listable by
+    nobody, `api-key` included. It remains reachable by id for anyone in its `shared_with`.
+    """
+    if not rbac.RBAC_ON:
+        return list(rows)
+    seen: dict[str | None, bool] = {}
+    out: list[Scenario] = []
+    for s in rows:
+        if user in (s.shared_with or []):          # an LP sent this specific scenario
+            out.append(s)
+            continue
+        pid = s.project_id
+        if pid not in seen:
+            seen[pid] = bool(pid) and rbac.role_for(db, str(pid), user) is not None
+        if seen[pid]:
+            out.append(s)
+    return out
+
+
+# SEC-SCENARIO-LIST, `list_scenarios`: this route had no authorisation of any kind, and served the
+# same data as the eight guarded `{sid}` routes in bulk. `_can_read` already existed and the
+# collection route called neither it nor anything else. `test_scenario_authz.py` could not see it
+# because its population was *routes with `{sid}` in the path*, and three other authz gates each
+# excluded it for a different reasonable reason; its population is now every route that touches the
+# `Scenario` model. (In `#` comments, not a docstring — see the note above `create_scenario`.)
 @router.get("/proforma/scenarios")
-def list_scenarios(project_id: str | None = None, db: Session = Depends(get_db)):
+def list_scenarios(project_id: str | None = None, db: Session = Depends(get_db),
+                   user: str = Depends(current_user)):
+    """Saved scenarios the caller may read, with their solved returns, oldest→newest."""
     q = db.query(Scenario)
     if project_id:
         q = q.filter(Scenario.project_id == project_id)
+    rows = _readable_scenarios(db, q.order_by(Scenario.created_at).all(), user)
     return [{"id": s.id, "name": s.name, "project_id": s.project_id,
              "review_status": getattr(s, "review_status", None) or "draft",
-             "returns": (s.result or {}).get("returns")} for s in q.order_by(Scenario.created_at).all()]
+             "returns": (s.result or {}).get("returns")} for s in rows]
 
 
 def _can_read(db: Session, s: Scenario, user: str) -> bool:
@@ -1011,7 +1130,7 @@ def _can_read(db: Session, s: Scenario, user: str) -> bool:
     return False
 
 
-def _can_write(db: Session, s: Scenario, user: str) -> bool:
+def _can_write(db: Session, s: Scenario, user: str, min_role: str = "viewer") -> bool:
     """Write permission. **Deliberately NOT `_can_read`.**
 
     `_can_read` admits anyone in `shared_with` — that is how an LP sees a scenario they were sent.
@@ -1020,13 +1139,28 @@ def _can_write(db: Session, s: Scenario, user: str) -> bool:
     quiet way to grant the second while auditing only the first.
 
     Write therefore requires an actual project role, which is what `role_for` answers.
+
+    **`min_role` exists because "an actual project role" was too coarse, and this commit's own
+    change made the coarseness reach further.** Until 2026-10-13 this returned true for ANY role, so
+    `ROLE_ORDER` was never consulted: a **viewer** could approve and publish the IC-committed
+    underwriting basis — signing it with their own name in the audit row — and could `POST .../share`
+    to grant a *permanent* read of the deal's financials to an arbitrary identity string. Compare
+    `put_dev_budget` and `put_property` in this same file, which have always required `editor`.
+    Wiring the review workflow to buttons (FIN-GOV-DARK) made the first reachable from the UI, and
+    `_readable_scenarios` made a viewer-issued `shared_with` grant surface in a non-member's
+    collection listing — a path that did not exist while the collection route showed everything to
+    everyone. *A pre-existing coarse guard becomes mine the moment my change widens what it admits.*
     """
     if not rbac.RBAC_ON:
         return True
-    return bool(s.project_id and rbac.role_for(db, s.project_id, user) is not None)
+    if not s.project_id:
+        return False
+    role = rbac.role_for(db, s.project_id, user)
+    return role is not None and rbac.ROLE_ORDER.get(role, -1) >= rbac.ROLE_ORDER[min_role]
 
 
-def _scenario_for(sid: str, db: Session, user: str, *, write: bool = False) -> Scenario:
+def _scenario_for(sid: str, db: Session, user: str, *, write: bool = False,
+                  min_role: str = "viewer") -> Scenario:
     """Fetch a scenario and authorise the caller, in one place.
 
     Added 2026-08-13. `_can_read` already existed and was called by **2 of the 8** `{sid}` routes:
@@ -1043,8 +1177,8 @@ def _scenario_for(sid: str, db: Session, user: str, *, write: bool = False) -> S
     if not s:
         raise HTTPException(404, "scenario not found")
     if write:
-        if not _can_write(db, s, user):
-            raise HTTPException(403, "you do not have write access to this scenario")
+        if not _can_write(db, s, user, min_role):
+            raise HTTPException(403, f"this scenario needs {min_role} on its project")
     elif not _can_read(db, s, user):
         raise HTTPException(403, "not shared with you")
     return s
@@ -1105,17 +1239,26 @@ def _scenario_lock_key(sid: str) -> str:
 @router.post("/proforma/scenarios/{sid}/share", status_code=201)
 def share_scenario(sid: str, target: str = Body(..., embed=True, alias="user"),
                    db: Session = Depends(get_db), actor: str = Depends(current_user)):
-    """Grant an LP (or any party) read access to this scenario.
+    """Grant an LP (or any party) read access to this scenario. Requires `editor` on the project.
 
-    **The body's `user` is the person being GRANTED access; `actor` is the person doing the
-    granting.** They were the same parameter until 2026-08-13, and there was no `current_user`
-    dependency at all — so the route had no notion of who was calling, and any authenticated caller
-    could share any scenario with anyone. Sharing is a write, so it takes the write guard.
-
-    The wire key stays `user` via `alias`, so no caller changes; only the code stops conflating two
-    different people under one name.
+    The body's `user` is the person being GRANTED access; the caller is the person granting.
     """
-    s = _scenario_for(sid, db, actor, write=True)
+    # A ROUTE DOCSTRING IS A PUBLIC SURFACE — the policy stated above `create_scenario`, applied
+    # here, where it should have been applied first. Until 2026-10-13 this docstring published, to
+    # `/docs` and to the committed `apps/web/src/api/schema.d.ts`, the sentence *"there was no
+    # `current_user` dependency at all — so the route had no notion of who was calling, and any
+    # authenticated caller could share any scenario with anyone"*. That is a map of a closed hole,
+    # handed to every reader of the API docs and to anyone probing a deployment that has not taken
+    # the patch. *The worst instance of a rule's violation was in the same file as the rule*, which
+    # is what happens when a policy is written while fixing one instance of the thing it forbids.
+    #
+    # The history itself is worth keeping, here: `user` and `actor` were the SAME parameter until
+    # 2026-08-13, so the route could not tell the grantee from the granter. The wire key stays
+    # `user` via `alias`, so no caller changes; only the code stopped conflating two people.
+    # `editor`: this grants an arbitrary identity string a PERMANENT read of the deal's
+    # financials, and `_readable_scenarios` now surfaces that grant in the grantee's collection
+    # listing. Handing out access is an administrative act, not a participant's.
+    s = _scenario_for(sid, db, actor, write=True, min_role="editor")
     # RMW-SHARE (gap G-10). `sorted(set(existing + [target]))` is a set union over a value this
     # request read, so two grants issued at once both build their list from the same pre-image and
     # the later commit drops the earlier grant. **Neither caller can tell**: the response echoes the
@@ -1145,7 +1288,8 @@ def share_scenario(sid: str, target: str = Body(..., embed=True, alias="user"),
 def update_scenario(sid: str, body: ScenarioIn, db: Session = Depends(get_db),
                     user: str = Depends(current_user)):
     from .. import audit, fin_gov
-    s = _scenario_for(sid, db, user, write=True)
+    # `editor`: editing a saved scenario's assumptions is authoring.
+    s = _scenario_for(sid, db, user, write=True, min_role="editor")
     if s.is_locked:
         raise HTTPException(409, "scenario is locked")
     if (getattr(s, "review_status", None) or "draft") in fin_gov.IMMUTABLE_STATES:
@@ -1168,11 +1312,50 @@ def update_scenario(sid: str, body: ScenarioIn, db: Session = Depends(get_db),
 @router.post("/proforma/scenarios/{sid}/clone", status_code=201)
 def clone_scenario(sid: str, name: str = Body(..., embed=True), db: Session = Depends(get_db),
                    user: str = Depends(current_user)):
-    s = _scenario_for(sid, db, user, write=True)
-    c = Scenario(name=name, project_id=s.project_id, assumptions=s.assumptions, result=s.result)
+    """Revise a scenario by copying it as a new draft, re-solved and audited.
+
+    This is the governance design's only forward path from a committed scenario: `update_scenario`
+    refuses an edit to an `approved`/`published` row, and `published` is terminal. The copy is
+    SOLVED rather than inherited, so `resolved` says whether this revision has a result it computed.
+    """
+    # FIN-GOV-DARK — why it solves instead of copying `result`. The parent's stored result is a
+    # cached computation with no record of what produced it, and `solve()` is not a pure function of
+    # the assumptions: with no `timing.start_date` it falls back to `date.today()`, so a copy
+    # carries a number computed on a different day. Re-solving costs <100 ms (this module's own
+    # docstring) and removes the question — a revision now shows returns it computed, which is the
+    # premise every screen reading `returns` depends on.
+    #
+    # And it writes an audit row, which it did not. `review_scenario` and the assumption change log
+    # both audit, so cloning was the one governance write with no trail — the move a user makes
+    # BECAUSE the system refused an edit, and therefore the one a reviewer most wants to find.
+    #
+    # The solve is GUARDED, and that is not defensive habit. Cloning used to compute nothing, so a
+    # row whose stored assumptions this build can no longer solve — a required field added to
+    # `Assumptions` after it was saved — could always be cloned. Letting `solve()` raise here turns
+    # that into a 500 on the one operation the governance design offers as the way forward from a
+    # committed scenario. The fallback is `None`, never the parent's `result`: a revision with no
+    # result says so through `resolved: false`, and the caller tells the user to open it and save.
+    # *A fix that re-solves must not make the operation it protects conditional on the solve.*
+    from .. import audit
+    # `editor`: a clone writes a new row into the project.
+    s = _scenario_for(sid, db, user, write=True, min_role="editor")
+    try:
+        result = solve(s.assumptions) if s.assumptions else None
+    except Exception:                       # noqa: BLE001 — any solve failure, not a taxonomy of them
+        result = None
+    c = Scenario(name=name, project_id=s.project_id, assumptions=s.assumptions, result=result)
     db.add(c)
     db.commit()
-    return {"id": c.id, "name": c.name}
+    audit.record(db, action="scenario.cloned", actor=user, method="POST",
+                 path=f"/proforma/scenarios/{sid}/clone",
+                 detail={"scenario_id": c.id, "cloned_from": sid, "project_id": c.project_id,
+                         "from_review_status": getattr(s, "review_status", None) or "draft",
+                         "name": name})
+    db.commit()
+    return {"id": c.id, "name": c.name, "cloned_from": sid,
+            "review_status": getattr(c, "review_status", None) or "draft",
+            "resolved": result is not None,
+            "returns": (result or {}).get("returns")}
 
 
 @router.post("/proforma/scenarios/{sid}/review")
@@ -1182,7 +1365,8 @@ def review_scenario(sid: str, action: str = Body(..., embed=True),
     """FIN-GOV: move a scenario through draft → in_review → approved → published
     (reject/reopen walk back to draft). Approved/published assumptions are immutable in place."""
     from .. import audit, fin_gov
-    s = _scenario_for(sid, db, user, write=True)
+    # `reviewer`: this is literally what the `reviewer` rank is for — approve/publish commits the underwriting basis a committee reads.
+    s = _scenario_for(sid, db, user, write=True, min_role="reviewer")
     try:
         out = fin_gov.review_scenario(s, action, user, note)
     except KeyError as e:
@@ -1290,10 +1474,31 @@ def draw_package(sid: str, body: DrawPackageIn, db: Session = Depends(get_db),
     Schedule-of-Values records on a GC project, then produce the AIA G702/G703 pay app —
     so the IRR you underwrote and the lender draw run off the SAME cost tree."""
     s = _scenario_for(sid, db, user, write=True)
+    pid = body.project_id
+    # SEC-SCENARIO-COMPARE: `_scenario_for` above authorises the SCENARIO — the thing the caller
+    # already owns — and the DESTINATION project arrives in the request BODY and was never
+    # authorised at all. The next three statements delete every SOV row for `pid` and rewrite them
+    # from this scenario's cost tree, and SOV is what the AIA G702/G703 pay application is computed
+    # from — i.e. what a lender draws against. So an editor on any one project could destroy
+    # another tenant's schedule of values, substitute their own numbers, and read back the victim's
+    # G702/G703 totals in the response. *A route that authorises one of the two objects it touches
+    # reads as guarded, and the guard that is present is the one a reviewer finds first.*
+    #
+    # `rbac.authorize_pid` exists for exactly this shape and says so in its own docstring — a
+    # project id in the body is outside `require_role` (which resolves `pid` from the path or query)
+    # and outside `test_route_authz` (which walks `/projects/{pid}` routes) at once. `editor`,
+    # because this REPLACES the project's schedule of values rather than reading it.
+    #
+    # **BEFORE the module check below, which it used to follow.** With `sov` absent the route
+    # answered `409 "SOV module not loaded"` to a caller with no role on `pid` — telling an
+    # unauthorised stranger about the server's configuration, and proving the authorisation was not
+    # the first thing the route did. *Authorise before answering anything at all, including "this
+    # feature is off".* Found because the behavioural probe in `test_body_pid_authz.py` got a 409
+    # where it demanded a 403: the static gate could not see the ordering, only the presence.
+    rbac.authorize_pid(db, user, pid, "editor")
     if "sov" not in me.TABLES:
         raise HTTPException(409, "SOV module not loaded")
     fc = reforecast(s.assumptions, [a.model_dump() for a in body.actuals], body.as_of_month)
-    pid = body.project_id
     # replace any prior SOV for this project so re-running is idempotent
     db.execute(delete(me.TABLES["sov"]).where(me.TABLES["sov"].c.project_id == pid))
     db.commit()
@@ -1371,13 +1576,24 @@ def portfolio(db: Session = Depends(get_db), user: str = Depends(rbac.current_us
     }
 
 
+# SEC-SCENARIO-COMPARE: this route had NO authorisation of any kind — no `current_user`, no
+# `_can_read`, no project scoping — and returned each requested scenario's `returns` AND
+# `sources_uses`, which is strictly MORE financial data than the `list_scenarios` leak closed one
+# commit earlier. It was also a batch existence oracle: `if s and s.result` silently drops unknown
+# ids, so one request told a caller exactly which of N scenario ids exist.
+#
+# `_readable_scenarios` rather than a per-row `_can_read`, because that is the same question the
+# collection route asks and the memo keeps it one membership query per distinct project. The drop
+# stays silent on purpose: an unreadable id and an absent one now both vanish, so closing the leak
+# does not leave the oracle behind.
 @router.post("/proforma/compare")
-def compare(ids: list[str] = Body(...), db: Session = Depends(get_db)):
-    """Side-by-side metrics for several scenarios."""
+def compare(ids: list[str] = Body(...), db: Session = Depends(get_db),
+            user: str = Depends(current_user)):
+    """Side-by-side metrics for several scenarios the caller may read."""
+    found = [sc for sc in (db.get(Scenario, sid) for sid in ids) if sc is not None]
     out = []
-    for sid in ids:
-        s = db.get(Scenario, sid)
-        if s and s.result:
+    for s in _readable_scenarios(db, found, user):
+        if s.result:
             out.append({"id": s.id, "name": s.name, "returns": s.result.get("returns"),
                         "sources_uses": s.result.get("sources_uses")})
     return out

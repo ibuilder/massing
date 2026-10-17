@@ -25,6 +25,14 @@ MAX_HIDE_CLASSES = 100
 MAX_SELECTOR_LEN = 500
 MAX_NAME_LEN = 120
 MAX_STYLES = 60
+# VG-DARK. The per-element graphic map is the engine's product and it is NOT a payload. Measured on a
+# 50,000-element index: 42,857 visible elements → **8.9 MB in a viewer-role GET**, served on every
+# call and consumed by nothing (`graphics()` has exactly one caller, the route, and no drawing
+# generator reads it). The engine still returns every element — that is its job and its callers are
+# in-process — and the ROUTE decides what crosses the wire. *The engine computes, the route decides
+# what is sent*, which is also why `style_summary` lives here: a screen wants the distinct STYLES and
+# how many elements carry each, which is seven rows where the map is forty thousand.
+MAX_DETAIL = 2000
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 # ── R21-VG-OVERRIDES: object styles — CUT vs PROJECTION ──────────────────────────────────────────
@@ -239,6 +247,39 @@ def resolve(idx: dict[str, dict] | None, template: dict) -> dict[str, Any]:
                     "visible/hidden/color sets — the viewer and the drawing generators consume one answer."}
 
 
+def style_summary(graphics_map: dict[str, dict]) -> list[dict[str, Any]]:
+    """Collapse the per-element graphic state into the DISTINCT styles and how many elements carry
+    each, worst-first by count.
+
+    This is what a screen is actually asking when it asks about a view template: *what weight does
+    each category draw at, cut and projection?* The per-element map answers it 42,857 times over —
+    measured — where the distinct styles answer it seven. The grouping key is the whole resolved
+    state on both sides, so two categories that happen to resolve identically collapse into one row
+    and a rule that changed only a colour on one of them splits them again, which is the layering
+    this module exists to express.
+
+    `sample` carries a few GUIDs per row so a reader can ask the detail endpoint about one rather
+    than paging the whole map. Sorted, so the same template and model give the same answer — the
+    determinism the module docstring promises applies here too.
+    """
+    buckets: dict[tuple, dict[str, Any]] = {}
+    for g in sorted(graphics_map):
+        st = graphics_map[g]
+        key = (st.get("group") or "other",
+               tuple(sorted((st.get("cut") or {}).items())),
+               tuple(sorted((st.get("projection") or {}).items())))
+        b = buckets.get(key)
+        if b is None:
+            b = buckets[key] = {"group": key[0], "cut": dict(st.get("cut") or {}),
+                                "projection": dict(st.get("projection") or {}),
+                                "count": 0, "cut_count": 0, "sample": []}
+        b["count"] += 1
+        b["cut_count"] += bool(st.get("is_cut"))
+        if len(b["sample"]) < 5:
+            b["sample"].append(g)
+    return sorted(buckets.values(), key=lambda b: (-b["count"], b["group"]))
+
+
 def graphics(idx: dict[str, dict] | None, template: dict, cut_guids: set[str] | None = None,
              limit: int = 200000) -> dict[str, Any]:
     """Resolve the FULL graphic state of every visible element: weight, colour, pattern, halftone —
@@ -291,6 +332,11 @@ def graphics(idx: dict[str, dict] | None, template: dict, cut_guids: set[str] | 
     return {"template": template["id"], "name": template.get("name"),
             "visible_count": base["visible_count"], "hidden_count": base["hidden_count"],
             "cut_count": sum(1 for g in out if out[g]["is_cut"]),
+            # `cut_count: 0` has two causes and they are not the same answer: nothing the view plane
+            # cuts, or NOBODY SAID what it cuts. The docstring above calls the second one the honest
+            # answer for a 3D view — the cut side is still resolved, it is simply not claimed of any
+            # element — and a reader told "0 cut" cannot tell which they are looking at.
+            "cut_supplied": cut_guids is not None,
             "graphics": out,
             "note": "Cut lines are heavier than projection lines — that weight difference, not "
                     "colour, is how a reader reads depth off a flat sheet. Overrides layer as "

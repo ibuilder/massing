@@ -14,6 +14,43 @@ def _status(red: bool, amber: bool) -> str:
     return "red" if red else ("amber" if amber else "green")
 
 
+def submittal_status(s: dict[str, Any]) -> str:
+    """The Submittals tile's colour.
+
+    SUBMITTAL-RETURNED. Two corrections, either of which could leave this tile GREEN on a project
+    in trouble, and both are about a count that was never taken.
+
+    * A submittal the A/E sent back marked *"Revise & Resubmit"* used to count as CLOSED -- the
+      shipped literal held `returned`, which the workflow's own two outgoing transitions say is not
+      terminal -- so it was in neither `open_count` nor `overdue_count`. Measured: one such row six
+      weeks past its required-on-site date gave *"0 open, 0 overdue"* and a green tile.
+    * `overdue_count` can only count a submittal carrying a required-on-site date, so a backlog
+      with none recorded reports zero overdue. *A count that cannot be taken is not a count of
+      zero* -- hence the undated arm, which is amber on an open register where NOTHING is
+      assessable rather than on any undated row, because a partly-dated log is ordinary.
+
+    A function rather than two expressions inline because the FIRST version of this fix was two
+    inline expressions, and the mutation that reverted them stayed green: the test asserted the keys
+    appeared in the file, and they still did -- the headline below reads them too. *Reading a value
+    and ruling on it are two different questions, and a substring cannot tell them apart.*
+    """
+    nothing_assessable = s["open_count"] > 0 and s["undated_count"] == s["submittal_count"]
+    red = s["overdue_count"] > 5 or s["needs_resubmittal_count"] > 5
+    amber = (s["overdue_count"] > 0 or s["needs_resubmittal_count"] > 0 or nothing_assessable)
+    return _status(red, amber)
+
+
+def submittal_headline(s: dict[str, Any]) -> str:
+    """The tile's sentence. Never a bare `N open, M overdue` -- see `submittal_status`."""
+    bits = [f"{s['open_count']} open", f"{s['overdue_count']} overdue"]
+    if s["needs_resubmittal_count"]:
+        bits.append(f"{s['needs_resubmittal_count']} awaiting resubmittal")
+    if s["undated_count"]:
+        bits.append(f"{s['undated_count']} with no required-on-site date, so not assessable for "
+                    "lateness")
+    return ", ".join(bits)
+
+
 def project_health(db, pid: str) -> dict[str, Any]:
     from . import closeout, dailylog, quality, rfi, safety, submittals, tm
 
@@ -34,8 +71,8 @@ def project_health(db, pid: str) -> dict[str, Any]:
 
     # --- Submittals ----------------------------------------------------------
     s = submittals.submittal_register(db, pid)
-    add("submittals", "Submittals", _status(s["overdue_count"] > 5, s["overdue_count"] > 0),
-        f"{s['open_count']} open, {s['overdue_count']} overdue", s["open_count"], s["overdue_count"])
+    add("submittals", "Submittals", submittal_status(s), submittal_headline(s),
+        s["open_count"], s["overdue_count"])
 
     # --- Quality (inspections + NCRs + deficiencies) -------------------------
     q = quality.quality_summary(db, pid)

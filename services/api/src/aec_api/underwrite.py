@@ -95,4 +95,15 @@ def guardrails(result: dict[str, Any], comps: list[dict] | None = None) -> dict[
 
     if not flags:
         flag("info", "ok", "Returns are within typical market bands.")
-    return {"flags": flags, "ok": not any(f["level"] == "high" for f in flags)}
+    return {
+        "flags": flags,
+        # EMPTY-IS-CLEAN: `flags` cannot be empty. The two lines above append an info flag when
+        # nothing else fired, precisely so that "no findings" is a stated result rather than an
+        # absent one — which is the same distinction this declaration is about. QUANT-VACUOUS.
+        #
+        # What `ok` does NOT claim is that every check RAN: the exit-cap comparison needs sale
+        # comps, and a deal without them gets no exit-cap flag either way. That is a coverage
+        # question, and `services/api/test_verdict_coverage.py` is the gate for it; this marker is
+        # only about the emptiness of the collection being quantified.
+        "ok": not any(f["level"] == "high" for f in flags),
+    }

@@ -13,9 +13,14 @@ import { modelCleanupButton, wallJoinsButton } from "./repairPanel";
 import { georeferencingButton, projectOriginButton, projectUnitsButton } from "./projectSetupPanel";
 import { runIdsValidate } from "./idsValidate";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
+import { healthStatusLine, renderHealthBody } from "./healthPanel";
 import { LayerManager } from "../../tools/layers";
 import { ModelLoader } from "../loader";
 import { SelectionSets } from "../selectionSets";
+import { renderRoundtripDiff } from "./roundtripDiffView";
+import { isUnrun, renderCiReport } from "./modelCiView";
+import { renderScanCard } from "./scanVerifyView";
+import { layoutButton } from "./layoutTool";
 
 /**
  * R39-DECOMP-VIEWER ② — the clash / QA tool section, out of `app.ts`.
@@ -339,34 +344,21 @@ export function buildQaSection(d: QaDeps): void {
         // on it; this endpoint checks it and had no client caller, so the promise was unverifiable
         // from the product. Distinct from `roundtripDiff`, which compares a file YOU bring back —
         // this one asks whether OUR OWN export is lossless.
+        b.appendChild(toolBtn2("📡 Scan → as-built (deviation + LOD 500 verify)", () => {
+          showResult("Scan to as-built", (body) => renderScanCard(body,
+            { api, projectId: () => pid, setStatus: (m) => { out.textContent = m; } }));
+        }));
+        // NEGATED-VERDICT. Body extracted to `./roundtripCard` because the size ratchet refused
+        // the ten lines the third state cost — and the lazy import is the better shape anyway:
+        // `viewer/tools/*` is the eager chunk and this card is behind a click.
         b.appendChild(toolBtn2("🔁 Round-trip fidelity (is our export lossless?)", () => withLoading(container, "Serialising and re-parsing", async () => {
+          const m = await import("./roundtripCard");
           let r;
           try { r = await api.modelRoundtrip(pid); }
           catch (e) { toast((e as Error).message, "error"); return; }
-          out.textContent = r.fidelity_ok ? "round-trip clean" : `${r.counts.missing + r.counts.added + r.counts.changed} discrepancy(ies)`;
-          showResult("Round-trip fidelity", (body) => {
-            body.appendChild(resultNote(r!.fidelity_ok
-              ? `<b>Lossless</b> — all ${r!.element_count} elements survived serialise → re-parse with GUID, class, name, containment, type and psets intact.`
-              : `<b>Not lossless</b> — ${r!.counts.missing} missing · ${r!.counts.added} added · ${r!.counts.changed} changed, of ${r!.element_count} elements.`,
-              r!.fidelity_ok ? "ok" : "bad"));
-            // MISSING is the one that matters most: an element that does not survive our own export
-            // is data loss, and GUID stability is what every recipe and every pin depends on.
-            for (const [label, guids] of [["Missing after round-trip", r!.missing], ["Appeared after round-trip", r!.added]] as const) {
-              if (!guids.length) continue;
-              const row = document.createElement("div");
-              row.className = "meta"; row.style.cssText = "margin-top:4px;cursor:pointer";
-              row.innerHTML = `<b>${escapeHtml(label)}</b>: ${guids.length}`;
-              row.title = "Select these elements";
-              row.onclick = async () => { await selectMap(await sets.fromGuids(guids.slice(0, 200))); };
-              body.appendChild(row);
-            }
-            if (r!.changed.length) {
-              body.appendChild(resultNote("<b>Changed</b> — survived, but an aspect differs:", ""));
-              body.appendChild(kvTable(r!.changed.slice(0, 50).map((c) => ({
-                k: escapeHtml(c.class), v: escapeHtml(c.aspects.join(", ")),
-              }))));
-            }
-          });
+          out.textContent = m.roundtripReading(r).status;
+          m.renderRoundtripCard(r, { showResult, resultNote, kvTable, esc: escapeHtml,
+            select: async (g) => { await selectMap(await sets.fromGuids(g)); } });
         })));
 
         // AUTH-CONSTRAINTS — the model's OWN constraint graph: broken RelVoids/RelFills hosts,
@@ -501,27 +493,15 @@ export function buildQaSection(d: QaDeps): void {
             }
           });
         })));
+        // HEALTH-WEIGHT-COVER. The body moved to `tools/healthPanel.ts` under the extraction
+        // ratchet — the composite is a WEIGHTED mean and the caption here printed the scored
+        // COUNT, while naming four lenses where the engine has five.
         b.appendChild(toolBtn2("🩺 Model Health (all checks, one score)", () => withLoading(container, "Scoring model health", async () => {
           let r;
           try { r = await api.modelHealth(pid); }
           catch (e) { toast((e as Error).message, "error"); return; }
-          out.textContent = r.overall_score != null ? `health ${r.overall_score} · ${r.band}` : "no model data";
-          const dot: Record<string, string> = { good: "🟢", warn: "🟡", poor: "🔴", na: "⚪" };
-          showResult("Model Health", (body) => {
-            const tone = r!.overall_score == null ? "" : r!.overall_score >= 80 ? "ok" : r!.overall_score < 50 ? "bad" : "";
-            body.appendChild(resultNote(r!.overall_score != null
-              ? `Composite <b>${r!.overall_score}/100</b> — <b>${r!.band}</b> (${r!.scored_lenses} of ${r!.lenses.length} checks scored).`
-              : "No model-quality inputs yet — load a model and log coordination / verification to score.", tone));
-            body.appendChild(kvTable(r!.lenses.map((l) => ({
-              k: `${dot[l.status] || "⚪"} ${l.label}`,
-              v: `${l.score != null ? `${l.score}/100` : "n/a"} — ${l.headline}`,
-            }))));
-            const note = document.createElement("div"); note.className = "meta";
-            note.style.cssText = "margin-top:8px;font-size:11px";
-            note.textContent = "One score over integrity/hygiene (Model QA), ISO 19650 KPIs (BIM scorecard), "
-              + "clash coordination, and verified-as-built. Each lens has its own tool in this rail (or the Report Center) to act on it.";
-            body.appendChild(note);
-          });
+          out.textContent = healthStatusLine(r);
+          showResult("Model Health", (body) => renderHealthBody(body, r!, { resultNote, kvTable }));
         })));
         b.appendChild(toolBtn2("📋 Normative validation (openBIM conformance)", () => withLoading(container, "Running normative validation", async () => {
           let r;
@@ -695,60 +675,31 @@ export function buildQaSection(d: QaDeps): void {
               status.textContent = "computing dry-run diff…"; diffBox.replaceChildren();
               try {
                 const d = await api.roundtripDiff(pid, f);
-                status.innerHTML = `<b>${d.changes.length}</b> change(s) across ${d.checked} rows`
-                  + (d.unknown_guids.length ? ` · <b>${d.unknown_guids.length}</b> unknown GUID(s) skipped` : "")
-                  + ` · ${d.unchanged} unchanged`;
-                if (!d.changes.length) return;
-                const tbl = document.createElement("table"); tbl.className = "result-table";
-                for (const c of d.changes.slice(0, 300)) {
-                  const tr = document.createElement("tr");
-                  tr.innerHTML = `<td class="k">${escapeHtml(c.guid.slice(0, 8))}… ${escapeHtml(c.pset)}.${escapeHtml(c.prop)}</td>`
-                    + `<td class="v">${escapeHtml(c.old ?? "—")} → <b>${escapeHtml(c.new)}</b></td>`;
-                  tbl.appendChild(tr);
-                }
-                diffBox.appendChild(tbl);
-                const apply = document.createElement("button"); apply.className = "mini-btn on"; apply.style.marginTop = "6px";
-                apply.textContent = `✓ Apply ${d.changes.length} change(s) + republish`;
-                apply.onclick = async () => {
-                  apply.disabled = true; status.textContent = "applying via set_props_by_guid…";
+                // Rendering, the three bounds and the Apply label live in `roundtripDiffView.ts`.
+                renderRoundtripDiff(d, { status, diffBox, apply: async (changes, btn) => {
+                  btn.disabled = true; status.textContent = "applying via set_props_by_guid…";
                   try {
-                    const r = await api.editIfc(pid, "set_props_by_guid", { changes: d.changes });
+                    const r = await api.editIfc(pid, "set_props_by_guid", { changes });
                     status.textContent = `applied ${r.changed} change(s) — model republishing`;
                     notify("properties applied — reload the model to see them", "success");
-                  } catch (e) { status.textContent = `apply failed: ${(e as Error).message}`; apply.disabled = false; }
-                };
-                diffBox.appendChild(apply);
+                  } catch (e) { status.textContent = `apply failed: ${(e as Error).message}`; btn.disabled = false; }
+                } });
               } catch (e) { status.textContent = `diff failed: ${(e as Error).message}`; }
               finally { upInput.value = ""; }
             };
           });
         }));
-        b.appendChild(toolBtn2("✔ Rule check (rule library)", () => withLoading(container, "Checking the rule library", async () => {
-          let r;
-          try { r = await api.rulesRun(pid); }
-          catch (e) { toast((e as Error).message, "error"); return; }
-          if (!r.model_scored) { toast(r.note || "no model loaded", "info"); return; }
-          out.textContent = `rules: ${r.failing_rules ?? 0}/${r.total_rules} failing`;
-          showResult("Rule library check", (body) => {
-            const bySev = r!.by_severity || {};
-            body.appendChild(resultNote(`<b>${r!.failing_rules ?? 0}</b> of ${r!.total_rules} rules failing · `
-              + `${r!.total_violations ?? 0} violations` + (bySev.high ? ` · 🔴 ${bySev.high} high` : "")
-              + (bySev.medium ? ` · 🟡 ${bySev.medium} medium` : "") + (bySev.low ? ` · ⚪ ${bySev.low} low` : ""),
-            (r!.failing_rules ?? 0) ? "" : "ok"));
-            const sev: Record<string, string> = { high: "🔴", medium: "🟡", low: "⚪" };
-            for (const rule of r!.rules) {
-              const icon = rule.status === "pass" ? "✅" : rule.status === "n/a" ? "➖" : (sev[rule.severity] || "•");
-              const line = resultNote(`${icon} <b>${escapeHtml(rule.name)}</b> — ${rule.passed}/${rule.scoped} pass`
-                + (rule.failed ? ` · <b>${rule.failed}</b> fail` : ""), rule.status === "fail" ? "" : "ok");
-              if (rule.failed && rule.fail_guids.length) {
-                const pick = document.createElement("a"); pick.href = "#"; pick.textContent = " isolate failures";
-                pick.style.cssText = "font-size:11px;margin-left:6px";
-                pick.onclick = (e) => { e.preventDefault(); void layerMgr.isolateGuids(rule.fail_guids.slice(0, 500)); };
-                line.appendChild(pick);
-              }
-              body.appendChild(line);
-            }
-          });
+        // FIRM-RULES-OPTIONAL. The rendering moved to `viewer/tools/ruleCheckView.ts` — this file
+        // is on its exact line pin and `viewer/tools/*` is the eager chunk at its exact budget, so
+        // the extraction is what PAYS for the control below. Every row now says whether its rule is
+        // the firm's, this project's, an override, or one of the three samples.
+        b.appendChild(toolBtn2("✔ Rule check (rule library)", () => withLoading(container, "Checking the rules that apply here", async () => {
+          const m = await import("./ruleCheckView");
+          await m.runRuleCheck(api, pid, out, (g) => void layerMgr.isolateGuids(g));
+        })));
+        b.appendChild(toolBtn2("⚖ Standards that apply here", () => withLoading(container, "Reading the firm + project standards", async () => {
+          const m = await import("./ruleCheckView");
+          await m.showEffectiveStandards(api, pid, out);
         })));
         b.appendChild(toolBtn2("⛶ Geometry check (clearance/egress)", () => withLoading(container, "Running geometric checks", async () => {
           let r;
@@ -779,22 +730,28 @@ export function buildQaSection(d: QaDeps): void {
             body.appendChild(resultNote("AABB-level checks on the clash geometry path: seven table-driven clearances (doors high; MEP/code at medium), straight-line egress, accessible clear width. Property rules live in ✔ Rule check.", ""));
           });
         })));
-        b.appendChild(toolBtn2("▢ Model CI (quality gate)", () => withLoading(container, "Running model CI checks", async () => {
+        // Opens on the STORED report — the badge is persisted precisely so it need not be
+        // recomputed, and re-running the pack is the expensive path, not the default one.
+        b.appendChild(toolBtn2("▢ Model CI (quality gate)", () => withLoading(container, "Reading the stored model CI report", async () => {
           let r;
-          try { r = await api.ciRun(pid); }
+          try { r = await api.ciLatest(pid); }
           catch (e) { toast((e as Error).message, "error"); return; }
-          const mark: Record<string, string> = { pass: "✅", warn: "🟡", fail: "🔴", skip: "➖", none: "➖" };
           out.textContent = `CI: ${r.badge}`;
           showResult("Model CI — quality gate", (body) => {
-            body.appendChild(resultNote(`Overall <b>${mark[r!.overall] || ""} ${escapeHtml(r!.badge)}</b>`
-              + (r!.ran_at ? ` · ${escapeHtml(r!.ran_at)}` : "")
-              + ` · ${r!.passed ?? 0}/${r!.total_checks ?? r!.checks.length} passed`,
-            r!.overall === "fail" ? "bad" : r!.overall === "pass" ? "ok" : ""));
-            for (const chk of r!.checks) {
-              body.appendChild(resultNote(`${mark[chk.status] || "•"} <b>${escapeHtml(chk.label)}</b> — ${escapeHtml(chk.summary)}`,
-                chk.status === "fail" ? "" : "ok"));
-            }
-            body.appendChild(resultNote("Checks compose the rule library + data-completeness gates; the badge is stored so every model version carries a quality gate. Add rules via the ✔ Rule check tool.", ""));
+            const paint = (rep: typeof r) => { body.replaceChildren(); renderCiReport(body, rep!);
+              const run = document.createElement("button");
+              run.className = "mini-btn on"; run.style.marginTop = "6px";
+              const label = isUnrun(rep!) ? "▶ Run the check pack" : "⟳ Run again";
+              run.textContent = label;
+              run.onclick = async () => {
+                run.disabled = true; run.textContent = "running the check pack…";
+                // The LABEL is restored with the button. Re-enabling it while it still reads
+                // "running the check pack…" leaves a control that is clickable and says it is busy.
+                try { const fresh = await api.ciRun(pid); out.textContent = `CI: ${fresh.badge}`; paint(fresh); }
+                catch (e) { toast((e as Error).message, "error"); run.disabled = false; run.textContent = label; }
+              };
+              body.appendChild(run); };
+            paint(r);
           });
         })));
         b.appendChild(toolBtn2("🔗 Coordinate clashes (grouped issues)", () => withLoading(container, "Queueing federated clash + coordination", async () => {
@@ -846,25 +803,12 @@ export function buildQaSection(d: QaDeps): void {
             body.appendChild(toolBtn2("Open Issues panel", () => (document.querySelector('.rail-btn[data-rail="issues"]') as HTMLElement)?.click()));
           });
         })));
-        b.appendChild(toolBtn2("📍 Field layout (points CSV / DXF)", () => withLoading(container, "Extracting layout setout points", async () => {
-          let r;
-          try { r = await api.layoutPoints(pid); }
-          catch { toast("Field layout needs a source IFC with columns/grids", "error"); return; }
-          out.textContent = `${r.count} setout points`;
-          toast(r.count ? `${r.count} layout points ready to stake` : "no setout points found", r.count ? "info" : "success");
-          showResult("Model → field layout", (body) => {
-            body.appendChild(resultNote(`<b>${r!.count}</b> georeferenced setout points (grids + column/footing/`
-              + `opening/wall) — E/N/Z with the IFC GlobalId in each Description, ready for total stations, `
-              + `marking robots and floor printers.`, r!.count ? "ok" : "bad"));
-            if (Object.keys(r!.by_class).length) body.appendChild(kvTable(Object.entries(r!.by_class).map(([k, v]) => ({ k: k.replace("Ifc", ""), v: String(v) }))));
-            const dl = (label: string, href: string) => { const a = document.createElement("a"); a.className = "file-btn"; a.textContent = label; a.href = href; a.target = "_blank"; a.rel = "noopener"; a.style.marginRight = "6px"; return a; };
-            const row = document.createElement("div"); row.style.margin = "8px 0";
-            row.append(dl("⬇ PENZD CSV", api.layoutCsvUrl(pid, "PENZD")), dl("⬇ PNEZD CSV", api.layoutCsvUrl(pid, "PNEZD")), dl("⬇ DXF (printers)", api.layoutDxfUrl(pid)));
-            body.appendChild(row);
-            body.appendChild(resultNote("Field round-trip: stake/print these, shoot the as-installed positions "
-              + "with a total station, then upload that CSV to verify deviation by point number.", "ok"));
-          });
-        })));
+        // LAYOUT-RENUMBER — the export tool moved to `layoutTool.ts`, which also carries the
+        // as-installed UPLOAD this panel's own copy has promised since it shipped. The move is what
+        // paid for it: this file is on an exact size pin with no headroom, so the import half had
+        // nowhere to go until the export half left.
+        b.appendChild(layoutButton({ api, pid, container, toolBtn2, withLoading, toast, showResult,
+                                     resultNote, kvTable, setOut: (t) => { out.textContent = t; } }));
         b.appendChild(toolBtn2("🕸 Related elements (model graph)", () => withLoading(container, "Building model graph", async () => {
           const guid = selectedGuid();
           if (!guid) { notify("select an element in 3D first", "error"); return; }

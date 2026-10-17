@@ -88,6 +88,93 @@ export interface MepButtons {
   mepSysBtn: HTMLButtonElement;
 }
 
+/**
+ * The tray-fill response, DERIVED from the client method rather than restated — a second
+ * declaration of a wire shape is the defect `noRespelledShapes.test.ts` sweeps for, and the
+ * erasure that preceded it (`Record<string, unknown>`) is why the defect below outlived every
+ * audit here. See `api/mep.ts` `mepTrayFill`.
+ */
+export type TrayFill = Awaited<ReturnType<ApiClient["mepTrayFill"]>>;
+
+export interface TrayFillHeadline {
+  /** Every tray the engine returned — `checked`. */
+  total: number;
+  /** Trays a fill ratio was actually computed for. */
+  computed: number;
+  failed: number;
+  /** Trays carrying `status: "info"` — no cables authored on that tray's system, `fill_ratio`
+   *  `null`, nothing checked. */
+  uncomputed: number;
+  html: string;
+  kind: "ok" | "warn" | "bad" | "";
+}
+
+/**
+ * TRAY-UNCOMPUTED — the tray-fill headline, which may not report a pass over trays the engine
+ * could not evaluate.
+ *
+ * `tray_fill` returns `checked` (**every** tray) beside `failed` (only the fails) and a
+ * three-valued `status` per tray, where **`info` means the tray was not evaluated**: no
+ * `IfcCableSegment` runs are authored on its distribution system, so `fill_ratio` is `null` and
+ * the engine attaches a note saying what to author. The shipped render printed
+ * `${checked} tray(s) · ${failed} over fill` in an `ok` tone, so **ten trays with no cables
+ * anywhere read as "10 tray(s) · 0 over fill", green** — the appearance of a clearance over a set
+ * where nothing was computed. Both immediate siblings in this file already render their coverage
+ * (`${mz.info} info`, `${tl.skipped_no_area} skipped (no area)`); this one was a field away from
+ * them, counted by the engine, and dropped.
+ *
+ * **`conductors === 0` is NOT the uncomputed test**, which is why this keys on `status`: the
+ * supplied-`FillRatio` branch also reports `conductors: 0` and *is* evaluated, pass or fail. A
+ * reader counting conductors would overstate the unexamined set and warn about trays that have an
+ * answer.
+ *
+ * Deriving the coverage from `trays` is sound only because `trays` is the WHOLE list — unlike
+ * `cables`, which the engine caps at 20. That precondition is pinned in the test against
+ * `mep_sizing.py`, because a `trays[:limit]` added later would silently make this count a page
+ * (CLASH-TRUNC, one directory over, is that defect).
+ *
+ * Zero trays gets its own sentence rather than a verdict: "0 tray(s) · 0 over fill" in green is the
+ * empty-versus-absent confusion, and the only useful answer is what to author.
+ *
+ * No `?? 0` on the fields: they are declared non-optional by the client method above, and a
+ * defensive fallback no input can reach is a branch that cannot be tested and will be read as
+ * meaningful by the next person.
+ */
+export function trayFillHeadline(tf: TrayFill): TrayFillHeadline {
+  const total = tf.checked;
+  const failed = tf.failed;
+  const uncomputed = tf.trays.filter((t) => t.status === "info").length;
+  const computed = Math.max(0, total - uncomputed);
+  const kind: TrayFillHeadline["kind"] = failed ? "bad" : uncomputed ? "warn" : total ? "ok" : "";
+  const head = "<b>Tray fill</b> — ";
+  let html: string;
+  if (!total) {
+    html = head + "no cable trays with an authored width — nothing was checked. Author "
+      + "IfcCableCarrierSegment trays with a nominal size first.";
+  } else if (!computed) {
+    html = head + `${total} tray(s) found and <b>none computed</b> — no cables are authored on `
+      + "their distribution systems, so no fill ratio could be calculated. Add IfcCableSegment "
+      + "runs (add_wire) with a nominal diameter.";
+  } else {
+    html = head + `${computed} of ${total} tray(s) computed · <b>${failed} over fill</b>`
+      + (uncomputed ? ` · ${uncomputed} NOT computed (no cables authored on those systems)` : "")
+      + ".";
+  }
+  return { total, computed, failed, uncomputed, html, kind };
+}
+
+/** The per-tray rows, in the engine's own order (fail, then uncomputed, then pass). A tray with no
+ *  computed ratio says so in words — `—` beside a percentage column reads as zero fill. */
+export function trayFillRows(tf: TrayFill, limit = 12): { k: string; v: string }[] {
+  return tf.trays.slice(0, limit).map((t) => ({
+    k: `${t.system} · ${t.width_in}" (${t.guid.slice(0, 8)})`,
+    v: t.fill_ratio == null
+      ? "not computed — no cables authored"
+      : `${Math.round(t.fill_ratio * 100)}% of ${t.allowable_fill_in2} in² · ${t.conductors} `
+        + `conductor(s) · ${t.status}`,
+  }));
+}
+
 export function buildMepSection(d: MepDeps): MepButtons {
   // W11 B6: MEP fitting at the last-clicked point + a system browser.
   const mepFittingBtn = d.toolBtn2("🔀 MEP fitting (elbow / tee)", async () => {
@@ -370,14 +457,26 @@ export function buildMepSection(d: MepDeps): MepButtons {
         let tf;
         try { tf = await d.api.mepTrayFill(d.pid); }
         catch (e) { d.notify((e as Error).message, "error"); return; }
-        const checked = Number(tf.checked ?? 0);
-        const failed = Number(tf.failed ?? 0);
-        body.appendChild(resultNote(`<b>Tray fill</b> — ${checked} tray(s) · <b>${failed} over fill</b>.`,
-          failed ? "bad" : "ok"));
-        const disc = typeof tf.disclaimer === "string" ? tf.disclaimer : "";
-        if (disc) body.appendChild(resultNote(disc, ""));
+        const h = trayFillHeadline(tf);
+        body.appendChild(resultNote(h.html, h.kind));
+        if (h.total) body.appendChild(kvTable(trayFillRows(tf)));
+        // Both sets are actionable and they ask for different work: a fail wants a wider tray or
+        // fewer conductors, an uncomputed tray wants its cables authored. Isolating them in 3D is
+        // what the two siblings above already offer for their own findings.
+        const over = tf.trays.filter((t) => t.status === "fail").map((t) => t.guid);
+        if (over.length) {
+          body.appendChild(d.toolBtn2("◎ Isolate over-fill trays in 3D",
+            () => { void d.layerMgr.isolateGuids(over); }));
+        }
+        const bare = tf.trays.filter((t) => t.status === "info").map((t) => t.guid);
+        if (bare.length) {
+          body.appendChild(d.toolBtn2("◎ Isolate trays with no cables authored in 3D",
+            () => { void d.layerMgr.isolateGuids(bare); }));
+        }
+        body.appendChild(resultNote(tf.disclaimer, ""));
       });
-      trayBtn.title = "NEC 392.22 fill from authored cables, not a supplied ratio";
+      trayBtn.title = "NEC 392.22 fill from authored cables, not a supplied ratio — a tray whose "
+        + "system has no cables is reported as NOT computed, never as passing";
       body.appendChild(trayBtn);
       const loadBtn = d.toolBtn2("🌡 Thermal loads", async () => {
         let tl;

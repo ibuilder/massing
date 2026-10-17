@@ -101,6 +101,74 @@ def main() -> int:
           m["available"] and "Plumbing" not in m["peak_before"],
           f"levelled against {sorted(m['caps'])} only; Plumbing has no cap so no limit was invented")
 
+    # --- LEVEL-UNREAD: did the cap actually end up met? ---------------------------------------------
+    #
+    # The response reported the moves it made and the peaks before and after, and nothing compared
+    # the second peak to the cap — so the one question levelling exists to answer was left for a
+    # caller to assemble, and the only caller rendered `move_count`, `unresolved_count` and
+    # `finish_moved_days` instead. On THIS fixture those three are 0, >0 and 0 under `within_float`:
+    # two of the three read exactly as a schedule already inside its caps.
+    check("within_float leaves the cap UNMET, and the response says so",
+          r["within_caps"] is False and len(r["over_cap"]) == 1, r["over_cap"])
+    over = r["over_cap"][0]
+    # The RELATION, not literals — the fixture's crew sizes may change and this still says what the
+    # field means. (`test_unit_rate_route` had to learn that a constant inferred from a neighbouring
+    # assertion is a guess wearing an assertion's clothes.)
+    check("  over_cap states the trade, its cap, the peak it ended at and the excess",
+          over["trade"] == "Carpentry"
+          and over["cap"] == CAP["Carpentry"]
+          and over["peak_after"] == r["peak_after"]["Carpentry"]
+          and round(over["over_by"], 4) == round(over["peak_after"] - over["cap"], 4),
+          over)
+    check("  ...and the two zeros beside it are what make the verdict load-bearing",
+          r["move_count"] == 0 and r["finish_moved_days"] == 0,
+          "a card reading only these three figures cannot tell 'nothing needed doing' from "
+          "'nothing could be done'")
+
+    check("extend_finish MEETS the cap, and the response says that too",
+          ext["within_caps"] is True and ext["over_cap"] == [],
+          f"peak {ext['peak_after']} against cap {CAP}, finish +{ext['finish_moved_days']}d")
+    check("  the two verdicts disagree, which is the horizon trade-off made explicit",
+          r["within_caps"] != ext["within_caps"])
+    # The verdict is a REAL comparison, not a restatement of `unresolved_count`: mutating the cap
+    # upward must flip it with the same moves.
+    loose = levelling(OVER, caps={"Carpentry": 99})
+    check("  a cap above the peak is met without moving anything",
+          loose["within_caps"] is True and loose["move_count"] == 0 and loose["over_cap"] == [],
+          f"peak {loose['peak_after']} under a cap of 99")
+
+    # --- the coverage the verdict is silent about ----------------------------------------------------
+    cov = m["coverage"]
+    check("coverage names the UNCAPPED trades the verdict says nothing about",
+          cov["uncapped_trades"] == ["Plumbing"] and cov["capped_trades"] == ["Carpentry"], cov)
+    check("  and reconciles: with_demand + without_demand == activities",
+          cov["activities"] == len(mixed)
+          and cov["with_demand"] + cov["without_demand"] == cov["activities"], cov)
+
+    # An activity missing either field draws on nothing, so it is outside the levelling. Counted AND
+    # named — a count alone cannot be acted on, and these are data-entry gaps rather than schedule
+    # facts.
+    partial = OVER + [
+        {"id": "nt", "data": {"crew_size": 4, "duration": 3, "start": "2026-03-01",
+                              "name": "No trade"}},
+        {"id": "nc", "data": {"trade": "Carpentry", "duration": 3, "start": "2026-03-01",
+                              "name": "No crew"}},
+    ]
+    pc = levelling(partial, caps=CAP)["coverage"]
+    check("activities with no trade or no crew size are counted out and NAMED",
+          pc["without_demand"] == 2 and sorted(pc["without_demand_sample"]) == ["No crew", "No trade"],
+          pc)
+    check("  the names come from the module data, not the row id",
+          all(not x.startswith("nt") and not x.startswith("nc")
+              for x in pc["without_demand_sample"]),
+          f"{pc['without_demand_sample']} — `list_records` keeps module fields under `data`, so a "
+          f"bare row.get('name') returned the UUID and the sample read as populated nonsense")
+
+    check("a refusal reports within_caps as None, never False",
+          all(x["within_caps"] is None and x["coverage"] is None and x["over_cap"] == []
+              for x in (no_caps, mismatch, no_crew, bad, empty)),
+          "a levelling that did not run has not met the caps AND has not failed to meet them")
+
     if _FAILURES:
         print(f"FAILED: {', '.join(_FAILURES)}")
         return 1

@@ -91,6 +91,18 @@ with TestClient(app) as c:
                    json={"estimates": [{"activity": "Slab L3", "percent": 30},
                                        {"activity": "ghost", "percent": 10}]}).json()
     assert batch["accepted"] and batch["count"] == 2 and batch["applied"] == 1, batch
+    # CV-BRIDGE-DARK: `accepted` was decided before either write was attempted, so the response
+    # has to say how much of the sweep LANDED. `applied` is derived from this object rather than
+    # counted a second time in the router's loop — two spellings of one number is two chances for
+    # them to disagree, so they are asserted equal here as well as computed once there.
+    cov = batch["coverage"]
+    assert cov["written"] == batch["applied"] == 1, batch
+    assert cov["write_failed"] == 1 and cov["no_activity"] == 0 and cov["invalid"] == 0, cov
+    assert cov["reason"] == "1 of 2 estimate(s) were written", cov
+    # the single door states it too, where it used to return `accepted: true` and no `applied` key
+    nobody = c.post(f"/projects/{pid}/cv-progress/ingest", json={"percent": 42}).json()
+    assert nobody["accepted"] is True and nobody["applied"] is False, nobody
+    assert nobody["apply_error"] == "no activity given", nobody
     rec2 = c.get(f"/projects/{pid}/modules/schedule_activity/{act2['id']}").json()
     assert float((rec2.get("data") or rec2).get("percent")) == 30.0, rec2
     os.environ.pop("AEC_CV_BRIDGE", None)
@@ -101,4 +113,5 @@ with TestClient(app) as c:
 print("DEFERRED OK - C1x: MEP read off model by IFC class (4 elements, ducts top); B2x: model signature "
       "changes when the model changes + no-model guard; D4x: schema sniff (IFC4 STEP supported, IFC5/IFCX "
       "JSON detected+unsupported) + capabilities; E2x: CV bridge off=no-op, on=writes percent to the "
-      "activity (55%), bad id handled")
+      "activity (55%), bad id handled, and the batch reports how much of the sweep was WRITTEN "
+      "rather than only that it was accepted")

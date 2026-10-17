@@ -8,6 +8,13 @@ Maps the model's quantity takeoff (grouped by NCS discipline) against the projec
   * **gaps** — disciplines present in the model with **no** covering package: their quantities aren't
     in any bid yet, the classic scope-hole a GC discovers at buyout (sample GUIDs cited so you can
     click-to-highlight the uncovered elements),
+  * **covered_without_specs** — the FOURTH state, and this list enumerated three until SCOPE-THIN
+    (2026-10-14). A discipline covered by a package that cites no CSI spec section: not a gap,
+    because somebody is pricing it, and not traceable coverage either. It was computed, tested and
+    returned the whole time, and the only screen that read this response branched on ``gaps`` alone
+    — so a job whose every covering package cited nothing got a green tick and ``covered_pct: 100``.
+    *A list that stopped being extended reads exactly like a complete one*, which is why the
+    omission here cost more than the missing client declaration did.
   * **packages_without_model_scope** — packages whose discipline has no model elements (over-scoped /
     nothing to price).
 

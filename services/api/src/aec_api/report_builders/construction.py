@@ -29,13 +29,23 @@ def _submittal_register(db: Session, pid: str, name: str) -> Report:
     r = Report("Submittal Register", name)
     r.kpi("Submittals", s["submittal_count"])
     r.kpi("Open", s["open_count"])
-    r.kpi("Overdue", s["overdue_count"])
-    r.kpi("Avg turnaround", f"{s['avg_turnaround_days']} d" if s["avg_turnaround_days"] is not None else "—")
+    # SUBMITTAL-RETURNED. An exported KPI is quoted away from the register that produced it, so
+    # each of these says what it is over: `Overdue` can only count the rows carrying a
+    # required-on-site date, and `Avg turnaround` only the rows carrying both review dates.
+    r.kpi("Overdue", f"{s['overdue_count']} of {s['dated_count']} dated"
+          if s["dated_count"] < s["submittal_count"] else s["overdue_count"])
+    r.kpi("Awaiting resubmittal", s["needs_resubmittal_count"])
+    r.kpi("Avg turnaround",
+          (f"{s['avg_turnaround_days']} d over {s['turnaround_count']}"
+           if s["turnaround_count"] < s["submittal_count"] else f"{s['avg_turnaround_days']} d")
+          if s["avg_turnaround_days"] is not None else "—")
+    r.kpi("Basis", s["coverage_note"])
     r.table("Register", ["Ref", "Spec", "Title", "Type", "Responsible", "Disposition", "Req. on site", "Turn (d)", "Status"],
             [[x.get("ref", ""), x.get("spec_section", ""), x.get("title", ""), x.get("type", ""),
               x.get("responsible", ""), x.get("disposition", ""), x.get("required_on_site", ""),
               x.get("turnaround_days", "") if x.get("turnaround_days") is not None else "",
-              ("OVERDUE " if x["overdue"] else "") + str(x.get("status", ""))]
+              ("OVERDUE " if x["overdue"] else "")
+              + ("RESUBMIT " if x["needs_resubmittal"] else "") + str(x.get("status", ""))]
              for x in s["rows"]] or [["(no submittals)"] + [""] * 8])
     return r
 
@@ -335,7 +345,14 @@ def _cep(db: Session, pid: str, name: str) -> Report:
     r.kpi("Schedule activities", len(acts))
     r.kpi("Permits", len(perms))
     r.kpi("Submittals", len(subm))
-    r.kpi("Open RFIs", sum(1 for x in rfi if x.get("workflow_state") not in ("closed", "answered", "void")))
+    # DASH-TERMINAL. This read `not in ("closed", "answered", "void")`, which counts an
+    # answered-but-unaccepted RFI as finished. The `rfi` workflow has BOTH
+    # `answered -> closed | accept [GC]` and `answered -> open | reopen [GC]`, so `answered` is not
+    # terminal and `rfi.COURT["answered"]` is "GC (accept)" -- the ball is with the GC.
+    # `rfi.CLOSED_STATES` is ("closed", "void") and `rfi.rfi_register`'s own `open_count` has always
+    # honoured it, so this KPI and that register disagreed about one question. One source now.
+    from .. import rfi as rfi_engine
+    r.kpi("Open RFIs", sum(1 for x in rfi if x.get("workflow_state") not in rfi_engine.CLOSED_STATES))
     if saf.get("incidents"):
         r.kpi("Safety incidents", saf["incidents"].get("incident_count", 0))
     if clo.get("punchlist"):

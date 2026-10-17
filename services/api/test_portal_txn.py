@@ -1,6 +1,11 @@
 """PORTAL-TXN — the tokenized client-decision surface: public approve/acknowledge/decline through a share
 token (whitelisted, length-capped, hard per-token cap), the activity feed on the digest + HTML (escaped),
 and the editor-side decision feed.
+
+PORTAL-TXN-DARK closed the loop: every route below was complete and careful for months, and the page a
+client opens could reach none of them. The last section drives the controls' paths over HTTP — the
+behavioural complement `test_portal_public_reach.py` names, since that gate reads the rendered page and
+cannot prove a click works.
 Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_portal_txn.py"""
 import os
 
@@ -180,8 +185,40 @@ with TestClient(app) as c:
     c.post(f"/shared/{pay_tok['token']}/comment", json={"text": "<img onerror=alert(1)>"})
     page = c.get(f"/shared/{pay_tok['token']}").text
     assert "Conversation" in page and "<img onerror" not in page and "&lt;img onerror" in page
-    assert "Conversation" not in c.get(f"/shared/{plain_tok['token']}").text, \
-        "a token with no comments shows no conversation card"
+    # PORTAL-TXN-DARK: this asserted the opposite — "a token with no comments shows no conversation
+    # card" — and that was the defect. The card holds the message box and the sentence promising a
+    # message reaches the team, so hiding it until somebody has already written one showed the
+    # invitation to exactly the people who did not need it. An EMPTY thread is the state where the
+    # invitation is the content.
+    empty_page = c.get(f"/shared/{plain_tok['token']}").text
+    assert "Conversation" in empty_page and "No messages yet" in empty_page, \
+        "a token with no comments must still offer the message box"
+    assert 'id="comment-send"' in empty_page and "reach the project team" in empty_page
+
+    # --- PORTAL-TXN-DARK: the page a client opens can now reach both public write routes ----------
+    # `test_portal_public_reach.py` derives the population and asserts the controls are THERE; it is
+    # a source-level check and says so. This is the behavioural complement: the paths those controls
+    # post to answer over HTTP, for a token that has done neither thing before.
+    fresh = c.post(f"/projects/{pid}/share-tokens", json={"label": "loop"}).json()["token"]
+    fresh_page = c.get(f"/shared/{fresh}").text
+    assert 'id="decision-form"' in fresh_page and 'data-item-type="digest"' in fresh_page
+    # The ref the page defaults is a SNAPSHOT of what was read, not a constant: a client approving a
+    # 62% digest has not approved the 88% one.
+    import re as _re
+    m = _re.search(r'data-item-ref="([^"]+)"', fresh_page)
+    assert m and "Readiness digest" in m.group(1) and "%" in m.group(1), fresh_page[:200]
+    ref = m.group(1).replace("&amp;", "&").replace("&#x27;", "'").replace("&quot;", '"')
+    lands = c.post(f"/shared/{fresh}/decision",
+                   json={"item_type": "digest", "item_ref": ref, "action": "approved",
+                         "client_name": "Pat Owner", "note": "Looks right to us."})
+    assert lands.status_code == 200, lands.text
+    assert lands.json()["item_ref"] == ref, (lands.json()["item_ref"], ref)
+    said = c.post(f"/shared/{fresh}/comment", json={"text": "One question on step 4."})
+    assert said.status_code == 200, said.text
+    # and both come back to the OWNER's feed, which is the other end the panel reads
+    feed = c.get(f"/projects/{pid}/client-decisions").json()["decisions"]
+    mine = [d for d in feed if d["token"] == fresh]
+    assert len(mine) == 1 and mine[0]["action"] == "approved" and mine[0]["note"] == "Looks right to us.", mine
 
     # --- the hard per-token cap (200) fires 409 ---------------------------------------------------
     tok2 = c.post(f"/projects/{pid}/share-tokens", json={"label": "cap"}).json()["token"]
@@ -202,4 +239,6 @@ print("PORTAL-TXN OK - decisions (whitelisted, capped, escaped, 404-on-revoked, 
       "no financials, asserted both ways) + the phase-3 client comment thread: a token holder's comment "
       "lands on the token's dedicated BCF feedback topic (one thread per link), the team's Issue-Board "
       "reply flows back into the digest conversation, empty text 422s, unknown token 404s, and the "
-      "public page renders every message escaped.")
+      "public page renders every message escaped + PORTAL-TXN-DARK: the page a client actually opens "
+      "now carries the controls that reach both of those public write routes, the response it defaults "
+      "names the digest that was read, and both halves come back on the owner's feed.")

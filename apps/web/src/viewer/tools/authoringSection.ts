@@ -3,7 +3,9 @@ import * as THREE from "three";
 import { type ApiClient } from "../../api/client";
 import { escapeHtml } from "../../ui/feedback";
 import { openNodeCanvas } from "../nodeCanvas";
-import { describePlan, planApply, type ApplyPlan, type LockVariable } from "../dimLocks";
+import { macroButton } from "./macroTool";
+import { modelBranchesButton } from "./modelOptionsPanel";
+import { describePlan, planApply, planSteps, type ApplyPlan, type LockVariable } from "../dimLocks";
 
 /**
  * R39-DECOMP-VIEWER — the advanced authoring / annotate / library section, out of `app.ts`.
@@ -151,7 +153,22 @@ export function buildAuthoringSection(d: AuthoringDeps): void {
         });
         nodeBtn.dataset.cap = "edit";
         nodeBtn.title = "Drag recipe nodes, wire outputs → inputs, and run the graph as one GUID-stable authoring pass";
-        b.append(fix, pub, furnish, nodeBtn, locksBtn(d, out), out);
+        // MACRO-DARK: the SAVED form of the same idea, one line below the ad-hoc one. The node canvas
+        // composes a chain you draw now; a macro runs a chain somebody already captured and
+        // parameterized. Both land as one GUID-stable version through the same engine; only the
+        // second had no door. Here rather than in its own section for the reason the comment below
+        // gives for the locks editor: `app.ts` is at its size pin and a new builder needs a line there.
+        // Inlined into the append, like `locksBtn` below it: `sectionButtonsWired.test.ts` asks of
+        // an exported `*Button()` builder that its CALL sit inside an append, because a button held
+        // in a local and never appended is the silent-inert failure that gate is named for.
+        b.append(fix, pub, furnish, nodeBtn,
+                 macroButton({ toolBtn2, api, pid, notify, waitForPublish, loadProjectModel }),
+                 // MODELOPT-DARK: the five `/model/options*` routes had no door anywhere. Mounted
+                 // here rather than as its own `app.ts` builder because that file is exactly on
+                 // its size pin — the same reason the locks builder below lives in this section —
+                 // and branching a model IS authoring.
+                 modelBranchesButton({ toolBtn2, api, pid, notify, waitForPublish, loadProjectModel }),
+                 locksBtn(d, out), out);
 }
 
 /**
@@ -236,18 +253,26 @@ function locksBtn(d: AuthoringDeps, out: HTMLElement): HTMLButtonElement {
     apply.onclick = async () => {
       if (!plan?.writes.length) return;
       apply.disabled = true;
-      let done = 0;
+      // BATCH-DARK. This looped one `editIfc` per write, which was more careful than the NL path —
+      // it counted `done` and said "Applied k of n" — but the partial write still HAPPENED, and a
+      // solved dimensional system applied halfway is a model that satisfies no constraint set at
+      // all. `/edit/batch` makes it all-or-nothing and one undo entry, so the honest message on a
+      // failure is that nothing was written. *Naming a partial write is better than hiding one and
+      // worse than not making one.*
+      const count = plan.writes.length;
       try {
-        for (const w of plan.writes) { await api.editIfc(pid, w.op, w.params, false); done++; }
+        await api.editBatch(pid, planSteps(plan), false);
         await api.publish(pid);
         const state2 = await d.waitForPublish(pid);
         if (state2 === "done") await d.loadProjectModel();
         // The refusals are repeated HERE, after applying, because this is the moment someone reads
         // it as finished. "Applied 3" alone is the silent-drop failure.
         notify(plan.refused.length
-          ? `Applied ${done} — ${plan.refused.length} could not be written: ${plan.refused.map((r) => r.variable).join(", ")}`
-          : `Applied ${done} change(s)`, plan.refused.length ? "info" : "success");
-      } catch { notify(`Applied ${done} of ${plan.writes.length} — the rest failed`, "error"); }
+          ? `Applied ${count} — ${plan.refused.length} could not be written: ${plan.refused.map((r) => r.variable).join(", ")}`
+          : `Applied ${count} change(s)`, plan.refused.length ? "info" : "success");
+      } catch (e) {
+        notify(`Nothing was applied — the batch was refused: ${(e as Error).message}`, "error");
+      }
     };
 
     out.append(rows, solveBtn, apply, result);

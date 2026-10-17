@@ -11,6 +11,8 @@
  *  screen that produces its input. Same transient-to-record shape as the prefab freeze, on money.
  */
 
+import { usd } from "../../ui/charts";
+
 /** One package as the grouping returns it, before anything is stored. */
 export interface GroupedPackage {
   package: string;
@@ -58,7 +60,7 @@ export function saveConfirm(pkgs: GroupedPackage[], groupedBy: string): string {
   const n = pkgs.length;
   const total = pkgs.reduce((sum, p) => sum + (p.est_cost || 0), 0);
   return `Keep ${n} buyout package${n === 1 ? "" : "s"} (grouped by ${groupedBy}, `
-    + `about ${fmtUsd(total)} estimated)?\n\n`
+    + `about ${usd(total)} estimated)?\n\n`
     + "Each one becomes a Buyout Packages RECORD in draft — visible to the whole project, trackable "
     + "through draft → RFQ sent → quotes in → awarded, and quotable by ref. This is not a draft in "
     + "your browser. Re-grouping and keeping again creates a SECOND set; it does not replace this one.";
@@ -151,7 +153,3 @@ export function rfqSummary(r: RfqResult): string {
     + `the register before acting on ${ref}.`;
 }
 
-/** Money, in whole dollars — the estimating figures here are never cent-precise. */
-function fmtUsd(n: number): string {
-  return `$${Math.round(n).toLocaleString("en-US")}`;
-}

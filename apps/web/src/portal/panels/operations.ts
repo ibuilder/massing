@@ -1,15 +1,36 @@
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { progressBar, groupedBar, lineChart, money as cmoney, qty, usd } from "../../ui/charts";
-import { promptModal } from "../../ui/modal";
+import { confirmModal, promptModal } from "../../ui/modal";
+import {
+  certifyAcknowledgements, certifyConfirmBody, chainRowsHtml, qualityReading,
+} from "./qualityCloseout";
 import { noProjectHtml } from "../../ui/empty";
 import type { PanelContext } from "../panelContext";
 import { renderOperateBrief } from "./operateBrief";
+import { productivityRows, productivityScope, provenanceLine } from "./productivity";
+import { punchMentionNote } from "./statedBasis";
+import { cxCell, cxCellTitle, cxHandoffNote, cxLegend, cxParity, cxPhaseNote, cxRowPct }
+  from "./cxMatrixRead";
 
 /**
  * Operations & facility panels, extracted from portal.ts (portal.ts decomposition).
  * CMMS operations, Facility Condition (FCI), discipline Spine traceability, climate/water
  * Resilience, metered Energy, and the Turnover package — each a free render*(ctx) function.
  */
+
+/** The "…showing N of M" note for a list that is a page OF a page.
+ *
+ *  `gaps.*` arrive as the server's 100-row pages and the card renders twelve of each. The first
+ *  version of this note read `showing ${items.length} of ${total}` — "showing 100 of 240" above a
+ *  list of twelve — which is the page-as-total conflation the change set carrying it existed to
+ *  remove. *The number nearest the honest caption was the one nobody counted.* Extracted and
+ *  exported because the version inside the closure could not be asserted, and the other two
+ *  truncation notes on this page are tested as pure functions for exactly that reason. */
+export function gapShown(itemCount: number, total: number, limit = 12):
+    { shown: number; note: string } {
+  const shown = Math.min(itemCount, limit);
+  return { shown, note: total > shown ? `showing ${shown} of ${total}` : "" };
+}
 
   // --- Operations: CMMS — work orders, PM generation, maintenance KPIs --------------------------
 export async function renderOperations(ctx: PanelContext) {
@@ -117,6 +138,43 @@ export async function renderOperations(ctx: PanelContext) {
           + `<div class="meta" style="margin-top:4px">${esc(tw.dpp.note)}</div>`;
         body.append(tc);
       } catch { /* twin data optional */ }
+
+      // PROD-DARK: the crew productivity loop, which no screen called. An empty `actuals` list makes
+      // the route analyse the project's STORED Productivity Actuals records, so this reads the field
+      // crew's own log rather than supplying a payload — and `source` says which, because a
+      // productivity figure whose provenance is unstated is a number somebody takes to a meeting.
+      try {
+        const pa = await ctx.host.api.progressActuals(pid, []);
+        const scope = productivityScope(pa);
+        const pc = el("div", "dash-card"); pc.style.marginTop = "8px";
+        // The whole token, never `var(--status-${…})`. `apps/web/src/shell/cssVars.test.ts` refused
+        // the interpolated form by name: a custom property assembled at runtime is invisible to any
+        // check that the token exists, so a typo in either branch produces no border and no error.
+        if (scope.tone === "bad") pc.style.borderLeft = "3px solid var(--status-crit)";
+        else if (scope.tone === "warn") pc.style.borderLeft = "3px solid var(--status-warn)";
+        pc.innerHTML = `<div><b>\u{1F477} Crew productivity</b> <span class="meta">${esc(scope.headline)}</span></div>`
+          + `<div class="meta" style="margin-top:2px">${esc(scope.detail)}</div>`;
+        const prov = provenanceLine(pa.source);
+        if (prov) {
+          pc.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:2px">${esc(prov)}</div>`);
+        }
+        if (pa.group_count) {
+          const rows = productivityRows(pa).map((r) =>
+            `<tr><td>${esc(r.group)}</td><td class="num">${esc(r.rate)}</td>`
+            + `<td class="num">${esc(r.utilization)}</td>`
+            + `<td class="num"${r.strong ? ' style="font-weight:700"' : ""}>${esc(r.vsPlanned)}</td>`
+            + `<td class="num">${esc(r.complete)}</td><td class="num">${esc(r.remaining)}</td></tr>`).join("");
+          pc.insertAdjacentHTML("beforeend",
+            `<table class="fin-table" style="width:100%;font-size:12px;margin-top:6px">`
+            + `<thead><tr><th scope="col" style="text-align:left">Activity</th>`
+            + `<th scope="col" class="num">Rate</th><th scope="col" class="num">Util</th>`
+            + `<th scope="col" class="num">vs planned</th><th scope="col" class="num">Complete</th>`
+            + `<th scope="col" class="num">Remaining</th></tr></thead><tbody>${rows}</tbody></table>`);
+        }
+        pc.insertAdjacentHTML("beforeend",
+          `<div class="meta" style="margin-top:4px">${esc(pa.note)}</div>`);
+        body.append(pc);
+      } catch { /* productivity log optional */ }
     };
     await load();
   }
@@ -301,18 +359,29 @@ export async function renderSpine(ctx: PanelContext) {
 
       // coverage gaps
       const g = t.gaps;
-      const gapCount = g.specs_without_bid_package.length + g.bid_packages_without_cost_code.length + g.sheets_without_spec.length;
+      // The server's own totals, not the lengths of the three 100-row pages. The percentages
+      // rendered above this card were always taken over the full population, so summing the page
+      // lengths made the card disagree with the numbers directly beside it.
+      const gapCount = g.counts.total;
       const gc = el("div", "dash-card"); gc.style.marginBottom = "10px";
       gc.innerHTML = `<div class="section-title">${gapCount ? "⚠ " : "✓ "}Broken links (${gapCount})</div>`;
-      const gapList = (title: string, items: string[]) => {
-        if (!items.length) return;
+      const gapList = (title: string, items: string[], total: number) => {
+        if (!total) return;
         const d = el("div", "meta"); d.style.margin = "3px 0";
-        d.innerHTML = `<b>${esc(title)} (${items.length}):</b> ${items.slice(0, 12).map(esc).join(", ")}${items.length > 12 ? " …" : ""}`;
+        // `total` is escaped even though it is a server-side number: `innerHtmlGuard.test.ts` keys
+        // on the BINDING NAME, and a name does not move when a caller starts passing something else.
+        const n = esc(String(total));
+        const { shown, note } = gapShown(items.length, total);
+        d.innerHTML = `<b>${esc(title)} (${n}):</b> ${items.slice(0, shown).map(esc).join(", ")}`
+          + (note ? ` … <span style="color:var(--status-warn)">${esc(note)}</span>` : "");
         gc.appendChild(d);
       };
-      gapList("Specs with no bid package", g.specs_without_bid_package.map((x) => x.section || x.ref));
-      gapList("Bid packages with no cost code", g.bid_packages_without_cost_code.map((x) => x.name || x.ref));
-      gapList("Sheets with no governing spec", g.sheets_without_spec.map((x) => x.sheet || x.ref));
+      gapList("Specs with no bid package", g.specs_without_bid_package.map((x) => x.section || x.ref),
+              g.counts.specs_without_bid_package);
+      gapList("Bid packages with no cost code", g.bid_packages_without_cost_code.map((x) => x.name || x.ref),
+              g.counts.bid_packages_without_cost_code);
+      gapList("Sheets with no governing spec", g.sheets_without_spec.map((x) => x.sheet || x.ref),
+              g.counts.sheets_without_spec);
       if (!gapCount) gc.insertAdjacentHTML("beforeend", `<div class="meta">Every sheet, spec and package is linked through to the budget.</div>`);
       body.appendChild(gc);
 
@@ -572,18 +641,40 @@ export async function renderTurnover(ctx: PanelContext) {
             `<div class="meta">No commissioning systems yet — seed from the model or add commissioning records.</div>`);
           return;
         }
+        // CX-CELL-FLAT. The cell was `accepted/total` plus a ✗ for fails, so a phase with ten
+        // tests ALL TESTED and awaiting the Owner rendered byte-identically to one where nothing
+        // had been done, and `Conditional` — a declared result of the module — was counted in
+        // neither bucket. `cxMatrixRead.ts` carries the measurement; the marks are explained by
+        // the legend below the table and by each cell's own title.
         const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:11px";
-        const cell = (c: { total: number; accepted: number; pass: number; fail: number } | null | undefined) =>
-          !c ? "—" : `${c.accepted}/${c.total}` + (c.fail ? ` <span style="color:var(--status-crit)">✗${c.fail}</span>` : "");
         t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">System</th><th scope="col">Assets</th>`
           + mx.phases.map((p) => `<th scope="col">${esc(p)}</th>`).join("")
           + `<th scope="col">%</th><th scope="col"><span class="sr-only">Dossier</span></th></tr></thead><tbody>`
           + mx.systems.map((s) => `<tr><td>${esc(s.system)}</td><td style="text-align:center">${s.assets}</td>`
-            + mx.phases.map((p) => `<td style="text-align:center">${cell(s.phases[p])}</td>`).join("")
-            + `<td style="text-align:right">${s.complete_pct}%</td>`
+            + mx.phases.map((p) => {
+              const c = s.phases[p];
+              const crit = c && c.fail ? ";color:var(--status-crit)" : "";
+              return `<td style="text-align:center${crit}" title="${esc(cxCellTitle(c))}">`
+                + `${esc(cxCell(c))}</td>`;
+            }).join("")
+            + `<td style="text-align:right" title="${esc(cxRowPct(s))}">${s.complete_pct}%</td>`
             + `<td><a href="#" data-sys="${esc(s.system)}" class="cx-dossier">dossier</a></td></tr>`).join("")
           + `</tbody>`;
         const wrap = el("div"); wrap.style.overflowX = "auto"; wrap.appendChild(t); cxWrap.append(wrap);
+        const handoff = cxHandoffNote(mx);
+        if (handoff) {
+          cxWrap.insertAdjacentHTML("beforeend", `<div class="meta">${esc(handoff)}</div>`);
+        }
+        cxWrap.insertAdjacentHTML("beforeend", `<div class="meta">${esc(cxLegend())}</div>`);
+        const phaseNote = cxPhaseNote(mx);
+        if (phaseNote) {
+          cxWrap.insertAdjacentHTML("beforeend", `<div class="meta">${esc(phaseNote)}</div>`);
+        }
+        const parity = cxParity(mx);
+        if (parity) {
+          cxWrap.insertAdjacentHTML("beforeend",
+            `<div class="meta" style="color:var(--status-warn)">${esc(parity)}</div>`);
+        }
         const detail = el("div"); cxWrap.append(detail);
         t.querySelectorAll<HTMLAnchorElement>("a.cx-dossier").forEach((a) => {
           a.onclick = async (ev) => {
@@ -591,9 +682,15 @@ export async function renderTurnover(ctx: PanelContext) {
             try {
               const dz = await ctx.host.api.cxDossier(pid, a.dataset.sys || "");
               const box = el("div", "dash-card"); box.style.cssText = "margin:6px 0";
+              // BASIS-UNREAD. The punchlist module has no system field, so `open_punch_mentions`
+              // is a SUBSTRING match on description/location — `cx.dossier` says so in `note`,
+              // which was declared on the client type and read by nothing while the count rendered
+              // in `--status-warn` as though it were an assignment.
+              const punch = punchMentionNote(dz.system, dz.open_punch_mentions, dz.note);
               box.innerHTML = `<div class="meta"><b>${esc(dz.system)}</b> — ${dz.asset_count} asset(s) · `
                 + `${dz.accepted}/${dz.test_count} tests accepted (${dz.complete_pct}%)`
                 + (dz.open_punch_mentions ? ` · <span style="color:var(--status-warn)">${dz.open_punch_mentions} open punch mention(s)</span>` : "") + `</div>`
+                + (punch ? `<div class="meta">${esc(punch)}</div>` : "")
                 + (Object.keys(dz.expected_values).length
                   ? `<div class="meta">FPT expected: ${Object.entries(dz.expected_values).slice(0, 8)
                     .map(([k, v]) => `${esc(k)}=${esc(String(v))}`).join(" · ")}</div>` : "")
@@ -615,6 +712,12 @@ export async function renderTurnover(ctx: PanelContext) {
         certs = (await ctx.host.api.moduleRecords(pid, "completion_certificate"))
           .filter((r) => (r.data as { type?: string } | undefined)?.type === "Substantial");
       } catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+      // TURNOVER-UNGATED. Awaited here, in the same scope as the certify button, rather than
+      // arriving in a detached `.then()` — which is why the quality gate could not have been
+      // consulted by the decision even in principle. `null` on failure is its own state, reported
+      // rather than swallowed: the previous `.catch(() => {})` removed the card entirely, so an API
+      // error left the turnover tab looking like a project with no quality concerns.
+      const qt = await ctx.host.api.qualityTurnoverReadiness(pid).catch(() => null);
       // readiness
       const p = rd.punch;
       const rdiv = el("div", "dash-card"); rdiv.style.marginBottom = "8px";
@@ -624,17 +727,53 @@ export async function renderTurnover(ctx: PanelContext) {
         + `${rd.ready_for_substantial_completion ? "<span style=\"color:var(--status-good)\">ready to certify</span>" : "<span style=\"color:var(--status-warn)\">prepare a punch list first</span>"}</div>`;
       body.append(rdiv);
 
-      void ctx.host.api.qualityTurnoverReadiness(pid).then((qt) => {
-        const qdiv = el("div", "dash-card"); qdiv.style.marginBottom = "8px";
-        const qh = el("div"); qh.style.fontWeight = "600";
-        qh.textContent = "Quality evidence vs closeout";
-        const qm = el("div", "meta");
-        qm.textContent = qt.ready
-          ? "Quality evidence exists and is resolved."
-          : `${qt.outstanding_count} outstanding · ${qt.unrecorded_count} never inspected · coverage ${qt.coverage_pct}%`;
-        qdiv.append(qh, qm);
-        body.insertBefore(qdiv, rdiv.nextSibling);
-      }).catch(() => { /* quality registers may be empty */ });
+      // The reading distinguishes the four states the old caption collapsed: a failed read, no
+      // evidence attached anywhere (which printed as "0 outstanding · 0 never inspected ·
+      // coverage 0%" — indistinguishable at a glance from a clean project), unresolved findings,
+      // and elements nobody inspected.
+      const qread = qualityReading(qt);
+      const qdiv = el("div", "dash-card");
+      qdiv.style.cssText = "margin-bottom:8px"
+        + (qread.tone === "bad" ? ";border-left:3px solid var(--status-crit)"
+           : qread.tone === "warn" ? ";border-left:3px solid var(--status-warn)" : "");
+      const qh = el("div"); qh.style.fontWeight = "600";
+      qh.textContent = "Quality evidence vs closeout";
+      const qm = el("div", "meta"); qm.textContent = qread.headline;
+      const qd = el("div", "meta"); qd.style.marginTop = "2px"; qd.textContent = qread.detail;
+      qdiv.append(qh, qm, qd);
+      // ...and the count is made actionable: `/quality/chain` is the only way to see WHICH elements,
+      // and it had no client method and no screen.
+      const chainBox = el("div"); chainBox.style.marginTop = "6px";
+      if (qt) {
+        const chainBtn = el("button", "file-btn") as HTMLButtonElement;
+        chainBtn.textContent = "Which elements?";
+        chainBtn.title = "The per-element evidence chain — ITP hold points, NCRs and inspections";
+        chainBtn.onclick = () => void (async () => {
+          chainBtn.disabled = true;
+          chainBox.innerHTML = `<div class="meta">reading the evidence chain…</div>`;
+          try {
+            const ch = await ctx.host.api.qualityChain(pid);
+            // Joined into a variable BEFORE the template, not inlined: `innerHtmlGuard` scans
+            // every `${…}` inside an innerHTML assignment, nested templates included, and a bare
+            // `k`/`n` there is a sink it refuses with no baseline — correctly, since the sink's
+            // identity is the binding name and that does not move when the value does.
+            const unattached = Object.entries(ch.records_without_element)
+              .filter(([, n]) => n > 0)
+              .map(([key, n]) => `${n} ${key}`)
+              .join(" · ");
+            chainBox.innerHTML = chainRowsHtml(ch)
+              + (unattached
+                  ? `<div class="meta" style="margin-top:4px">${esc(unattached)} record(s) exist `
+                    + `but name no element, so they are in no chain at all.</div>`
+                  : "");
+          } catch (e) {
+            chainBox.innerHTML = `<div class="meta">could not read the chain: `
+              + `${esc((e as Error).message)}</div>`;
+          } finally { chainBtn.disabled = false; }
+        })();
+        qdiv.append(chainBtn, chainBox);
+      }
+      body.insertBefore(qdiv, rdiv.nextSibling);
       // substantial-completion certificate(s)
       if (!certs.length) {
         const note = el("div", "meta"); note.textContent = "No substantial-completion certificate yet.";
@@ -658,6 +797,16 @@ export async function renderTurnover(ctx: PanelContext) {
           const cbtn = el("button", "file-btn") as HTMLButtonElement; cbtn.textContent = "Architect: certify substantial completion";
           cbtn.onclick = async () => {
             if (!rd!.ready_for_substantial_completion) { toast("Prepare a punch list first", "error"); return; }
+            // TURNOVER-UNGATED. The quality gate is consulted HERE, where the decision is, rather
+            // than printed beside the button. Deliberately an acknowledgement and not a veto: G704
+            // is routinely certified with an outstanding punch list and `turnover_readiness`'s own
+            // docstring says an open NCR "does not by itself block certification", so asserting a
+            // bar here would assert a rule the engine declined to. What was missing is that the
+            // signatory was never told. Defaults to cancel.
+            const acks = certifyAcknowledgements(qt);
+            if (acks.length && !await confirmModal("Quality evidence does not support closeout",
+                                                   certifyConfirmBody(acks),
+                                                   "Certify anyway", true)) return;
             const v = await promptModal("Certify substantial completion (G704)", [
               { name: "arch", label: "Certifying Architect (name / license)", required: true },
               { name: "owner", label: "Owner signatory (optional)" },

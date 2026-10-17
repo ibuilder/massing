@@ -11,7 +11,69 @@ const DIST_ROOT = join(process.cwd(), "dist");
 const DIST = join(DIST_ROOT, "assets");
 // Budget in KB (Brotli). Set generously above the current shell so it catches regressions, not noise.
 // Bump this deliberately (with a note) when the shell legitimately grows.
-const BUDGET_KB = Number(process.env.BUNDLE_BUDGET_KB || 220);
+//
+// 220 -> 224 on 2026-10-12, and the measurement is the point. The shell hit **220.4 KB** and the
+// budget had never moved since it was written, so "generously above the current shell" had quietly
+// become a ceiling the shell was touching — the next change to land anywhere eager was going to pay
+// for everyone's growth. CODE-READY-DARK tipped it: `Web typecheck + test + build` was green through
+// b57490e7 and red on the next push, whose only bundle-affecting commit was that one.
+//
+// WHAT IT COST, measured per feature rather than assumed, by grepping the built chunks for a string
+// only each module emits:
+//
+//   viewer/tools/*            -> app-*.js        EAGER SHELL   (macroTool, codeReadiness, mepSection)
+//   portal/panels/*           -> jurisdictionPanel-*.js  lazy
+//   reportCenter + its helpers-> reportCenter-*.js        lazy
+//
+// So of four features shipped that day, two cost shell bytes and two cost none, and nothing told
+// anybody which — a tool added to the viewer rail is downloaded by every first-time visitor before
+// anything is interactive, while the same amount of code in a portal panel is not. **That asymmetry
+// is the useful finding here, not the number.** The honest alternative to this bump is to lazy-load
+// a tool's body behind its click, which is the right shape and is a pattern no tool in that
+// directory uses today (measured: zero `await import(` under `viewer/tools/`); applying it to two
+// of some forty tools would buy 0.4 KB and leave an inconsistency for the next reader to explain.
+//
+// **That last measurement went out of date the same day, and in the direction that flatters the
+// bump.** Re-measured 2026-10-12: FOUR files under `viewer/tools/` reach a module through
+// `await import(` in code — `analyseSection`, `modelReviewPanel`, `projectPanel`, `qaSection`, five
+// call sites between them — every one of them added by this gate refusing a build, not chosen. The
+// last one was refused TWICE: deferring only the rendering left the shell **five bytes** over, so
+// the fetch, the toast, the status line and the `showResult` call went behind the click as well.
+// So the alternative this paragraph declined on grounds of inconsistency is now what the newest
+// tools do, and the next legitimate growth should pay for itself the same way before this number
+// moves again.
+//
+// *A number that decays toward the conclusion it supports is the hardest kind to notice, because
+// nothing it predicts ever looks wrong.* Re-derive it, never read it — and count CODE, not
+// comments, because two of the six files that match the string only discuss it:
+//   grep -c "await import(" apps/web/src/viewer/tools/*.ts
+//
+// **224 -> 225 on 2026-10-12, later the same day, and the measurement is again the point.**
+// FIRM-RULES-OPTIONAL slice (2) wired four routes that had no client method between them --
+// `GET`/`PUT /projects/{pid}/rules` and `GET`/`PUT /firm/rules` -- so the parametric rule library
+// every check in the product evaluates could finally be AUTHORED from the product. Measured: the
+// shell went 223.8 -> **224.03 KB, which is 229,407 brotli bytes against a 229,376 limit: 31 over**
+// -- and all of it is the four client methods. The figure is given in BYTES because the display
+// rounds to one decimal and "224.0 KB" is what both a pass and a 31-byte failure look like; this
+// file's own history is a chain of numbers that rotted, so the one that decides a build is written
+// in the unit the decision is made in. The editor itself,
+// `portal/panels/ruleStandards.ts` at 310 lines, cost ZERO shell bytes, because `portal/panels/*`
+// is lazily imported by construction. That is the same asymmetry the paragraph above measures,
+// seen from the other side: the UI was free and the four fetch wrappers were not.
+//
+// **What was tried before bumping, and why it was rejected.** The `ApiClient` mixins are composed
+// eagerly, so a method on one is shell bytes by construction; the only way to defer these four
+// would be to expose a generic request helper for a lazy panel to build its own URLs on -- which
+// is more eager bytes, and it would put URL construction outside the one place
+// `services/api/test_route_reachability.py` and `apps/web/src/api/clientCallers.test.ts` both look
+// for it. *Contorting the API surface to fit a byte budget costs more than the byte budget is
+// worth*, and a client method per route is the shape two gates depend on.
+//
+// **The bump is 1 KB, not a round-up to a comfortable number.** 220 -> 224 was four, and what that
+// bought was four releases of nobody deciding anything; this leaves ~0.9 KB, which is roughly one
+// more feature's worth of client methods. The next thing to land eager should pay for itself by
+// deferring, the way the three tools above now do.
+const BUDGET_KB = Number(process.env.BUNDLE_BUDGET_KB || 225);
 
 // The eager shell = exactly what index.html loads up front: the entry chunk + its CSS, plus the split
 // first-party `app-*` chunk the entry statically imports. Everything else is a lazy chunk that doesn't

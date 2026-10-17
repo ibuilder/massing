@@ -90,7 +90,16 @@ export function withAccounting<TBase extends Ctor<HttpCore>>(Base: TBase) {
       billing_status: "over-billed" | "under-billed" | "even";
       retainage: number; gross_profit: number; gross_margin_pct: number; profit_to_date: number;
       backlog: number; note: string;
+      /** EVM-COVERAGE: present only when `pct_method` is `units-installed` AND the survey is
+       *  partial. `earned_revenue` is the lower bound; the upper one assumes every undetermined
+       *  element is installed. Which end a WIP schedule recognises is an accounting policy
+       *  decision, so the engine states the band rather than choosing. */
+      percent_complete_max?: number; earned_revenue_max?: number; poc_coverage_partial?: boolean;
       model?: { model_percent_complete: number; cost_percent_complete: number; divergence_pct: number;
+        /** The ceiling an incomplete survey allows: everything but the known deviations. `cost-ahead`
+         *  must clear it (a coverage gap fabricates that direction); `physical-ahead` need not. */
+        model_percent_complete_max: number; divergence_pct_max: number;
+        determined_elements?: number; coverage_pct?: number; fully_determined: boolean;
         installed_elements: number; total_elements: number;
         flag: "cost-ahead" | "physical-ahead" | "aligned"; note: string };
     }>(`/projects/${pid}/wip?method=${encodeURIComponent(method)}`);
@@ -101,8 +110,16 @@ export function withAccounting<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const q = quantity ? `?quantity=${encodeURIComponent(quantity)}` : "";
     return this.json<{ available: boolean; method?: string; total_elements?: number;
       installed_elements?: number; percent_complete_count?: number; percent_complete?: number;
+      /** EVM-COVERAGE. An element nobody has walked was counted exactly like one inspected and
+       *  found absent, so `percent_complete` is a FLOOR. `determined_elements` is the coverage the
+       *  figure rests on (a `pending` row is a queued inspection, not evidence) and
+       *  `percent_complete_max` is the ceiling — weighted the same way as `percent_complete`. */
+      determined_elements?: number; deviated_elements?: number; coverage_pct?: number;
+      percent_complete_max?: number; percent_complete_count_max?: number;
+      fully_determined?: boolean;
       quantity?: string; elements_with_quantity?: number; total_quantity?: number;
-      installed_quantity?: number; percent_complete_quantity?: number; note: string
+      installed_quantity?: number; undetermined_quantity?: number;
+      percent_complete_quantity?: number; percent_complete_quantity_max?: number; note: string
     }>(`/projects/${pid}/wip/model-progress${q}`);
   }
   /** Portfolio WIP: one row per project, worst cash position (largest under-billing) first. */

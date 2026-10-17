@@ -134,11 +134,48 @@ def main() -> int:
 
     # The shape twin. Callers branch on `available`, but anything that reads `checks` or `failed`
     # without branching must not explode — that is why the unavailable shape carries every key.
-    check("every unavailable shape carries the full key set, so a caller need not special-case it",
-          all(set(x) >= set(r) - {"activity_count", "relationship_count", "data_date", "optimisable"}
-              for x in (empty, cyc))
-          and all(k in x for x in (empty, cyc) for k in ("checks", "failed", "assessed", "skipped")),
+    #
+    # SCHEDHEALTH-PARITY, 2026-10-14. **This check used to SUBTRACT the keys it did not hold**:
+    # `set(x) >= set(r) - {"activity_count", "relationship_count", "data_date", "optimisable"}`,
+    # under the label *"carries the FULL key set, so a caller need not special-case it"*. Three of
+    # those four really were absent from both refusals, so the engine's own docstring — which
+    # promises exactly that sentence — was false, and a caller written against it read `undefined`
+    # for all three on the two branches it was written to cover. *A check that excludes the
+    # exceptions and keeps the universal label is a check that reports what it was told to report.*
+    #
+    # And it was `>=`, not `==`: containment, not equality — the ROWKEY-SUPERSET shape, in this same
+    # subsystem, where "a test named for an equality asserted a containment and the key added last
+    # was the one missing." So the contract is now stated exactly and in both directions: **a refusal
+    # is the assessed shape plus `reason`, plus `cycle` when the refusal is a loop.** Nothing is
+    # subtracted; a new key in either shape must be added to the other or named here.
+    assessed_keys = set(r)
+    check("a refusal is the assessed shape plus `reason` — exactly, both ways",
+          set(empty) == assessed_keys | {"reason"},
+          f"empty-only={sorted(set(empty) - assessed_keys)} "
+          f"missing={sorted(assessed_keys - set(empty))}")
+    check("...and a CYCLIC refusal adds `cycle` and nothing else",
+          set(cyc) == assessed_keys | {"reason", "cycle"},
+          f"cyc-only={sorted(set(cyc) - assessed_keys)} "
+          f"missing={sorted(assessed_keys - set(cyc))}")
+    check("...and the four a caller reads without branching are present and empty on both",
+          all(k in x for x in (empty, cyc) for k in ("checks", "failed", "assessed", "skipped")),
           "checks/failed/assessed/skipped present and empty on both")
+
+    # THE CYCLIC BRANCH REPORTS WHAT IT MEASURED BEFORE IT REFUSED. The engine has `len(tasks)`,
+    # `len(links)` and the data date in hand when it catches the cycle, and passed none of them — so
+    # a planner told "the logic contains a loop" could not see that the loop sits in a network of
+    # this size as of this date, which is the context that decides fix-or-rebuild. *Refusing to
+    # grade is not a reason to withhold what was measured before the refusal.*
+    check("the cyclic refusal carries the real counts and the data date, not zeros",
+          cyc["activity_count"] == 3 and cyc["relationship_count"] == 3 and cyc["data_date"],
+          f"activities={cyc['activity_count']} links={cyc['relationship_count']} "
+          f"data_date={cyc['data_date']!r}")
+    # the no-activities branch is 0/0/None, and that is the TRUE measurement there rather than a
+    # placeholder — which is why they are real values and not absent keys.
+    check("...while the no-activities refusal is honestly 0 / 0 / None",
+          empty["activity_count"] == 0 and empty["relationship_count"] == 0
+          and empty["data_date"] is None,
+          f"{empty['activity_count']} / {empty['relationship_count']} / {empty['data_date']!r}")
 
     # --- the layering contract -------------------------------------------------------------------
     #

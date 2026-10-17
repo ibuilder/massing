@@ -37,8 +37,61 @@ def _adopted(db: Session, pid: str) -> tuple[str | None, str | None]:
     return nc.resolve_family(raw), raw
 
 
-def _records(db: Session, key: str, limit: int, pid: str) -> list[dict]:
-    return me.list_records(db, key, pid, limit=limit) if key in me.TABLES else []
+#: How many records of ONE source the register scans. Bounded because this is a viewer-role GET over
+#: three growing registers, and not caller-settable because the bound is a property of the answer's
+#: trustworthiness rather than of the request: a caller who passes a small number gets a register
+#: that silently omits events, which is the defect below. Twenty thousand per source is four orders
+#: of magnitude more than a real project's daily reports and still a bound.
+SCAN_CAP = 20_000
+
+
+def _source_slice(db: Session, key: str, pid: str) -> tuple[list[dict], dict]:
+    """The most recent `SCAN_CAP` records of one source, and what that leaves out.
+
+    NOTICE-CLOCK-TRUNC. This read `me.list_records(db, key, pid, limit=limit)` with `limit` a query
+    parameter defaulting to **500** — and `list_records` applies `ORDER BY created_at` *ascending*
+    before the limit. So the register was computed over the **OLDEST** 500 records of each source,
+    and the events whose notice periods are still running are by definition the **newest**. On a
+    project with 600 daily reports the hundred most recent were invisible, and the register reported
+    "nothing expired" in exactly the words it uses when nothing has expired.
+
+    Three things made it invisible:
+
+    * The engine is careful to a fault — `notice_clock`'s header enumerates three counting traps and
+      it refuses rather than guessing on every one of them. *A guard is only as sound as the evidence
+      it is handed, and nothing was checking the evidence.*
+    * The response carried `events_found`, the number of triggering events DETECTED, which reads as
+      the number there is.
+    * Every other engine over these same tables passes `limit=100000` — `changeorders`, `dailylog`,
+      `resilience`, `selections`, `tm`. This one route was the exception, on the one register where
+      a missed recent event is a forfeited claim.
+
+    The repository's own hardening checklist names this shape: *"Payload caps must keep the NEWEST
+    rows: `order_by(asc).limit()` silently hides everything created after row N."* It was written
+    about response payloads; this is the same mistake one layer earlier, where the cap decides what
+    is COMPUTED rather than what is shown.
+    """
+    if key not in me.TABLES:
+        return [], {"present": False, "scanned": 0, "total": 0, "truncated": False,
+                    "oldest_scanned": None}
+    total = me.count_records(db, key, pid)
+    rows = me.list_records(db, key, pid, limit=SCAN_CAP,
+                           sort="created_at", sort_dir="desc")
+    oldest = (rows[-1].get("created_at") if rows else None)
+    return rows, {
+        "present": True, "scanned": len(rows), "total": total,
+        "truncated": total > len(rows),
+        # The bound a reader can act on, and it is a RECORDING bound rather than an event one:
+        # the slice is ordered by `created_at`, so what it keeps is what was written down most
+        # recently. That is the right end to keep — a back-dated daily report entered today has a
+        # clock running today, and `notice_clock.detect` says so itself about RFIs, whose only date
+        # is "when somebody wrote it down". It also means an old event recorded late IS in the
+        # register while a newer one recorded later still may not be, so the sentence below says
+        # "recorded", not "occurred". *A bound reported in the wrong units is worse than none,
+        # because a reader acts on it* — the gate's first run asserted the event date here and the
+        # mismatch is what surfaced the distinction.
+        "oldest_scanned": oldest.isoformat() if hasattr(oldest, "isoformat") else oldest,
+    }
 
 
 @router.get("/projects/{pid}/notices/clauses")
@@ -82,7 +135,10 @@ def notice_register(
     due_soon_days: int = Query(7, ge=1, le=90),
     weekend: str | None = Query(None, description="e.g. 'Fri,Sat' — defaults to Sat,Sun"),
     holidays: str | None = Query(None, description="comma-separated YYYY-MM-DD public holidays"),
-    limit: int = Query(500, ge=1, le=2000),
+    # `limit` is GONE, not defaulted higher. It bounded how much of the field record was scanned,
+    # which is not a request-shaping knob: a caller passing a small number got a register that
+    # silently omitted events. The bound is `SCAN_CAP`, the slice is newest-first, and what it left
+    # out is reported. See `_source_slice`.
     db: Session = Depends(get_db),
     _: str = Depends(require_role("viewer")),
 ):
@@ -99,14 +155,37 @@ def notice_register(
                                  f"known: {', '.join(sorted(nc.FAMILIES))}")
     used = override or adopted
 
+    rows: dict[str, list[dict]] = {}
+    sources: dict[str, dict] = {}
+    for key in ("daily_report", "change_event", "rfi"):
+        rows[key], sources[key] = _source_slice(db, key, pid)
     events = nc.detect(
-        daily_reports=_records(db, "daily_report", limit, pid),
-        change_events=_records(db, "change_event", limit, pid),
-        rfis=_records(db, "rfi", limit, pid),
+        daily_reports=rows["daily_report"],
+        change_events=rows["change_event"],
+        rfis=rows["rfi"],
     )
     out = nc.scan(events, used, today=as_of, calendar=_calendar(weekend, holidays),
                   due_soon_days=due_soon_days)
     out["events_found"] = len(events)
+    # The COVERAGE beside the verdict. `events_found` is how many triggering events were detected,
+    # which reads as how many there are; `sources` says what was looked at, and `complete` is the
+    # only thing that makes "nothing expired" mean anything. A register over a subset of the field
+    # record is not a conservative answer, it is a different one that looks identical.
+    out["sources"] = sources
+    out["complete"] = not any(s["truncated"] for s in sources.values())
+    present = [k for k in sources if sources[k]["present"]]
+    short = [k for k in present if sources[k]["truncated"]]
+    counted = ", ".join(f"{sources[k]['total']} {k.replace('_', ' ')}s" for k in present)
+    if short:
+        cut = min((sources[k]["oldest_scanned"] or "") for k in short)
+        out["coverage"] = (
+            f"only the most recent {SCAN_CAP} record(s) of "
+            + ", ".join(k.replace("_", " ") for k in short)
+            + f" were scanned, out of {counted}"
+            + (f" — nothing RECORDED before {cut[:10]} is in this register (the slice is ordered "
+               "by when a record was written, not by when the event happened)" if cut else ""))
+    else:
+        out["coverage"] = f"every record in the field register was scanned ({counted})" if present             else "no field registers exist on this project, so there is nothing to scan"
     out["adopted_family"] = adopted
     out["adopted_raw"] = raw
     if override and override != adopted:

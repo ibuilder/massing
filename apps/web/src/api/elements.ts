@@ -13,7 +13,8 @@
  *  family — `SavedViewDef`, `/projects/{pid}/modules/{key}/views` — an exact name match. But a
  *  `SavedViewDef` is `{q, state, sort}`: a DATA-GRID filter over a register. Same word, unrelated
  *  thing. Comparing the two shapes is what separated them, the same move that kept `namingAudit`
- *  with `namingConventions` at (82).
+ *  with "namingConventions" at (82) — a method NAMING-UNREAD has since deleted, the audit carrying
+ *  its payload.
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
@@ -28,6 +29,22 @@ import type {
 } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
+
+/**
+ * `GET /projects/{pid}/elements/freshness`. Declared here beside `elements()` because the two are
+ * one question asked twice — what is in the index, and whether the index is still the model.
+ */
+export interface ElementsFreshness {
+  /** Everything in the snapshot, unfiltered. The denominator for an unfiltered `elements()` page. */
+  indexed_elements: number;
+  /** `true` stale, `false` current, **`null` UNKNOWN** — never conflate the last two. */
+  stale: boolean | null;
+  /** False when the index predates fingerprint stamping: one reason `stale` can be null. */
+  built_from_source: boolean;
+  /** False when no source IFC can be read: the other reason `stale` can be null. */
+  model_reachable: boolean;
+  hint: string | null;
+}
 
 export function withElements<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Elements extends Base {
@@ -77,6 +94,29 @@ export function withElements<TBase extends Ctor<HttpCore>>(Base: TBase) {
   elements(pid: string, params: { ifc_class?: string; storey?: string; limit?: number } = {}) {
     const q = new URLSearchParams(params as Record<string, string>).toString();
     return this.json<ElementProps[]>(`/projects/${pid}/elements?${q}`);
+  }
+  /**
+   * ELEMENTS-SILENT — is the element index still the model, and did `elements()` show all of it?
+   *
+   * **The route this calls exists to prevent a silent wrong answer, and nothing called it.** Its own
+   * docstring: *"Authoring edits move the IFC and leave the snapshot behind until the next publish,
+   * so `/elements` can return a fraction of what the takeoff sees — and used to do it in complete
+   * silence… What it must do is **say so**, so a browser can show '5 elements added since this list
+   * was built — republish to see them' instead of quietly looking like a smaller building."*
+   *
+   * `indexed_elements` is ALSO the answer to the second question. `elements()` returns a bare array
+   * and breaks at `limit` with no total anywhere in the response, so a caller cannot tell a full
+   * list from a truncated one — there is no number to misread, because there is no number. For an
+   * UNFILTERED `elements()` call this count is the right denominator; for a filtered one it is not,
+   * which `indexCoverage` is explicit about rather than quietly comparing the wrong pair.
+   *
+   * **`stale` is `boolean | null` and the null is load-bearing.** The route returns `None` when
+   * either side has no fingerprint — an index predating the stamp, or no reachable source — because
+   * *"Unknown and current are different claims and this endpoint refuses to conflate them."*
+   * `built_from_source` and `model_reachable` say which of the two reasons applies.
+   */
+  elementsFreshness(pid: string) {
+    return this.json<ElementsFreshness>(`/projects/${pid}/elements/freshness`);
   }
   /** Properties you can colour the model by (attributes + pset/qto props), for the picker. */
   colorFacets(pid: string) {

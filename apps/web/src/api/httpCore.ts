@@ -8,8 +8,22 @@ import { IS_DEMO, demoJson } from "../demo/demoApi";
 // VITE_API_URL overrides either, baked at build time.
 const DEFAULT_API = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "/api");
 
+/** What a live subscription is doing. `refused` is the third state and the whole point of it:
+ *  `EventSource` reports a fatal close and a transient drop through the SAME `onerror` with no
+ *  status, so a stream the server will never serve this caller looked exactly like a server that
+ *  was briefly away — and the UI said *"reconnecting…"* about it for ever. */
+export type LiveStatus = "connected" | "reconnecting" | "refused";
+
 /** Handle for a resilient SSE subscription (see `HttpCore.liveStream`). */
-export interface LiveStream { readonly connected: boolean; close(): void }
+export interface LiveStream {
+  readonly connected: boolean;
+  close(): void;
+  /** Resume a subscription that went `refused`. Reversibility, the same way the offline queues
+   *  offer *Try again* beside *Discard*: the probe below classifies from one status code and can be
+   *  wrong, and *a judgement a person cannot overturn is a worse design than one that is
+   *  occasionally wrong.* On a stream that is not refused this is a no-op. */
+  retry(): void;
+}
 
 /** An HTTP failure that still carries its STATUS, not only a message describing it.
  *
@@ -206,20 +220,75 @@ export class HttpCore {
   /** Resilient SSE subscription. EventSource auto-retries transient network drops on its own, but a
    *  fatal close (the server answered with an HTTP error — deploy, restart, auth expiry) kills the
    *  stream permanently and silently. This helper re-subscribes with bounded backoff (5s → 60s) and
-   *  surfaces status transitions so a UI can say "live updates disconnected" instead of going quiet. */
+   *  surfaces status transitions so a UI can say "live updates disconnected" instead of going quiet.
+   *
+   *  **AND IT RETRIED A REFUSAL FOR EVER, which is the third instance of the class the two offline
+   *  queues closed.** `onerror` carries no status — a fatal close and a transient drop arrive
+   *  identically — so a 403 on a project the caller has been removed from, or a 404 on one that was
+   *  deleted, backed off to the 60-second ceiling and kept going, while the only UI that reads this
+   *  said *"Live notifications disconnected — reconnecting…"* indefinitely. **The diagnosis was
+   *  already written down twenty lines above, in `setToken`**: *"without the cookie every live
+   *  stream … resolves anonymous under RBAC and dies in a reconnect loop."* Nothing acted on it.
+   *  *A symptom named in a docstring beside the code that produces it is not a fixed defect, and
+   *  it reads like one.*
+   *
+   *  So a fatal close is now CLASSIFIED: one `fetch` of the same path, whose status
+   *  `permanentRejection` rules on — the same policy the field capture queue and the portal upload
+   *  queue share, rather than a third opinion about which failures are worth repeating. Permanent →
+   *  stop, and say why. Anything else, including a probe that cannot complete → back off and retry,
+   *  because the asymmetry runs the same way here as it does for a queued capture: refusing to
+   *  reconnect to a server that was merely away leaves somebody watching a dead screen. */
   protected liveStream(path: string, onMessage: (data: unknown) => void,
-                     onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+                     onStatus?: (s: LiveStatus, why?: string) => void): LiveStream {
     // Demo/Pages build has no backend: opening an EventSource there dies CLOSED and our backoff would
     // retry it forever (console-error spam in the public demo). Serve an inert stream instead — the
     // same guard every fetch method has via demoJson.
-    if (IS_DEMO) return { get connected() { return false; }, close() { /* nothing to close */ } };
+    if (IS_DEMO) {
+      return { get connected() { return false; }, close() { /* nothing to close */ },
+               retry() { /* nothing to retry */ } };
+    }
     let es: EventSource | null = null;
     let closed = false;
+    let refused = false;
     let retryMs = 5000;
     let timer: number | undefined;
     let connected = false;
+
+    /** Ask the same URL what the status actually was. Returns the refusal reason, or `null` for
+     *  "retry" — including when the probe itself fails or hangs, which is the transient case.
+     *
+     *  **IT MUST AUTHENTICATE THE WAY THE STREAM DOES, and the first draft did not.** `EventSource`
+     *  cannot send an `Authorization` header and authenticates only with the `aec_token` cookie —
+     *  which is the exact asymmetry `setToken` above documents, quoted in this method's own
+     *  docstring, and then contradicted by a probe sending `authHeaders()`. With the cookie missing
+     *  and the localStorage token present (blocked cookies, a cross-origin `VITE_API_URL`, a
+     *  swallowed `document.cookie` write) the stream 403s as anonymous while the probe returns 200,
+     *  so the verdict is "transient" and the loop runs for ever: **byte for byte the defect this
+     *  change exists to remove.** In the other direction a working stream is marked permanently
+     *  refused. So: no header, `credentials: "include"`, and the probe sees what the stream sees.
+     *
+     *  Bounded, too. The reopen is scheduled only inside this promise, so a probe that never
+     *  settles leaves the stream neither retrying nor refused — stuck on "reconnecting…" with
+     *  `retry()` a no-op, which is a worse outcome than either verdict. */
+    const classify = async (): Promise<string | null> => {
+      const abort = new AbortController();
+      const bail = window.setTimeout(() => abort.abort(), 10_000);
+      try {
+        const res = await fetch(this.url(path), { credentials: "include", signal: abort.signal });
+        // The body is an endless stream; cancel it rather than reading it. Without this the probe
+        // holds a connection open for as long as the server keeps the stream alive.
+        res.body?.cancel().catch(() => { /* already gone */ });
+        if (res.ok) return null;
+        return permanentRejection(new HttpError(`${path} -> ${res.status}`, res.status));
+      } catch {
+        return null;                      // offline, DNS, a timeout, a proxy — all worth retrying
+      } finally {
+        clearTimeout(bail);
+      }
+    };
+
     const open = () => {
-      if (closed) return;
+      if (closed || refused) return;
       es = new EventSource(this.url(path));
       es.onmessage = (e) => {
         if (!connected) { connected = true; retryMs = 5000; onStatus?.("connected"); }
@@ -227,10 +296,34 @@ export class HttpCore {
       };
       es.onerror = () => {
         if (connected) { connected = false; onStatus?.("reconnecting"); }
-        // CLOSED = fatal response → schedule our own re-subscribe; CONNECTING = browser is retrying.
+        // CLOSED = fatal response → classify, then re-subscribe or stop; CONNECTING = browser is
+        // retrying on its own and there is nothing to classify yet.
         if (es && es.readyState === EventSource.CLOSED && !closed) {
-          timer = window.setTimeout(open, retryMs);
+          es.close();                     // a CLOSED source still holds its slot in the pool
+          const wait = retryMs;
           retryMs = Math.min(retryMs * 2, 60000);
+          void classify().then((why) => {
+            // `closed` only — scheduling a timer on a closed stream leaks one firing that does
+            // nothing. A concurrent refusal is caught by `open`'s own guard rather than duplicated
+            // here: mutating `|| refused` out of this line changed no test, which is the signal
+            // that it was redundant, and *an unmeasured branch is the thing this session keeps
+            // paying for.* The race it looked like it covered is real and is tested — two fatal
+            // closes in flight, one transient verdict and one permanent — but `open` is where it
+            // has to be handled, because the timer has already been scheduled by then.
+            if (closed) return;
+            // A REFUSAL NOBODY CAN SEE IS WORSE THAN A RETRY LOOP, so the stop takes effect only
+            // for a caller that asked to hear about it. **That is now a safety net rather than a
+            // live exemption, and the difference matters.** When slice ⑥ shipped, three of the four
+            // subscribers passed no `onStatus` — so for them this whole classification was inert
+            // and the infinite loop it exists to end ran exactly as before, which is a guard with a
+            // population of one. Slice ⑦ gave all four a status handler;
+            // `liveStreamOnStatus.test.ts` derives the subscribers from this method's own callers
+            // and reds the build when a new one subscribes without one, because *the next instance
+            // would have re-opened the hole with nothing going red* — the comment naming the three
+            // was the only thing watching, and a comment reports on what somebody remembered.
+            if (why && onStatus) { refused = true; onStatus("refused", why); return; }
+            timer = window.setTimeout(open, wait);
+          });
         }
       };
     };
@@ -238,6 +331,17 @@ export class HttpCore {
     return {
       get connected() { return connected; },
       close() { closed = true; if (timer !== undefined) clearTimeout(timer); es?.close(); },
+      retry() {
+        if (closed || !refused) return;
+        // Clear any backoff timer first. In the 503-then-403 race this file tests, a reopen is
+        // already booked when the refusal lands, so retrying without clearing it opened TWO
+        // sources — duplicate `onMessage` delivery and a leaked slot in the connection pool.
+        if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
+        refused = false;
+        retryMs = 5000;
+        onStatus?.("reconnecting");
+        open();
+      },
     };
   }
 }

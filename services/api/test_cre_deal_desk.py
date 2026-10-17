@@ -51,6 +51,45 @@ strong = comp_tier.statistic(comps[:3], "price_psf")
 assert strong["worst_tier"] == "verified", strong["worst_tier"]
 assert comp_tier.statistic([], "price_psf")["n"] == 0
 
+# --- COMPTIER-DARK: the band is a SUBSET of the comps, and says which ones it left out ------------
+# `n` was the only size published, so a band over three of five comps and a band over all three of
+# three were the same payload. The missing two are not a thinner market — they are comps nobody
+# typed a $/SF into, which is a data-entry task rather than a market fact.
+cov = [
+    {"data": {"address": "1 A St", "price_psf": 300, "cap_rate": 6.0, "source": "Public record"}},
+    {"data": {"address": "2 B St", "price_psf": 320, "rent_psf": 31, "source": "Owner"}},
+    {"data": {"address": "3 C St", "cap_rate": 5.8, "source": "CoStar"}},      # no $/SF
+    {"data": {"address": "4 D St", "source": "Other"}},                        # nothing at all
+]
+band = comp_tier.statistic(cov, "price_psf")
+# The RELATION, not the literals: `n + without_value.count == of_comps` is what makes the shortfall
+# readable, and it survives the fixture changing. (`test_unit_rate_route` had to learn that a
+# constant inferred from a neighbouring assertion is a guess wearing an assertion's clothes.)
+assert band["of_comps"] == len(cov), (band["of_comps"], len(cov))
+assert band["n"] + band["without_value"]["count"] == band["of_comps"], band
+assert band["n"] == 2 and band["without_value"]["count"] == 2, band
+# NAMED, never a bare count — the same rule `from_project` applies to the appraiser's exclusions.
+assert sorted(c["address"] for c in band["without_value"]["comps"]) == ["3 C St", "4 D St"], band
+assert band["without_value"]["truncated"] is False
+assert "2 of 4" in band["note"], band["note"]
+# The empty band carries its coverage too: "nobody entered a `units` anywhere" and "there are no
+# comps" are different problems and used to produce the same payload.
+empty = comp_tier.statistic(cov, "units")
+assert empty["n"] == 0 and empty["of_comps"] == len(cov), empty
+assert empty["without_value"]["count"] == len(cov), empty
+assert "no comp carries a units value" in empty["reason"]
+
+# `conflicts_resolved` is scoped to the FIELD. It reported the whole set's count while sitting among
+# keys that are all properties of the band, so a one-comp `rent_psf` band read as the survivor of a
+# tie-break about `price_psf` at a different address.
+assert comp_tier.statistic(comps, "price_psf")["conflicts_resolved"] == 1
+assert comp_tier.statistic(comps, "cap_rate")["conflicts_resolved"] == 1
+rent = comp_tier.statistic(cov, "rent_psf")
+assert rent["n"] == 1 and rent["conflicts_resolved"] == 0, rent          # no rent delta anywhere
+# and the set-wide figure is still published rather than traded away for the corrected one
+assert comp_tier.statistic(comps, "rent_psf")["conflicts_in_set"] == 1
+assert comp_tier.statistic(comps, "rent_psf")["conflicts_resolved"] == 0
+
 # =========================== CRE-T12 ================================================================
 assert t12e.classify("Management Fee")["category"] == "management_fee"
 assert t12e.classify("Property management fee")["category"] == "management_fee"   # longest wins

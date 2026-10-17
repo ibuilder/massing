@@ -23,6 +23,13 @@ from .timeutil import utc_now
 
 _INDEX = "{pid}/docs/_index.json"
 _MAX_NAME = 120
+# The description's own ceiling, and the room reserved for an extension. `_standard_name` subtracts
+# the fields that must survive from `_MAX_NAME` and bounds the description by what is left, so
+# `_safe`'s own truncation can never reach the revision or the date.
+MAX_DESC = 60
+_EXT_ROOM = 8
+# Bounded lists on the health response: the counts beside them stay over the full population.
+MAX_HEALTH_ROWS = 200
 
 
 def _locked(fn):
@@ -78,10 +85,24 @@ def _next_rev(prev: str | None) -> str:
 
 
 def _standard_name(doc_type: str, discipline: str | None, title: str, rev: str, when: datetime) -> str:
-    """Build a ``Type_Discipline_Description_Revision_Date`` filename per the information standard."""
+    """Build a ``Type_Discipline_Description_Revision_Date`` filename per the information standard.
+
+    **The DESCRIPTION is what gets bounded, never the assembled name.** `_safe` truncates at
+    `_MAX_NAME` and used to be handed the whole thing, so a long title pushed the revision and the
+    date off the end: a 300-character title filed as `DOC_G_Aaaa…` — **three fields, with no
+    revision and no date**, which `naming.validate_container_name` then reports as
+    *"expected Type_Discipline_Description_Revision_Date (>=5 '_'-separated fields), got 3"*. In a
+    revision-controlled CDE the revision in the filename is the one thing the standard exists to
+    guarantee, so it cannot be the field that falls off. Measured: found by probing the auto-namer
+    with hostile titles rather than by any test — the suite's titles were all short.
+    """
     dtype = re.sub(r"[^A-Za-z0-9]+", "", (doc_type or "DOC"))[:8].upper() or "DOC"
     disc = classification.discipline_code(discipline or "") or "G"
-    return f"{dtype}_{disc}_{_slug(title)}_{rev}_{when.strftime('%Y-%m-%d')}"
+    date = when.strftime("%Y-%m-%d")
+    # Whatever is left for the description once the four fields that MUST survive have their room.
+    room = _MAX_NAME - len(dtype) - len(disc) - len(rev) - len(date) - 4 - _EXT_ROOM
+    desc = _slug(title)[:max(1, min(MAX_DESC, room))]
+    return f"{dtype}_{disc}_{desc}_{rev}_{date}"
 
 
 def _active(idx: dict[str, Any]) -> list[dict]:
@@ -170,7 +191,12 @@ def upload(pid: str, folder: str, filename: str, data: bytes | None, actor: str,
     # supersede a prior active revision of the same document (same title, same folder)
     prior = next((f for f in _active(idx) if f["folder"] == folder
                   and f.get("title", "").lower() == title.lower()), None)
-    rev = revision or (_next_rev(prior.get("revision")) if prior else "P01")
+    # STRIPPED before the `or`, which is the only way a revision-less document could be filed:
+    # `revision="   "` is truthy, so it used to become the revision, land in the generated name as a
+    # blank field, and make BOTH `health` percentages dip — the one time either of them can vary.
+    # A whitespace revision is an empty revision, and in a revision-controlled CDE that is the one
+    # thing the filename must carry.
+    rev = (revision or "").strip() or (_next_rev(prior.get("revision")) if prior else "P01")
 
     ext = ("." + filename.rsplit(".", 1)[1]) if "." in filename else ""
     stored = _safe(_standard_name(doc_type, discipline, title, rev, when) + ext)
@@ -245,15 +271,48 @@ def delete(pid: str, fid: str, hard: bool = False) -> bool:
 
 
 # --- F5: document-control health + F6: phase gaps -------------------------------------------------
+_NAMING_BASIS = (
+    "`naming_compliance_pct` and `revision_control_pct` are both over machine-written values — "
+    "`upload` generates every filed name with `_standard_name` and assigns every revision — so both "
+    "are 100% by construction and answer *did this module work*, not *is this document set in "
+    "order*. `named_at_source_pct` is the number about the PROJECT: how many documents arrived "
+    "already conforming, from the `orig_name` every entry already stores, so a firm can see whether "
+    "its people name files to the standard before uploading them. Only that one can be acted on by "
+    "anyone but a developer."
+)
+
+_ORPHAN_BASIS = (
+    "An orphan is a filed document whose folder is not in the standard taxonomy. `upload` and `move` "
+    "both REFUSE a non-standard folder with a 400, so this list is normally empty by construction — "
+    "the way it fills is a folder leaving `STANDARD_TREE` under documents already filed there, which "
+    "makes it a check on taxonomy changes rather than on user behaviour."
+)
+
+
 def health(pid: str) -> dict[str, Any]:
     """Document-control health: naming compliance, required-folder coverage, revision control, CDE
-    spread, orphaned (non-standard-folder) files."""
+    spread, orphaned (non-standard-folder) files.
+
+    **`naming_compliance_pct` measures this module, not the project.** `upload` builds every filed
+    name with `_standard_name`, so validating `f["name"]` against the standard asks whether the
+    auto-namer worked — measured at 100.0% for a document uploaded as *"Final final v2.pdf"*, which
+    is filed as `DOC_G_FinalFinalV2_P01_2026-10-15.pdf`. True, and not a fact about the document set
+    a reader can do anything with. `named_at_source_pct` is the one that is: `orig_name` is already
+    stored on every entry, so how many arrived already conforming is free to compute and is the
+    number that tells a firm whether its people name files to the standard at source.
+    """
     idx = _load(pid)
     active = _active(idx)
     total = len(active)
     named_ok = sum(1 for f in active if naming.validate_container_name(f["name"])["valid"])
+    at_source = [f for f in active
+                 if naming.validate_container_name(f.get("orig_name") or "")["valid"]]
+    renamed = [f for f in active if f not in at_source]
     with_rev = sum(1 for f in active if (f.get("revision") or "").strip())
-    orphans = [f["id"] for f in active if not folder_template.is_valid(f["folder"])]
+    # Actionable, not a bare id: a list of opaque ids is a list a reader has to resolve one lookup
+    # at a time, which is the NAMING-UNREAD lesson applied to the other document audit.
+    orphans = [{"id": f["id"], "name": f["name"], "folder": f["folder"]}
+               for f in active if not folder_template.is_valid(f["folder"])]
     req = folder_template.required_paths()
     covered = [p for p in req if any(f["folder"] == p for f in active)]
     by_state: dict[str, int] = {}
@@ -266,10 +325,21 @@ def health(pid: str) -> dict[str, Any]:
     return {
         "total_files": total, "by_cde_state": by_state,
         "naming_compliance_pct": _pct(named_ok, total),
+        "named_at_source_pct": _pct(len(at_source), total),
+        "renamed_on_intake": len(renamed),
+        "renamed": [{"id": f["id"], "orig_name": f.get("orig_name") or "", "name": f["name"]}
+                    for f in renamed[:MAX_HEALTH_ROWS]],
+        "renamed_truncated": len(renamed) > MAX_HEALTH_ROWS,
+        "naming_basis": _NAMING_BASIS,
         "revision_control_pct": _pct(with_rev, total),
         "required_coverage_pct": _pct(len(covered), len(req)),
+        # The denominator, so the percentage above can be checked rather than taken.
+        "required_total": len(req),
         "required_missing": [p for p in req if p not in covered],
-        "orphans": orphans,
+        "orphans": orphans[:MAX_HEALTH_ROWS],
+        "orphan_count": len(orphans),
+        "orphans_truncated": len(orphans) > MAX_HEALTH_ROWS,
+        "orphan_basis": _ORPHAN_BASIS,
         "superseded_kept": sum(1 for f in idx["files"] if f.get("superseded")),
         "note": "Health of the document set: names against the standard, coverage of required folders, "
                 "revision control, and CDE-state spread. Superseded revisions are retained for audit.",
@@ -277,13 +347,43 @@ def health(pid: str) -> dict[str, Any]:
 
 
 def phase_gaps(pid: str, phase: str) -> dict[str, Any]:
-    """For a design phase (AIA SD/DD/CD/CA/CLOSEOUT), which required documents are present vs missing."""
+    """For a design phase (AIA SD/DD/CD/CA/CLOSEOUT), which required documents are present vs missing.
+
+    **An unrecognised phase is a REFUSAL, not an empty checklist.** `complete` was `not missing`, and
+    `folder_template.phase_checklist` returns `[]` for a phase it does not know — so
+    `?phase=NONSENSE` produced `items: [], missing: 0, complete: true` and told a caller its document
+    set was complete for a phase that does not exist. Measured: `NONSENSE`, `""` and `"../etc"` all
+    returned `complete: true` while `CD` correctly returned 5 missing of 5.
+    """
+    known = {p.upper() for p in folder_template.phases()}
+    want = (phase or "").strip().upper()
+    if want not in known:
+        # Refused with the reason and the known values, never answered. `complete` is False rather
+        # than absent so a caller reading only that field cannot read a refusal as a pass — the
+        # field is the one somebody checks, and a missing key is falsy in some clients and an error
+        # in others.
+        return {"phase": want, "items": [], "missing": 0, "complete": False,
+                "known_phase": False, "known_phases": sorted(known),
+                "refused": f"{phase!r} is not a design phase this checklist covers; known: "
+                           + ", ".join(sorted(known))}
     idx = _load(pid)
     active = _active(idx)
     items = []
-    for chk in folder_template.phase_checklist(phase):
+    for chk in folder_template.phase_checklist(want):
         present = any(f["folder"] == chk["folder"] for f in active)
         items.append({**chk, "present": present})
     missing = [i for i in items if not i["present"]]
-    return {"phase": phase.upper(), "items": items, "missing": len(missing),
-            "complete": not missing}
+    return {"phase": want, "items": items, "missing": len(missing),
+            "known_phase": True, "known_phases": sorted(known),
+            "refused": None,
+            # `bool(items)` is UNREACHABLE TODAY and kept deliberately — mutating it away leaves the
+            # suite green, which was measured, not assumed. It guards a condition the data could
+            # reach but does not: `phases()` is `list(REQUIRED_BY_PHASE)`, so a phase added to that
+            # table with an EMPTY checklist would be `known` and have no items, and `not missing`
+            # alone would call it complete. The complement is in `test_docmanager.py`, which asserts
+            # every phase in `phases()` has a non-empty checklist — so the day that stops being true
+            # the assertion fires with the right diagnosis instead of this field going quietly wrong.
+            # *A check earns its place from where it is the ONLY one*, and here it is the only thing
+            # standing between a one-line table edit and a false "complete".
+            # COVERAGE: known_phase
+            "complete": bool(items) and not missing}

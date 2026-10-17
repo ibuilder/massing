@@ -183,7 +183,18 @@ KNOWN_UNCALLED: set[str] = {
     # it names has been superseded. *Third time, third syntactic category -- a route path, an
     # identifier, and now a string-literal union member. The categories are not a list anyone can
     # finish, which is the argument for the rot check rather than for a naming rule.*
-    "/proforma/entitlement-risk", "/proforma/provenance/admissibility",
+    "/proforma/entitlement-risk",
+    # `/proforma/provenance/admissibility` LEFT this list 2026-10-13 (PROVENANCE-DARK) and **not
+    # because anything calls it** — which is the whole point of the entry. `projectAdmissibility`
+    # wired the SIBLING route `/projects/{pid}/provenance/admissibility`, and the two share the leaf
+    # `admissibility`, so this rule now reads the stateless POST as called. *Wiring one route made
+    # its sibling invisible to a leaf-based check* — a live demonstration of the coarseness this
+    # file's own `MIN_SEGMENT` note documents from the other end.
+    #
+    # It is NOT reachable: nothing builds that URL. `services/api/test_verdict_reachable.py` matches
+    # the full templated path, so it still sees it, and records it in that file's `OPEN_DOORS` with
+    # the reason it stays dark on purpose — its body is three other engines' outputs, which the SPA
+    # has no reason to assemble when the project route gathers them server-side.
     # "/projects/preview-bundle" REMOVED v0.3.1061 — it gained a real caller in
     # apps/web/src/api/library.ts (the `.mass` preview from PR #336), so freezing it as
     # uncalled had become a false claim. This gate caught it on the merge, which is the
@@ -196,7 +207,12 @@ KNOWN_UNCALLED: set[str] = {
     # reads the sourced rules. Leaving it frozen would have claimed it was still unreachable.
     # "/projects/{pid}/code/amendments" REMOVED v0.3.1137 — Model Analysis shows the local overlay.
     # "/projects/{pid}/cost-vintage" REMOVED v0.3.1137 — Budget reports the resolved vintage.
-    "/projects/{pid}/dev-budget/sync-from-model",
+    # "/projects/{pid}/dev-budget/sync-from-model" REMOVED 2026-10-14 — MODELSYNC-DARK. The
+    # Cost-budget card now has "⤵ Set hard cost = model takeoff" beside the GMP button that
+    # has been there since its sibling shipped. This was the route whose own docstring says it
+    # "closes the model↔proforma disconnect" — the central claim of the product — and it was
+    # reachable from nothing for the eight weeks this entry recorded it as looked-at. *A freeze
+    # says "this was looked at", and the longer one sits the more it reads as "this is fine".*
     # "/projects/{pid}/documents/file-model" REMOVED v0.3.1137 — Documents files source.ifc on demand.
     # "/projects/{pid}/documents/model-history" REMOVED v0.3.1137 — Documents lists filed revisions.
     # --- 2026-08-20: MASKED BY THE GENERATED TYPES, not newly broken -----------------------------
@@ -242,8 +258,14 @@ KNOWN_UNCALLED: set[str] = {
     # `/procurement/rfq-status`, `/accounting/chart-of-accounts`, `/budget/two-sided`,
     # `/cost/lien-waiver`, `/elements/by-discipline`, `/naming/conventions` left here in v0.3.1135 —
     # each gained a client method and a panel caller. Leaving them frozen would claim they were still
-    # unreachable.
-    "/projects/{pid}/cv-progress/ingest-batch",
+    # unreachable. **`/naming/conventions` CAME BACK on 2026-10-15** (NAMING-UNREAD, see the entry in
+    # `UNREACHABLE_ROUTES`): the client method it gained was reading a basis the audit beside it
+    # already carried, so wiring it had satisfied this list without adding a capability. *A route can
+    # leave a freeze list for a caller that should never have existed*, and the only way that shows
+    # is the round trip being measured against the other route's response.
+    # `/projects/{pid}/cv-progress/ingest-batch` left this set 2026-10-13 — CV-BRIDGE-DARK, with
+    # its sibling `…/ingest`, and for the printed-URL reason given in `LEAF_COLLISION_BLIND` below
+    # rather than because anything calls it. Both are now asserted to be in NEITHER set.
 
     # --- 2026-08-20: MASKED BY THE COMMENT BUG, not newly broken ---------------------------------
     # These five were always uncalled. `uncalled_routes` matched against the raw web source, so a
@@ -253,6 +275,17 @@ KNOWN_UNCALLED: set[str] = {
     # R22-ENTITLEMENT's own surface, and `/schedule/make-ready` is the Last Planner constraint list.
     # `/cost/datasets` left here in v0.3.1137 — Budget reads installed vintages.
     # `/drawing-set/compiled.pdf` left here in v0.3.1137 — Exports opens `compiledPdfUrl`.
+    # `/projects/{pid}/naming/conventions` arrived here 2026-10-15 — NAMING-UNREAD, by the rule this
+    # file already states: `naming.audit` returns `conventions()`, the identical object, verified
+    # byte-for-byte in `services/api/test_naming.py`. So this route is a STRICT SUBSET of the audit
+    # the same screen fetches, and the client method it had was reading the basis from here with
+    # `.catch(() => null)` beside the verdict that basis qualifies — *the convention was optional and
+    # the percentage was not.* The method is deleted, not re-pointed: *a route whose payload is a
+    # strict subset of another route's is not a second capability*, and giving one a caller to satisfy
+    # this list is how a callerless method gets added on purpose. EXPIRY: delete the route when
+    # somebody decides whether an embedded or external caller wants the conventions without the
+    # audit.
+    "/projects/{pid}/naming/conventions",
     "/projects/{pid}/drawing-set/file-drawing-set",
     "/projects/{pid}/drawings/received-regions",
     # `/drawings/schedule.csv` left here in v0.3.1138 — Drawings rail downloads `drawingSchedulesCsvUrl`.
@@ -281,10 +314,14 @@ KNOWN_UNCALLED: set[str] = {
     # send-RFQ button on a transient grouping would have had nothing to send for. *A dark route can
     # be dark because the route that feeds it is.*
     # `/project-package.pdf` left here in v0.3.1137 — Exports opens `projectPackagePdfUrl`.
-    "/projects/{pid}/provenance/admissibility",
-    "/projects/{pid}/recipes/replay-plan",
+    # `/projects/{pid}/provenance/admissibility` left here 2026-10-13 — PROVENANCE-DARK wired
+    # `projectAdmissibility` and the admissibility card on the Underwriting tab. This one IS called.
+    # `/projects/{pid}/recipes/replay-plan` left this set 2026-10-13 — RECIPE-LOG-DARK. Wired to
+    # `recipeReplayPlan`, which the provenance reader calls to BUILD a plan and never to apply one:
+    # the engine returns steps for `POST /edit/batch` on purpose, so that a replay carries one author
+    # and one audit row the way the original edit did. Its 422 — the refusal to replay an entry whose
+    # parameters were elided — is rendered verbatim, which is the whole capability.
     # `/rules/space-pack` left here in v0.3.1137 — Model Analysis reads the stored pack.
-    "/projects/{pid}/scan/verify-lod500",
     "/projects/{pid}/verified-progress/from-layout",
     # `/view-templates/{tid}/graphics` left here in v0.3.1138 — Model Analysis reads cut vs projection.
 
@@ -294,7 +331,14 @@ KNOWN_UNCALLED: set[str] = {
     # changed is that the rule can now see them, each having been vouched for by a plural or a
     # prefix. Frozen, not judged — nobody has read them, which is exactly what this set records.
     "/pipeline/allocate",                       # 'allocate' was read inside 'allocated'
-    "/projects/{pid}/coordination/stale/recheck",   # 'recheck' was read inside 'editPrecheck'
+    # `/projects/{pid}/coordination/stale/recheck` left this set 2026-10-12 — COORD-UNANCHORED:
+    # `apps/web/src/viewer/tools/modelReviewPanel.ts` now offers clash freshness per version, and
+    # `coordFreshness.recheckPrompt` gates the write behind a confirm naming what it will touch.
+    # Its sibling `/coordination/stale` went in the same change; see the note beside its old entry
+    # below. **This one was in the NEWLY-VISIBLE group above, and the group's own sentence was the
+    # reason it survived**: "frozen, not judged — nobody has read them". It read as a matcher
+    # artefact rather than a capability, so the two halves of one feature sat in two different
+    # sections of this file for a month, each looking like somebody else's problem.
     "/projects/{pid}/model/columnar/aggregate",     # 'aggregate' was read inside 'aggregates'
     "/projects/{pid}/modules/{key}/aggregate",      # 'aggregate' was read inside 'aggregates'
     "/structure/recommend",                     # 'recommend' was read inside 'recommended'
@@ -317,23 +361,144 @@ KNOWN_UNCALLED: set[str] = {
     "/classifications",
     "/estimate/labor/rates",
     "/plugins/reload",
-    "/proforma/scenarios/{sid}/clone",
+    # `/proforma/scenarios/{sid}/clone` left this set 2026-10-13 — FIN-GOV-DARK. It is the remedy
+    # `update_scenario`'s own 409 names (*"immutable in place — clone a revision to iterate"*), and
+    # the reason nobody noticed it was dark is that the EDIT path was dark too: no client method for
+    # `PUT /proforma/scenarios/{sid}` either, so the 409 never reached a user, so nothing ever asked
+    # for the clone. **This set cannot see that half at all** — the PUT shares its leaf with the GET
+    # and the DELETE-free `{sid}` family, so a URL-literal rule reads the path as called whatever
+    # verb the caller uses. *A per-PATH reachability rule is blind to a missing VERB, and the missing
+    # verb was what made the frozen entry here look like a lone gap rather than a severed chain.*
     "/projects/{pid}/accounting/journal",
-    "/projects/{pid}/classify/proposals",
-    "/projects/{pid}/coordination/stale",
+    # `/projects/{pid}/classify/proposals` left this set 2026-10-12 — CLASSIFY-DARK. All THREE
+    # `/classify/*` routes had no client method, and the three were invisible to this gate in three
+    # DIFFERENT ways: this one frozen here, `/classify/coverage` in `LEAF_COLLISION_BLIND` below,
+    # and `POST /classify/plan` under `MIN_SEGMENT` so it appeared in no list at all.
+    # *One capability's parts in three separate records, each reading as somebody else's gap* — the
+    # same shape as the `KNOWN_UNCALLED`/`LEAF_COLLISION_BLIND`/sub-`MIN_SEGMENT` split that
+    # TURNOVER-UNGATED paid for. Wired by `apps/web/src/viewer/tools/classifyAssist.ts` through
+    # `api.classifyProposals`, with the readings asserted in its test file beside it.
+    # `/projects/{pid}/coordination/stale` left this set 2026-10-12 — COORD-UNANCHORED. The engine
+    # had to be fixed before it could honestly be wired: its whole test is
+    # `topic.element_guids INTERSECT changed`, so an open topic with NO element GlobalIds can never
+    # be stale, and it was counted among the open issues that did not go stale — which reads as
+    # "still valid". `assessable` + `unanchored` now sum to the open count and `comparable` is false
+    # when nothing could be assessed. *Wiring a screen to a verdict that cannot distinguish "not
+    # stale" from "not assessed" would have shipped the defect to a user instead of leaving it
+    # dark.* See `services/api/test_coord_unanchored.py`.
     "/projects/{pid}/design/options/economics",
-    "/projects/{pid}/drawing-set/references",
-    "/projects/{pid}/drawings/schedule.svg",
-    "/projects/{pid}/edit/batch",
-    "/projects/{pid}/egress/routes",
-    "/projects/{pid}/elements/freshness",
+    # `/projects/{pid}/drawing-set/references` left this set 2026-10-13 — DETAIL-REFS-DARK.
+    # `apps/web/src/viewer/tools/detailRefsCard.ts`, from the Drawings rail, renders the
+    # cross-reference graph: dangling callouts split by WHY (a sheet not in the set versus a sheet
+    # missing the number, which are two different afternoons) and orphan details. **It could not
+    # have been wired a month ago**: `navigable` was `not dangling and not orphans and not
+    # unparseable`, True on a register with no references at all, and `test_detail_refs.py` asserted
+    # that with the word "vacuously" beside it. NEGATED-VERDICT put `assessed` in front of the
+    # verdict first. *Wiring a screen to a verdict that cannot distinguish "navigable" from "never
+    # checked" would have shipped the defect to a user instead of leaving it dark* — the same
+    # sentence this set already carries for `/coordination/stale`, and the second time it decided
+    # the order of two pieces of work.
+    # `/projects/{pid}/drawings/schedule.svg` left this set 2026-10-12 — SCHEDULE-TRUNC, and it
+    # came off as the ESCAPE from a different defect rather than for its own sake. The Schedules
+    # button in `apps/web/src/viewer/tools/drawingsSection.ts` has always named this route in its
+    # own tooltip — *"Also at GET /drawings/schedule.svg"* — while the on-screen table printed
+    # `${t.rows.length} row(s)` directly above `t.rows.slice(0, 60)` with nothing in between. The
+    # JSON route returns every row, so the cap was entirely the screen's; the drafted SVG table is
+    # now offered beside the CSV when it bites, each labelled with what IT loses (every row with
+    # cell text clipped at 22 characters, versus every row in full). *A tooltip naming a route is
+    # not a caller, and this gate is the only thing that could have said so.*
+    # `/projects/{pid}/edit/batch` left this set 2026-10-12 — BATCH-DARK, and this entry is the one
+    # that cost users something every day. Its own docstring names the caller it was built for —
+    # *"so a multi-step NL command undoes as a single step"* — and **three** callers looped
+    # `editIfc` once per step instead, each paying for the missing batch in a different currency:
+    # `tools/scriptThis.ts` (then inline in `app.ts`) HID the partial write behind "apply failed";
+    # the AI command bar COMPENSATED for it with a republish and said "stopped after k/n"; the
+    # dimensional-lock solver COUNTED and said "Applied k of n". *Three workarounds for one missing
+    # call, and none of the three authors found the route built for it.* Wired now in
+    # `apps/web/src/api/authoring.ts` as `editBatch`.
+    # `/projects/{pid}/egress/routes` left this set 2026-10-12 — EGRESS-TRAVEL-DARK:
+    # `apps/web/src/viewer/tools/analyseSection.ts` now offers routed travel distance beside the
+    # Occupancy & egress tool, which `codecheck_egress.py`'s own header says EXCLUDES travel
+    # distance. Its `/egress/plan.svg` sibling left the blind-spot list below in the same change,
+    # and that is the point: they were in two different lists, so each half of one life-safety
+    # capability read as somebody else's gap. *Neither list can see the other's half.*
+    # `/projects/{pid}/elements/freshness` left this set 2026-10-12 — ELEMENTS-SILENT. It was the
+    # starkest entry in this list: a route whose own docstring states the silent wrong answer it
+    # exists to prevent — *"a browser can show '5 elements added since this list was built —
+    # republish to see them' instead of quietly looking like a smaller building"* — sitting here
+    # unreached while the project browser did exactly the quiet thing. `projectPanel.ts` now reads
+    # it beside its own `/elements` call, which is also the only way that panel can tell a whole
+    # model from the first 5,000 rows of one: `/elements` breaks at its limit and returns a bare
+    # array with no total, so `indexed_elements` is the only denominator in the API.
+    # *A route written to prevent a silent failure, left dark, is that failure with the fix already
+    # paid for.* See `services/api/test_elements_freshness.py`.
     "/projects/{pid}/market/exists",
     "/projects/{pid}/model/ensure",
-    "/projects/{pid}/model/options/{slug}/activate",
-    "/projects/{pid}/notices",
-    "/projects/{pid}/notices/clauses",
-    "/projects/{pid}/quality/chain",
-    "/projects/{pid}/rules/effective",
+    # `/projects/{pid}/model/options/{slug}/activate` left this set 2026-10-15 — MODELOPT-DARK,
+    # and it was the only one of the five THIS list could see. The capability was split across
+    # three records: this entry, two more in `LEAF_COLLISION_BLIND` below (`GET`/`POST
+    # /model/options` and `DELETE .../{slug}`), and `.../{slug}/diff` in no list at all — its leaf
+    # `diff` appears all over the web source, which is this gate's own documented false-negative
+    # class. *One capability's parts, each reading as somebody else's gap*, which is CLASSIFY-DARK's
+    # three-way split arriving again on five routes instead of three.
+    #
+    # **The first draft of this comment claimed the other four appeared in NO freeze list, and the
+    # gate refuted it on the next run** by failing on the two it does hold. *A claim about what a
+    # gate does not contain is exactly the claim a gate can check* — and it is the argument for
+    # keeping the two lists separate: a merged list would have had nothing to disagree with.
+    #
+    # The whole family is wired now through `apps/web/src/api/modelOptions.ts` and the branch
+    # controls in `apps/web/src/viewer/tools/modelOptionsPanel.ts`, mounted from
+    # `authoringSection.ts` because `apps/web/src/viewer/app.ts` is exactly on its size pin — the
+    # remedy `repairPanel.ts` and `projectSetupPanel.ts` already took.
+    # `/projects/{pid}/notices` and `/notices/clauses` left this set 2026-10-12 — NOTICE-CLOCK-DARK.
+    # `apps/web/src/portal/panels/noticeClock.ts`, opened from the schedule panel beside the EOT
+    # claim, for the reason the claim exists: late notice is what bars it. `/notices/draft` left
+    # LEAF_COLLISION_BLIND in the same change, which is the third time on this branch that **one
+    # capability had its parts in two different lists**, so each read as somebody else's gap.
+    #
+    # The engine needed a fix first, and it was not a small one. The register was computed from
+    # `me.list_records(db, key, pid, limit=limit)` with `limit` a query parameter defaulting to 500
+    # — and `list_records` orders by `created_at` ASCENDING before applying the limit, so the
+    # register was assembled from the OLDEST 500 records of each source while the events whose
+    # notice periods are still running are by definition the NEWEST. Every other engine over those
+    # tables passes `limit=100000`; this one route, on the one register where an omission is a
+    # forfeited claim, was the exception. *Wiring a screen to that would have shipped the defect to
+    # a user instead of leaving it dark.* See `services/api/test_notice_coverage.py`.
+    # `/projects/{pid}/quality/chain` left this set 2026-10-12 — TURNOVER-UNGATED. The Operations
+    # turnover tab reads it behind a "Which elements?" button, which is what makes its sibling's
+    # count actionable: a reader told "42 element(s) have no quality record" could not see WHICH,
+    # and an unverified hold or witness point — the specific thing an ITP exists to stop being
+    # skipped — is named by this route and appeared nowhere in the app.
+    #
+    # Its sibling `/quality/turnover-readiness` HAS had a caller all along, and that is the sharper
+    # finding: the readiness verdict was rendered as one line in a detached `.then()` and gated
+    # nothing, while the architect's certify button checked only the punch-list readiness from a
+    # different route. *A route with a caller is not a capability that is used.* The engine needed
+    # nothing — `services/api/test_quality_chain.py` already pins that `ready` is False when no
+    # evidence is attached, which is the claim the screen was dropping.
+    # `/projects/{pid}/rules/effective` left this set 2026-10-12 — FIRM-RULES-OPTIONAL. The
+    # "Standards that apply here" control in `apps/web/src/viewer/tools/qaSection.ts` reads it.
+    # It was the starkest kind of entry in this file: not an unfinished endpoint but the ANSWER to
+    # a question two live code paths were getting wrong. `firm_standards.effective_rules` states
+    # that the failure mode is *"a firm discovering its standards were quietly optional"*, and it
+    # had exactly one consumer in the tree — this route — while `model_ci._rules_check` and
+    # `/rules/run` both read `rule_library.load(pid) or STARTER_RULES`. So the firm's standards
+    # gated nothing, and a project with no library was checked against three samples and the clean
+    # result stored as its badge. *A route that exists to prevent a silent wrong answer, left dark,
+    # is that wrong answer with the fix already paid for* — the same sentence this file wrote for
+    # `/elements/freshness` a few entries up, on the same day.
+    #
+    # **A measurement this gate cannot make, recorded because nobody else will.** `GET` and `PUT
+    # /projects/{pid}/rules` — the rule-library editor — have NO client caller either, and neither
+    # appears in any list here, because the leaf `rules` is matched against the whole web blob and
+    # `/projects/${pid}/rules/run` puts that substring in it. One route's URL vouches for another's.
+    # That is the `deal-memory` failure recorded above met from the other direction: there, adding a
+    # route made a frozen entry read as called; here a sibling that has always existed means an
+    # entry was never frozen at all. Those two routes are the remaining slice of this item: the
+    # library cannot be AUTHORED from the app, so until that lands every rule check in the product
+    # is a check against the three samples — which is now at least SAID, in the result and in the
+    # stored badge.
     "/projects/{pid}/scene/manifest",
     "/webhooks/deliveries",
     # ---- 6 of 8, added 2026-09-11 when `_SEGMENT` flipped from a blocklist of characters that may
@@ -376,7 +541,14 @@ KNOWN_UNCALLED: set[str] = {
     # than in the three-fifths this list could see: `apps/web/src/api/jurisdiction.ts` and the panel
     # in `apps/web/src/portal/panels/jurisdictionPanel.ts`. *A frozen entry undercounts whenever the
     # rule that produced it has a blind spot -- the list is a floor on the debt, never the debt.*
-    "/codes/seeded",
+    # **A FIFTH left on 2026-10-12: `/codes/seeded`.** CODE-ADOPT-DARK wired `/codes/adoptions`
+    # (which this list could not see, because it HAD a client method and no screen -- the blind spot
+    # `apps/web/src/api/clientCallers.test.ts` covers from the other side), and the unseeded answer
+    # needed it: *"nothing is seeded for WY"* reads as a claim about Wyoming until the reader can see
+    # the list it is missing from. `apps/web/src/api/codecheck.ts` `codeSeeded` plus the governing-code
+    # section in `apps/web/src/portal/panels/jurisdictionPanel.ts`. *The two frozen lists catch
+    # different halves of one gap, and this route was the half where the CLIENT METHOD was missing
+    # while its sibling's was the half where the SCREEN was.*
     "/projects/{pid}/clash/coordinate",
     "/projects/{pid}/documents/template",
     "/projects/{pid}/georeference",
@@ -405,7 +577,31 @@ KNOWN_UNCALLED: set[str] = {
     # `demo/` for `project-package` (one hit, and it builds `/project-package.pdf`, a different
     # route) and for `/workflow/` (zero hits).
     "/projects/{pid}/project-package/contents",
-    "/projects/{pid}/workflow/{key}",
+    # `/projects/{pid}/workflow/{key}` LEFT this list 2026-10-13 — WORKFLOW-DARK. The note above
+    # grepped `/workflow/` and found ZERO hits outside `vendor/`, which was true and is the measurement
+    # that mattered: `projectWorkflow`, `saveProjectWorkflow` and `resetProjectWorkflow` in
+    # `apps/web/src/api/modules.ts` now build it, and `portal/panels/workflowConfig.ts` is the editor.
+    # All three verbs of one surface arrived with no client method at all, which is why this route
+    # could sit here while `clientCallers.test.ts` had nothing to say about it either.
+    # PORTAL-TXN-DARK (2026-10-13) — frozen for a reason this list has not carried before: **their
+    # caller is not in `apps/web` and never can be.** Both are the public, token-authenticated write
+    # routes a CLIENT posts to, and a client has no account; the surface that serves them is
+    # `client_portal.to_html`, a server-rendered page whose script posts to
+    # `location.pathname + "/decision"` and `+ "/comment"`. This gate's population is the web tree,
+    # so that caller is invisible to it by construction.
+    #
+    # They became visible to it by LEAVING: `sharedComment` and `sharedDecision` were deleted from
+    # `apps/web/src/api/clientPortal.ts` in the same change, because an SPA method for a route only
+    # a no-account recipient posts to could never have had an SPA caller — so the URL literals that
+    # had been vouching for these two routes went with them. *The entries that vouched for these
+    # routes were themselves unreachable, which is a vouching that proves nothing* — this gate read
+    # "called" while `clientCallers.test.ts` read the method as unreachable, for a year.
+    #
+    # NOT a blind spot and NOT unexamined debt: `services/api/test_portal_public_reach.py` derives
+    # the public write routes under `/shared/{token}` and asserts the served page posts to every one
+    # of them, in both directions. That gate is the reason these two may be frozen here.
+    "/shared/{token}/comment",
+    "/shared/{token}/decision",
 }
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -793,7 +989,9 @@ check("  and the exclusion is LOAD-BEARING: counting the vendored tree would vou
 #: it is two, and two is small enough that a DIFFERENT pair silently swapping in would leave every
 #: check on this page green. So the pair is written down: if the vendored tree starts vouching for
 #: something else, that is a new fact about the exclusion and it must be read, not absorbed.
-_VENDOR_VOUCHED = {"/projects/{pid}/project-package/contents", "/projects/{pid}/workflow/{key}"}
+#: `/projects/{pid}/workflow/{key}` left this set with WORKFLOW-DARK (2026-10-13): it is wired now,
+#: so it is no longer vouched for by anything, vendored or otherwise.
+_VENDOR_VOUCHED = {"/projects/{pid}/project-package/contents"}
 check("  ...and it vouches for exactly the two routes REACH-VENDOR named",
       FOUND - _with_vendor == _VENDOR_VOUCHED,
       f"vendor vouches for {sorted(FOUND - _with_vendor)}, recorded {sorted(_VENDOR_VOUCHED)} — "
@@ -1030,7 +1228,10 @@ check("no frozen route has quietly become called or vanished — the allowlist c
 # anyone takes this on: matching `/leaf` flags **43** further routes, and a word-boundary match
 # flags **5** (`/pipeline/allocate`, `/projects/{pid}/coordination/stale/recheck`,
 # `/projects/{pid}/model/columnar/aggregate`, `/projects/{pid}/modules/{key}/aggregate`,
-# `/structure/recommend`). Both are more accurate than what runs today; neither belongs in a release
+# `/structure/recommend`). That list is left AS MEASURED on the day it was measured, even though
+# `/coordination/stale/recheck` has since been wired: it is a record of one measurement, and
+# editing it to stay current would destroy the only evidence of what the coarse rule was hiding.
+# Both are more accurate than what runs today; neither belongs in a release
 # about signed manifests, and each needs those routes triaged rather than bulk-frozen.
 check("the ASSET-VERIFY blind spot is still a blind spot, not silent coverage",
       "/asset-rights/verify" not in FOUND and "/asset-rights/verify" not in KNOWN_UNCALLED,
@@ -1184,6 +1385,16 @@ CONFIRMED_DARK_SHORT_LEAF = {
     #: `/schedule/eot/sourced` was frozen in KNOWN_UNCALLED above and could have been read any day.
     #: **One feature, two concealments, two different lists** — reading either alone would have
     #: wired half a claim.
+    #:
+    #: CLASSIFY-DARK, 2026-10-12, is the same shape at THREE and is the reason that paragraph is
+    #: not a curiosity. `POST /projects/{pid}/classify/plan` was never in this set either, and for
+    #: the worse of the two reasons: its leaf `plan` is under `MIN_SEGMENT`, so the main rule does
+    #: not assess it — and it is also not in `_SHORT_DARK`, because the word "plan" is written all
+    #: over this tree (`planPaneSelection`, `egressPlanUrl`, `planSteps`). *A short leaf that
+    #: collides with a common word is hidden twice: once from the rule that would have flagged it
+    #: and once from the ratchet that records what the rule cannot see.* Its two siblings were in
+    #: `KNOWN_UNCALLED` and `LEAF_COLLISION_BLIND` — three parts of one capability, three records,
+    #: and the only one with no record at all was the POST that writes.
 }
 _SHORT = {r for r in PATHS if len(_leaf(r)) < MIN_SEGMENT}
 _SHORT_DARK = {r for r in _SHORT if not leaf_is_called(_leaf(r), _CODE)}
@@ -1341,6 +1552,113 @@ def _wired_probe(route: str) -> str:
         run.insert(0, segs[i])
     probe = "/".join(run)
     return probe + "/" if last_static < len(segs) - 1 else probe
+
+
+#: WHAT MAY PRECEDE THE PROBE, and what may follow it. Added 2026-10-13, and the reason is that
+#: `_wired_probe` above fixed the *leaf-is-a-suffix* half of its own collision and left BOTH ENDS
+#: of the probe open to a plain substring test. The docstring says the leaf alone will not do
+#: because `provenance` is carried by a longer route; the probe it returns was then matched with
+#: `in`, which carries exactly the same way.
+_PROBE_LEAD = r"(?:(?<=/)|(?<=\x00))"
+#: `/` is NOT here, and that is the whole point: a route ending at a static segment is built by a
+#: caller who writes nothing more of the path. A `/` after the probe means the literal is a
+#: DIFFERENT, LONGER route. `${` is admitted because the query string is interpolated
+#: (``/projects/${pid}/k1-pack${q}``) — the same asymmetry `_SEGMENT` records, for the same reason.
+_PROBE_TAIL = r"(?=\x00|[?#]|\$\{)"
+
+
+@functools.lru_cache(maxsize=2048)
+def _PROBE_RX(probe: str) -> "re.Pattern[str]":
+    """The probe occupying a whole path position: it opens a literal or follows a `/`, and — when
+    the route ends at a static segment — nothing continues the path after it."""
+    tail = "" if probe.endswith("/") else _PROBE_TAIL
+    return re.compile(_PROBE_LEAD + re.escape(probe) + tail)
+
+
+def probe_is_built(probe: str, literals: str) -> bool:
+    """Does any string literal in the client actually build this path?
+
+    **This was `probe in literals` until 2026-10-13, and it was wrong at BOTH ENDS.** Measured over
+    the whole tree the day it changed: **6 routes** that this rule reported as wired have no caller
+    at all, and **0** routes lose one. Both of `_blind_spot`'s controls are unmoved.
+
+    The two ends fail for different reasons, which is why both are asserted below rather than one
+    standing for the pair:
+
+    * **No leading boundary.** `/templates/{tid}` probes for `templates/`, and
+      `/projects/${pid}/view-templates/${tid}/resolve` contains it. That is `available_public`
+      vouching for the leaf `public` — the collision `leaf_is_called` spent 2026-09-11 removing —
+      re-appearing inside the function written to replace the leaf test. *A fix that moves the
+      question one segment up inherits every boundary bug of the question it replaced.*
+    * **No trailing boundary.** `/projects/{pid}/design/standards` probes for `design/standards`,
+      and its own sibling `/projects/${pid}/design/standards/check` contains it. So **wiring a
+      route vouches for every shorter route on its path**, and the shorter one leaves the blind
+      spot in the same commit — the LEDGER-BROWSE finding above, one layer down, in the probe
+      added to be immune to it.
+
+    The trailing half is the one that cost a false alarm to find: DESIGN-STD-DARK wired
+    `/design/standards/check` and the ratchet immediately reported its *sibling* as "quietly become
+    called", asking for a correct entry to be deleted. **A fail-open rule guarded by a ratchet
+    reports the wrong route, and the instruction it prints is to make the tree worse.**
+
+    The other four were never frozen and never flagged, so nothing had ever reported them: an
+    import path in the vendored tree (`../vendor/massingpdf/plugins/search`) vouched for `/plugins`,
+    and three routes were vouched for by their own longer siblings. *The ratchet can only fail on
+    the entries somebody already wrote down; a silent vouch on a route nobody listed is invisible
+    to it* — the registry lesson `test_gap_records.py` records, arriving here as a boundary bug.
+    """
+    return _PROBE_RX(probe).search(literals) is not None
+
+
+#: The six shipped vouching literals, FROZEN rather than re-read from the tree, so the proof that
+#: the rule rejects them is a claim about a measurement rather than about today's source. Each is
+#: the real literal that was vouching on 2026-10-13, with the route it falsely vouched for.
+_PROBE_FALSE_VOUCHES: tuple[tuple[str, str], ...] = (
+    ("benchmarks", "/benchmarks/vendors"),
+    ("plugins", "../vendor/massingpdf/plugins/search"),
+    ("design/standards", "/projects/${pid}/design/standards/check"),
+    ("doctext", "/projects/${pid}/doctext/${encodeURIComponent(docId)}/source"),
+    ("verification", "/projects/${pid}/verification/coverage"),
+    ("templates/", "/projects/${pid}/view-templates/${encodeURIComponent(tid)}/graphics"),
+)
+#: Call shapes a REAL caller writes. A boundary that only rejects is a boundary that has stopped
+#: finding callers — the contract `leaf_is_called`'s four cases state, restated for the probe.
+_PROBE_REAL_CALLS: tuple[tuple[str, str], ...] = (
+    ("bsdd/search", "/bsdd/search"),
+    ("benchmarks", "/benchmarks"),
+    ("design/standards", "/projects/${pid}/design/standards"),
+    ("k1-pack", "/projects/${pid}/k1-pack${q}"),
+    ("verification", "/projects/${pid}/verification?status=open"),
+    ("templates/", "/templates/${encodeURIComponent(tid)}"),
+    ("workflow/", "/projects/${pid}/workflow/${key}"),
+)
+
+def _blob_of(*bodies: str) -> str:
+    """One `string_blob`-shaped corpus from literal bodies, so the fixtures below are matched
+    exactly the way the tree is — NUL-separated AND NUL-terminated."""
+    return _NUL + _NUL.join(bodies) + _NUL
+
+_vouched = [(p, lit) for p, lit in _PROBE_FALSE_VOUCHES if probe_is_built(p, _blob_of(lit))]
+check("the wired-probe rejects a longer route's URL that merely CONTAINS this route's path",
+      not _vouched,
+      f"vouching again: {_vouched} — the probe is back to a substring test at one end or the "
+      "other, and every route whose path is a prefix of a wired sibling's is being reported "
+      "reachable with no caller")
+
+_missed = [(p, lit) for p, lit in _PROBE_REAL_CALLS if not probe_is_built(p, _blob_of(lit))]
+check("  ...and still finds the shapes a real caller writes",
+      not _missed,
+      f"no longer found: {_missed} — the boundary has tightened past the client's own call sites, "
+      "so 'no client builds it' has become a sentence that cannot come out false")
+
+#: PROOF OF REACH. Both arms above pass under rules that are wrong in one direction only, so the
+#: pre-fix rule is reinstated here and must re-find EVERY one of the six. Asserting that the fixed
+#: rule is quiet is not asserting that the broken one was loud.
+_replay = [p for p, lit in _PROBE_FALSE_VOUCHES if p in _blob_of(lit)]
+check("  ...and the pre-fix substring rule re-finds all six shipped false vouches",
+      len(_replay) == len(_PROBE_FALSE_VOUCHES) == 6,
+      f"the replay found {len(_replay)} of {len(_PROBE_FALSE_VOUCHES)} — the frozen literals no "
+      "longer reproduce what shipped, so the two arms above are proving nothing")
 for _r in LEAF_COLLISION_DARK:
     check(f"the LEAF-COLLISION blind spot is still a blind spot: {_r}",
           _r not in FOUND and _r not in KNOWN_UNCALLED,
@@ -1498,7 +1816,7 @@ _STRIPPED = _CODE
 for _r in LEAF_COLLISION_DARK:
     _p = _wired_probe(_r)
     check(f"  ...and it is still UNWIRED -- no client builds {_p!r}",
-          _p not in _STRIPPED,
+          not probe_is_built(_p, string_blob(_STRIPPED)),
           f"{_r} now has a client caller, so it is no longer dark: DELETE it from "
           "LEAF_COLLISION_DARK and record what wired it, the way /bsdd/class and "
           "/projects/{pid}/cost/calibration were recorded when they left this set")
@@ -1544,7 +1862,44 @@ for _r in LEAF_COLLISION_DARK:
 # vouched, which is the whole problem, and a leaf-based helper search returns 685 hits for
 # `projects` and 44 for `status`). Each one needs a read.
 LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
+    # FIVE ENTRIES JOINED THIS SET ON 2026-10-13 WITHOUT ANYTHING CHANGING IN THE APP, because
+    # `probe_is_built` replaced the probe's substring test (see its docstring). Each was being
+    # reported as WIRED by a literal that builds a DIFFERENT path, so none of them had ever been
+    # flagged, frozen or printed: *the ratchet below only fails on entries somebody already wrote
+    # down, and a silent vouch on a route nobody listed is invisible to it.* They are recorded, not
+    # repaired — this set exists for routes this rule cannot judge, and each still needs triage:
+    #
+    #   * `/benchmarks` (`routers/research.py:201`) — the research benchmark index. Its five
+    #     `/benchmarks/*` siblings all have client methods, which is what was vouching for it.
+    #   * `/plugins` (`routers/plugins.py:12`) — vouched for by `../vendor/massingpdf/plugins/search`,
+    #     an IMPORT PATH in the vendored tree. Not a URL at all, and the clearest of the five: the
+    #     corpus is string literals, and a module specifier is a string literal.
+    #   * `/projects/{pid}/doctext` GET (`routers/codecheck.py:323`) — the stored-document list. The
+    #     per-document `.../doctext/{id}/source` IS called, and vouched for the list.
+    #   * `/projects/{pid}/verification` GET (`routers/verification.py:34`) — the as-built
+    #     verification list. `/verification/{guid}`, `/verification/coverage` and
+    #     `/verification/deviations` are all called; the list route is not.
+    #   * `/templates/{tid}` DELETE (`routers/templates.py:52`) — vouched for by
+    #     `/projects/${pid}/view-templates/${tid}/graphics`, a different feature whose path merely
+    #     ENDS in the probe `templates/`. That is the leading-boundary half of the defect.
+    "/benchmarks",
+    "/plugins",
+    "/projects/{pid}/doctext",
+    "/projects/{pid}/verification",
+    "/templates/{tid}",
     "/admin/baseline",
+    # PROVENANCE-DARK (2026-10-13). It joined this set the moment its SIBLING was wired: the two
+    # routes share the leaf `admissibility`, so `projectAdmissibility` building
+    # `/projects/{pid}/provenance/admissibility` makes THIS rule read the stateless POST as called.
+    # *Wiring one route made its sibling invisible to a leaf-based check* — the coarseness this
+    # file's `MIN_SEGMENT` note documents from the other end, arriving from this one.
+    #
+    # It is genuinely unreachable and deliberately so: its body is `{assumptions_provenance,
+    # estimate_ledger, agent_answers}`, each another engine's OUTPUT, and the SPA has no reason to
+    # assemble three leg results when the project route gathers them server-side.
+    # `services/api/test_verdict_reachable.py` matches the full templated path, so it still sees this
+    # door and records it in that file's `OPEN_DOORS` with that reason.
+    "/proforma/provenance/admissibility",
     "/admin/licenses",
     "/admin/licenses/{lid}",
     "/asset-rights/verify",
@@ -1556,7 +1911,12 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/contractor-statements/portfolio",
     "/estimate/resources/catalog",
     "/families/coverage",
-    "/firm/rules",
+    # `/firm/rules` left this set 2026-10-12 — FIRM-RULES-OPTIONAL slice ②, and the ratchet coming
+    # down is the whole point of the entry having been here: it was blind because the leaf `rules`
+    # collides with `/projects/${pid}/rules/run` in the web blob, so nothing could have told anybody
+    # that the FIRM's standards had no authoring surface. `portal/panels/ruleStandards.ts` reads and
+    # writes it now. Its project-level twin, `GET`/`PUT /projects/{pid}/rules`, was never in ANY list
+    # here for the same collision — see the note on `/projects/{pid}/rules/effective` above.
     "/lifecycle/reference",
     "/metrics/budget",
     "/openbim/capabilities",
@@ -1569,15 +1929,72 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/authoring/capabilities",
     "/projects/{pid}/carbon/elements",
     "/projects/{pid}/clash/analyze",
-    "/projects/{pid}/classify/coverage",
-    "/projects/{pid}/cost/estimate",
-    "/projects/{pid}/cv-progress/ingest",
-    "/projects/{pid}/cv-progress/status",
-    "/projects/{pid}/design/options/board.pdf",
+    # `/projects/{pid}/classify/coverage` left this set 2026-10-12 — CLASSIFY-DARK, the second of
+    # the three (see the note in `KNOWN_UNCALLED` above). Its leaf `coverage` is a word this tree
+    # writes everywhere, so the coarse rule could never see it either way; this entry's removal is
+    # the probe below reporting a real caller, not the rule getting sharper.
+    # `/projects/{pid}/cost/estimate` left this set 2026-10-14 — ESTIMATE-DARK. The blocker was
+    # never a missing screen: the route takes a `rules` body and nothing in this product stored a
+    # cost rule set, so a card would have had to invent one. `aec_api.cost_rules` is that store and
+    # `apps/web/src/portal/panels/pricedEstimate.ts` is the caller. `/cost/sov` shares
+    # `_run_estimate` with it and was unblocked by the same change.
+    # `/projects/{pid}/cv-progress/status` left this set 2026-10-13 — CV-BRIDGE-DARK.
+    # `apps/web/src/portal/panels/cvBridge.ts`, a card in the Schedule panel, reads it.
+    #
+    # **ITS TWO SIBLINGS STAY, AND THEY ARE NOT THE SAME KIND OF ENTRY AS ANYTHING ELSE IN THIS
+    # FILE.** `…/ingest` (here) and `…/ingest-batch` (in `KNOWN_UNCALLED`) are INBOUND doors: the
+    # caller is the operator's own vision service POSTing progress estimates, so a browser caller
+    # would be the wrong thing to build, exactly as for `/scim/v2/Users` and `/bcf/2.1/projects`.
+    # *This gate records that nobody calls a route, which is a defect for a screen's route and the
+    # DESIGN for a webhook's — and it cannot tell the two apart.* So "three dark cv-progress
+    # routes" overstated the product gap by two, and the one that was really dark was the only one
+    # a person was ever meant to read: *is this wired up, and what do I hand my vision vendor?*
+    #
+    # **NEITHER SIBLING COULD STAY FROZEN, AND THE REASON IS A THIRD KIND OF FALSE VOUCH.** The
+    # card's whole job is to print the contract an integrator implements, so it renders both
+    # endpoint URLs — and the literal it builds for DISPLAY,
+    # ``/projects/${pid}/cv-progress/ingest``, is character-for-character the literal a fetch
+    # would build. The corpus here is string literals, so **this rule cannot tell a URL you CALL
+    # from a URL you PRINT**, and both entries were immediately reported as "quietly become
+    # called". They have not been; nothing fetches either one.
+    #
+    # Not fixable by wording, and deliberately not fixed by wording: shortening the displayed path
+    # to dodge the probe would make the card worse for the one reader it exists for, and *a rule
+    # that can only be satisfied by changing things it has no business naming has stopped being a
+    # measurement*. Telling the two apart needs the literal's POSITION — an argument to a fetch,
+    # not a template in markup — which is the call-shape matching `leaf_is_called`'s docstring
+    # measured and rejected, because 19 real callers pass fragments. So both move out of both sets
+    # and are asserted to be in neither, exactly as `/asset-rights/verify` and the jurisdiction
+    # pair are. See the block below the `_blind_spot()` derivation.
+    # `/projects/{pid}/design/options/board.pdf` left this set 2026-10-13 — OPTION-BOARD-DARK. The
+    # GEN-SCORE card in `apps/web/src/portal/panels/analytics.ts` offers the deck once a score has
+    # run, through `optionsBoardPath` + `downloadPostedPdf`.
+    #
+    # **It was in THIS set rather than `KNOWN_UNCALLED` for the sibling-leaf reason, and the leaf
+    # was a real one**: `board.pdf` is genuinely built by `/projects/{pid}/pull-plan/board.pdf` in
+    # `api/schedule.ts`, so the rule read the leaf as called — by something else. *A leaf is not a
+    # name.* The route's own docstring called it "the client-facing artifact of a GEN-SCORE run"
+    # while nothing could produce it: an architect could rank four massing options on screen and
+    # not take the comparison to the meeting it was made for.
     "/projects/{pid}/design/options/carbon",
     "/projects/{pid}/design/options/compare",
+    # `/projects/{pid}/design/standards/check` left this set 2026-10-13 — DESIGN-STD-DARK.
+    # `apps/web/src/portal/panels/designStandards.ts`, a card in the CDE / Standards panel, reads
+    # the audit. **The input was already authorable and that is the finding**:
+    # `design_standards.ruleset` reads the `design_standard` module register, so a firm could record
+    # approved / preferred / prohibited assemblies through the generic register UI and nothing would
+    # ever check a model against them. *A capability whose WRITE half is reachable and whose READ
+    # half is not fails no gate that asks about one side* — `test_stored_standard_writable`'s lesson
+    # with the sides swapped, and this set is the only place that could have seen it.
+    #
+    # **Its sibling `/design/standards` STAYS, and deliberately.** `check()` returns `"ruleset": rs`
+    # — the whole ruleset, exactly as the standalone route serves it — so a client method for that
+    # route would have had no caller the moment it was written. *A route whose payload is a strict
+    # subset of another route's is not a second capability*, and wiring one to satisfy a freeze list
+    # is how a callerless method gets added on purpose. Drafted, measured over the app-shell budget,
+    # and deleted: `apps/web/src/api/clientCallers.test.ts` would have reported it, and the budget
+    # reported it first.
     "/projects/{pid}/design/standards",
-    "/projects/{pid}/design/standards/check",
     "/projects/{pid}/doctext/search",
     "/projects/{pid}/draft/scope",
     "/projects/{pid}/draft/submittal-summary",
@@ -1585,7 +2002,10 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/drawings/plan.dxf",
     "/projects/{pid}/drawings/section.dxf",
     "/projects/{pid}/drawings/stream",
-    "/projects/{pid}/egress/plan.svg",
+    # `/projects/{pid}/egress/plan.svg` left this set 2026-10-12 — EGRESS-TRAVEL-DARK. It is the
+    # surface for the per-space polylines, which the JSON summary at `/egress/routes` deliberately
+    # no longer ships: one path per space at up to 4,000 points each, uncapped across spaces, in a
+    # viewer-role GET that wants counts. See `services/api/test_egress_payload.py`.
     "/projects/{pid}/elements/properties",
     "/projects/{pid}/envelope/check",
     "/projects/{pid}/lod/matrix",
@@ -1594,21 +2014,68 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/mep/schedule",
     "/projects/{pid}/model/connections",
     "/projects/{pid}/model/export.csv",
-    "/projects/{pid}/model/options",
-    "/projects/{pid}/model/options/{slug}",
-    "/projects/{pid}/naming/validate",
-    "/projects/{pid}/notices/draft",
+    # `/projects/{pid}/model/options` (GET + POST) and `/projects/{pid}/model/options/{slug}`
+    # (DELETE) left this set 2026-10-15 — MODELOPT-DARK. **The ratchet coming down here corrected
+    # the write-up that removed it.** The entry I deleted from `KNOWN_UNCALLED` said the other four
+    # routes of this capability "appear in no freeze list anywhere" — TWO of them were right here,
+    # in the blind-spot list, and only `.../{slug}/diff` was genuinely unlisted. *A claim about
+    # what a gate does NOT contain is the one a gate can refute, and this one did*, which is the
+    # argument for keeping both lists rather than merging them. So the capability's five routes
+    # were split THREE ways: one named uncalled, two named blind, one unlisted, and one (`POST`
+    # sharing the GET's path) covered by the same entry as its sibling.
+    # `/projects/{pid}/naming/validate` left this set 2026-10-15 — NAMING-UNREAD. It is the fix loop
+    # for the naming audit's violation table: the product could tell a reader their container
+    # filename was wrong and had no way to tell them whether the replacement is right. Its sibling
+    # `/naming/conventions` went the other way in the same change, into `KNOWN_UNCALLED` rather than
+    # here — and the two destinations are the point. *This* set is for a route whose LEAF reads as
+    # called; losing the caller for `conventions` made its leaf stop reading as called at all, so it
+    # is plainly uncalled and belongs where the plainly uncalled go. **The first draft of that change
+    # put it here**, and this gate caught it twice in one run: once as a new unreachable route, once
+    # as a frozen blind spot that is no longer blind.
+    # `/projects/{pid}/notices/draft` left this set 2026-10-12 — NOTICE-CLOCK-DARK, with the two
+    # register routes that were in `KNOWN_UNCALLED` rather than here. The notice-clock panel drafts
+    # the letter per register item.
     "/projects/{pid}/notifications/digest/preview",
     "/projects/{pid}/productivity/summary",
     "/projects/{pid}/progress/reconciliation",
     "/projects/{pid}/properties/index",
-    "/projects/{pid}/recipes/export",
+    # `/projects/{pid}/recipes/export` left this set 2026-10-13 — RECIPE-LOG-DARK. The provenance
+    # reader in `apps/web/src/viewer/tools/recipeLogTool.ts` calls `recipeLogExport`, so the leaf
+    # collision is no longer what is holding it: it IS called. Its three siblings were silent in
+    # three DIFFERENT ways — `log` and `diff` fell under `MIN_SEGMENT`, `replay-plan` was frozen in
+    # `UNREACHABLE_ROUTES` — and `clientCallers.test.ts` could see none of the four, because the
+    # capability had no client method at all and a method that does not exist is not in its
+    # population. *A gate for each side of a seam is not a gate for the seam.*
     "/projects/{pid}/reports/catalog",
     "/projects/{pid}/review/contract",
     "/projects/{pid}/review/scope",
     "/projects/{pid}/scene/package",
-    "/projects/{pid}/schedule/status",
-    "/projects/{pid}/stakeholders/analysis",
+    # `/projects/{pid}/schedule/status` left this set 2026-10-14 — SCHED-STATUS-DARK. The
+    # "⏳ What is late" button on the Schedule panel reads it, with the reading in
+    # `apps/web/src/portal/panels/scheduleStatusReading.ts`.
+    #
+    # It was dark for long enough that a row-shape defect sat behind it unnoticed: ROWKEY-SUPERSET,
+    # where `future_actual_ignored` was absent from the engine's `_ROW_KEYS` and reading it on a
+    # blank row raised `KeyError`. *The first consumer is what makes a latent trap live*, so that
+    # landed in its own change before this one.
+    # `/projects/{pid}/stakeholders/analysis` left this set 2026-10-13 — STAKEHOLDER-MEDIUM. The
+    # Mendelow grid card in `apps/web/src/portal/panels/stakeholderGrid.ts` reads it, mounted in the
+    # Responsibility panel.
+    #
+    # **AND THIS ENTRY WAS READ AS "THE CAPABILITY IS DARK", WHICH IT WAS NOT.** The same engine is
+    # rendered by `reports/stakeholder_analysis.pdf`, which is in the report catalog and which
+    # `apps/web/src/reportCenter.ts` offers as a button — so the grid was being circulated in a
+    # document while this list said nothing called it. *This gate's subject is a ROUTE, and a
+    # capability can be reachable through a different one*; the item's first framing came from
+    # reading the freeze entry as a statement about the feature, and was corrected by opening the
+    # report builder. The defect was therefore live on a page a PM hands round, not latent.
+    # STAYS FROZEN, with the reason, from EXPIRY-UNDATED (2026-10-13). Its payload is a window —
+    # `days_left` within N days — over the register `closeout.warranty_rollup` already serves as
+    # one rollup through `/closeout/summary`, which IS wired. *A route whose payload is a view of
+    # another route's is not a second capability*, and wiring it would put a second screen on the
+    # same question — which is the disagreement this item exists to remove, not to add to. It was
+    # FIXED in that change (it gained the same coverage object); what it did not gain is a caller,
+    # on purpose. Same reasoning as `/design/standards` under DESIGN-STD-DARK.
     "/projects/{pid}/warranties/expiring",
     "/scim/v2/Users",
     "/scim/v2/Users/{user_id}",
@@ -1640,7 +2107,7 @@ def _blind_spot() -> set[str]:
         if len(leaf) < MIN_SEGMENT or not leaf_is_called(leaf, stripped):
             continue
         probe = _wired_probe(r)
-        if probe and probe in literals:
+        if probe and probe_is_built(probe, literals):
             continue
         out.add(r)
     return out
@@ -1674,12 +2141,40 @@ check("no frozen blind-spot route has quietly become called or vanished",
       "the ratchet coming down, and is always welcome); if the path changed, update it. Leaving it "
       "freezes a name that no longer refers to anything")
 
+# A SEVENTH INSTANCE, 2026-10-13, and it is the first one whose vouching literal is on SCREEN.
+# CV-BRIDGE-DARK wired `/projects/{pid}/cv-progress/status` and gave its card the job of printing
+# the contract an integrator implements -- so `apps/web/src/portal/panels/cvBridge.ts` builds
+# ``/projects/${pid}/cv-progress/ingest`` and ``…/ingest-batch`` as DISPLAY TEXT. Those literals
+# are indistinguishable from a fetch's, because this file's corpus is string literals and nothing
+# about a literal says where it is used.
+#
+# **The two kinds of entry in this file are not the same claim, and that is the real finding.** For
+# a screen's route, "no client builds it" is a defect. For an INBOUND door -- `…/ingest` is POSTed
+# by the operator's own vision service, like `/scim/v2/Users` by an identity provider -- it is the
+# design. This gate reports the same sentence for both, so a reader taking its cv-progress entries
+# as a product gap would have counted three and found one.
+#
+# Asserted in neither set, the `/asset-rights/verify` treatment, because freezing them makes the
+# ratchet above red on the printed URL and deleting them silently would drop two real routes out of
+# this file's sight. **And the collision is REAL, not a guess**: the second condition requires the
+# probe to still be found, so if the card stops printing the URLs these routes become visible again
+# and belong back in their sets. (That `or`-versus-`and` is the fail-open shape a review bot caught
+# in the `/benchmarks/vendors` entry above; both conditions are required here from the start.)
+_lits = string_blob(_STRIPPED)
+for _r in ("/projects/{pid}/cv-progress/ingest", "/projects/{pid}/cv-progress/ingest-batch"):
+    check(f"the CV-BRIDGE printed-URL collision is still a blind spot: {_r}",
+          _r not in KNOWN_UNCALLED and _r not in LEAF_COLLISION_BLIND
+          and probe_is_built(_wired_probe(_r), _lits),
+          "either the entry was re-frozen -- which reds the ratchet on a URL the card merely "
+          "prints -- or the card stopped printing it, in which case this rule can see the route "
+          "again and it belongs back in the set it came from")
+
 # ---------------------------------------------------------------------------------------------
 # The probe must be able to SEE a caller, or "no client builds it" is a sentence that can only ever
 # come out true -- the can't-fail shape this file exists to prevent. `/bsdd/search`, wired by
 # BSDD-LOOKUP in the same change that removed `/bsdd/class` above, is the positive control.
 check("  the wired-probe can actually detect a caller (positive control: /bsdd/search)",
-      _wired_probe("/bsdd/search") in _STRIPPED,
+      probe_is_built(_wired_probe("/bsdd/search"), string_blob(_STRIPPED)),
       "the probe found no caller for a route this repo demonstrably wired -- it is measuring "
       "nothing, and every 'still unwired' verdict above is vacuous")
 

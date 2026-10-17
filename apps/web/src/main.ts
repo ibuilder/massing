@@ -1,14 +1,18 @@
 import "./style.css";
+import { usd } from "./ui/charts";
 import { PortalUI } from "./portal/portal";   // eager: the default Construction/Developer workspace
 import { ApiClient, type MassingParams } from "./api/client";
 import { sealIdentity } from "./api/assetRights";
 import { toast, escapeHtml, safeUrl } from "./ui/feedback";
 import { showResult } from "./ui/result";
-import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./shell/roomTabs";
+import {
+  buildRoomTabs, markActiveRoom, orderRoomTabs, personaRooms, renderLiveRefusal, renderRoomTabs,
+  roomForWorkspace,
+} from "./shell/roomTabs";
 import { offersReturn, returnLabel, returnTarget, returnTitle } from "./shell/wsReturn";
 import { headerAction, renderHeaderAction } from "./shell/nextAction";
 import { pinnedItems, renderPinnedRail } from "./shell/pinnedRail";
-import { ROOM_HOST, destRoom } from "./shell/spine";
+import { ROOM_HOST, ROOM_IDS, destRoom, portalForRoom, portalForWorkspace, roomForOpenWorkspace } from "./shell/spine";
 import { renderVitals } from "./shell/vitalsBar";
 import { setRoomOpen } from "./portal/prefs";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
@@ -798,10 +802,15 @@ async function openStudioTab() {
  * Rooms name themselves, so they are the source. Workspaces with no room tab (`model`, `drawings`)
  * have no rendered name to borrow, and a capitalised key is an honest rendering of the key rather
  * than a second table that can drift away from the first.
+ *
+ * The `?? querySelector(".ws-btn[data-ws]")` that survived that fix as a "documented fallback" is
+ * gone with the rest of WS-BTN-DEAD. It could never fire — `data-ws` has no writer anywhere in the
+ * tree — so what it documented was a shell that does not exist, and the capitalised key below was
+ * always the real fallback. *A fallback to something unrenderable is not a fallback, it is a line
+ * that makes the next reader believe in a second strip.*
  */
 function wsLabel(key: string): string {
-  const tab = document.querySelector<HTMLElement>(`[data-room="${key}"]`)
-    ?? document.querySelector<HTMLElement>(`.ws-btn[data-ws="${key}"]`);
+  const tab = document.querySelector<HTMLElement>(`[data-room="${key}"]`);
   const named = (tab?.textContent || "").trim();
   return named || key.charAt(0).toUpperCase() + key.slice(1);
 }
@@ -862,11 +871,18 @@ function setWorkspace(key: string, arrival: "jump" | "nav" = "nav") {
   const moved = key !== currentWs;
   if (moved) previousWs = currentWs;
   currentWs = key;
-  document.querySelectorAll(".ws-btn").forEach((b) => {
-    const on = (b as HTMLElement).dataset.ws === key;
-    b.classList.toggle("active", on);
-    b.setAttribute("aria-selected", String(on));
-  });
+  // WS-BTN-SELECT — this used to toggle `.active` and `aria-selected` on `.ws-btn`, the class
+  // WS-BTN-DEAD measures as queried from four places and rendered by none. So the room strip was
+  // marked by the ONE caller that repaints it (`goToRoom`) and by none of the other thirteen
+  // `setWorkspace` call sites: the command palette, the return bar, the project-home signpost, the
+  // `aec:workspace`/`aec:goto-workspace` deep links, a persona's home jump, select-by-GUID,
+  // `withPortal`, the finance shortcut and `initNav` all left the strip marking the room the user
+  // had come from — `aria-selected="true"` and all, which is the attribute `renderRoomTabs` added
+  // "so the active room is stated rather than only coloured".
+  //
+  // *Dead code that merely does nothing is cheap; this one was holding a job.* The loop read as the
+  // place selection is maintained, so nothing looked missing at the thirteen sites.
+  markRoomForWorkspace(key);
   document.querySelectorAll(".workspace").forEach((w) => w.classList.toggle("active", w.id === `ws-${key}`));
   showProjectHomeSignpost(key);
   if (key === "drawings") openDrawingsTab();
@@ -904,6 +920,7 @@ window.addEventListener("aec:workspace", (e) => {
   if (WORKSPACES.some((w) => w.key === key)) setWorkspace(key, "jump");
 });
 const wsEl = $("workspaces");
+const liveRefusedEl = $("live-refused");
 
 /**
  * Switch to a room: go to the workspace that hosts it, then TELL the portal which room is active.
@@ -920,6 +937,13 @@ const wsEl = $("workspaces");
 function goToRoom(roomId: string) {
   const host = ROOM_HOST[roomId] ?? "construction";
   setRoomOpen(`${host}:${roomId}`, true);   // composite key — the shape `buildNav` actually reads
+  // Record the choice against its PORTAL before switching workspace, so the `setWorkspace` below
+  // marks the room being opened rather than the workspace's default and then having to be corrected
+  // by the `paintRoomTabs` after it. The portal learns the same fact from the `aec:room` event at
+  // the end of this function; this is the strip's copy of it, and the two are set in one place.
+  if ((ROOM_IDS as readonly string[]).includes(roomId)) {
+    roomByPortal.set(portalForRoom(roomId) ?? portalForWorkspace(host), roomId);
+  }
   setWorkspace(host);
   paintRoomTabs(roomId);
   window.dispatchEvent(new CustomEvent("aec:room", { detail: roomId }));
@@ -948,9 +972,52 @@ function paintPinnedRail() {
 }
 
 let roomTabsActive = "model";
+/**
+ * The room order the open persona asks for — canonical until a persona has been applied.
+ *
+ * STATE rather than a read of `PERSONAS` inside `paintRoomTabs`, and not for style: the first
+ * `paintRoomTabs` call runs ~30 lines ABOVE the `const PERSONAS` declaration, so reading it from in
+ * here would be a temporal-dead-zone `ReferenceError` on boot. `applyPersona` pushes instead.
+ */
+let personaRoomOrder: readonly string[] | null = null;
+
 function paintRoomTabs(active?: string) {
   if (active) roomTabsActive = active;
-  renderRoomTabs(wsEl, buildRoomTabs(null, workQueueCount), roomTabsActive, goToRoom);
+  const tabs = buildRoomTabs(null, workQueueCount, notifLive);
+  renderRoomTabs(wsEl, personaRoomOrder ? orderRoomTabs(tabs, personaRoomOrder) : tabs,
+                 roomTabsActive, goToRoom);
+  renderLiveRefusal(liveRefusedEl, notifLive?.refused ?? null, () => notifStream?.retry());
+}
+
+/**
+ * Which room the strip should mark once `key` is the open workspace — and mark it.
+ *
+ * The RULE is `roomForOpenWorkspace`, in `spine.ts` beside the two tables it reads — not here.
+ * `wsReturn.test.ts` had to learn that the hard way: it reproduced `setWorkspace`'s plumbing *and*
+ * its decisions, and its own copy of `DEAD_END_WS` silently disagreed with the shipped one for
+ * months. *A test asserting a reproduction cannot fail when the original is wrong*, so what a test
+ * must be able to import is the decision, and all that is left here is three lines of DOM.
+ *
+ * It repaints nothing. The strip carries a live notification chip and the Work badge, and a caller
+ * that only changed workspace has no business rebuilding either — nor discarding focus, which a
+ * full `paintRoomTabs` does.
+ */
+/**
+ * The room each PORTAL last had opened — the strip's mirror of `PortalUI.activeRoom`.
+ *
+ * CR-REVIEW-9. Keyed by portal rather than by workspace, because that is how the thing it mirrors is
+ * keyed: there are three `PortalUI` instances, each with its own sticky `activeRoom`, and
+ * `portal.room()` is `activeRoom ?? preselectedRoom(wsFilter)`. The first version of this tracked
+ * the LAST MARKER and re-derived on every workspace change, so a detour through another workspace
+ * overwrote it while the portal's own state was untouched — Cost open, out to Drawings, back to
+ * Construction, strip says Schedule and the portal is still rendering Cost. Found by review, not by
+ * the tests here, which only ever took single transitions.
+ */
+const roomByPortal = new Map<string, string>();
+
+function markRoomForWorkspace(key: string) {
+  roomTabsActive = roomForOpenWorkspace(roomByPortal.get(portalForWorkspace(key)), key);
+  markActiveRoom(wsEl, roomTabsActive);
 }
 
 /** Ball-in-your-court count for the Work badge — the one number the tab bar carries. */
@@ -1046,7 +1113,14 @@ const PERSONAS: Record<string, PersonaCfg> = {
 const personaSel = document.getElementById("persona") as HTMLSelectElement;
 function applyPersona(p: string, goHome = false) {
   const cfg = PERSONAS[p] ?? PERSONAS.all ?? { ws: null, rail: null, home: "model" };
-  document.querySelectorAll<HTMLButtonElement>(".ws-btn").forEach((b) => { b.hidden = !!cfg.ws && !cfg.ws.includes(b.dataset.ws!); });
+  // WS-BTN-DEAD — this line used to read
+  //   `querySelectorAll(".ws-btn").forEach((b) => b.hidden = !cfg.ws.includes(b.dataset.ws))`
+  // over a class nothing renders and an attribute nothing in the tree SETS, so every persona's `ws`
+  // allowlist had no effect from the day the room spine landed. The rule is `personaRooms`, in
+  // `spine.ts` beside the table it reads, and it WEIGHTS the strip rather than filtering it — see
+  // its docstring for the measurement that rules filtering out (3 of 7 rooms, Work hidden from all).
+  personaRoomOrder = personaRooms(cfg.ws);
+  paintRoomTabs();
   document.querySelectorAll<HTMLButtonElement>(".rail-btn").forEach((b) => { b.hidden = !!cfg.rail && !cfg.rail.includes(b.dataset.rail!); });
   // ...and a cluster heading follows its items. A label over nothing is worse than no label: it says
   // a section exists and then does not deliver it.
@@ -1404,16 +1478,15 @@ async function openPortfolioTab() {
   try { p = await api.portfolio(); }
   catch { panel.innerHTML = `<div class="meta">portfolio unavailable (API offline)</div>`; return; }
   const t = p.totals;
-  const m = (v: number | null) => (v == null ? "—" : "$" + Math.round(v).toLocaleString());
   const pc = (v: number | null) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
   const kpis: [string, string][] = [
-    ["Deals", String(p.deal_count)], ["Total cap", m(t.total_capitalization ?? null)],
-    ["Total equity", m(t.total_equity ?? null)], ["Blended LTC", pc(t.blended_ltc ?? null)],
+    ["Deals", String(p.deal_count)], ["Total cap", usd(t.total_capitalization ?? null)],
+    ["Total equity", usd(t.total_equity ?? null)], ["Blended LTC", pc(t.blended_ltc ?? null)],
     ["Portfolio IRR", pc(t.portfolio_irr ?? null)], ["Portfolio EM", `${t.portfolio_equity_multiple ?? "—"}×`],
   ];
   const rows = p.deals.map((d) =>
-    `<tr><th style="text-align:left">${escapeHtml(d.name)}</th><td>${m(d.total_uses)}</td>` +
-    `<td>${m(d.equity)}</td><td>${pc(d.equity_irr)}</td><td>${d.equity_multiple ?? "—"}×</td></tr>`).join("");
+    `<tr><th style="text-align:left">${escapeHtml(d.name)}</th><td>${usd(d.total_uses)}</td>` +
+    `<td>${usd(d.equity)}</td><td>${pc(d.equity_irr)}</td><td>${d.equity_multiple ?? "—"}×</td></tr>`).join("");
   panel.innerHTML =
     `<div class="section-title">Portfolio roll-up — ${p.deal_count} deal(s)</div>` +
     `<div class="kpi-grid">` +
@@ -1428,13 +1501,13 @@ async function openPortfolioTab() {
     if (cp.project_count) {
       const ct = cp.totals;
       const prows = cp.projects.map((r) =>
-        `<tr><th style="text-align:left">${r.name}</th><td style="color:${r.over_budget ? "#e2554a" : "var(--text)"}">${m(r.projected_over_under)}</td>` +
-        `<td>${r.open_risks} (${m(r.risk_exposure)})</td><td>${r.recordables}</td><td>${r.open_rfis}</td></tr>`).join("");
+        `<tr><th style="text-align:left">${r.name}</th><td style="color:${r.over_budget ? "#e2554a" : "var(--text)"}">${usd(r.projected_over_under)}</td>` +
+        `<td>${r.open_risks} (${usd(r.risk_exposure)})</td><td>${r.recordables}</td><td>${r.open_rfis}</td></tr>`).join("");
       panel.insertAdjacentHTML("beforeend",
         `<div class="section-title" style="margin-top:14px">Construction program — ${cp.project_count} project(s)`
         + (ct.over_budget_count ? ` · <span style="color:#e2554a">${ct.over_budget_count} over budget</span>` : "") + `</div>`
         + `<table class="sens-table"><tr><th>Project</th><th>Over/Under</th><th>Open risks ($)</th><th>Recordables</th><th>Open RFIs</th></tr>${prows}`
-        + `<tr style="font-weight:700"><th style="text-align:left">Total</th><td>${m(ct.projected_over_under)}</td><td>${ct.open_risks} (${m(ct.risk_exposure)})</td><td>${ct.recordables}</td><td>${ct.open_rfis}</td></tr></table>`);
+        + `<tr style="font-weight:700"><th style="text-align:left">Total</th><td>${usd(ct.projected_over_under)}</td><td>${ct.open_risks} (${usd(ct.risk_exposure)})</td><td>${ct.recordables}</td><td>${ct.open_rfis}</td></tr></table>`);
     }
   } catch { /* program roll-up optional */ }
 }
@@ -1445,7 +1518,6 @@ async function openPortfolioTab() {
 function openFinanceHomeTab() {
   const panel = document.getElementById("panel-home");
   if (!panel) return;                                    // defensive: never throw to a blank panel
-  const m = (v: number | null | undefined) => (v == null ? "—" : "$" + Math.round(v).toLocaleString());
   const pc = (v: number | null | undefined) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
   const kpi = (v: string, l: string, tone?: string) =>
     `<div class="kpi"><div class="kpi-v" style="font-size:17px${tone ? `;color:${tone}` : ""}">${v}</div><div class="kpi-l">${l}</div></div>`;
@@ -1512,7 +1584,7 @@ function openFinanceHomeTab() {
     if (kEl) kEl.innerHTML =
       kpi(pc(irr), "Equity IRR", irr != null && irr >= 0.15 ? "var(--status-good)" : irr != null && irr < 0.08 ? "var(--status-warn)" : undefined)
       + kpi(r.equity_multiple == null ? "—" : `${r.equity_multiple.toFixed(2)}×`, "Equity multiple")
-      + kpi(pc(r.project_irr), "Project IRR") + kpi(pc(r.yield_on_cost), "Yield on cost") + kpi(m(r.npv), "NPV");
+      + kpi(pc(r.project_irr), "Project IRR") + kpi(pc(r.yield_on_cost), "Yield on cost") + kpi(usd(r.npv), "NPV");
     const total = su?.total_uses ?? null, debt = su?.debt ?? null, equity = su?.equity ?? null;
     const stEl = document.getElementById("fin-home-stack");
     if (stEl && total && (debt || equity)) {
@@ -1521,7 +1593,7 @@ function openFinanceHomeTab() {
         + `<div role="img" aria-label="Capital stack: ${dPct}% senior debt, ${ePct}% equity" style="display:flex;height:26px;border-radius:6px;overflow:hidden;margin:6px 0;font-size:11px;color:#fff">`
         + `<div style="flex:${dPct};background:#8aa0b8;display:flex;align-items:center;justify-content:center">Debt ${dPct}%</div>`
         + `<div style="flex:${ePct};background:#16324f;display:flex;align-items:center;justify-content:center">Equity ${ePct}%</div></div>`
-        + `<div class="meta">${m(debt)} senior debt · ${m(equity)} equity · ${m(total)} total`
+        + `<div class="meta">${usd(debt)} senior debt · ${usd(equity)} equity · ${usd(total)} total`
         + (su && su.balanced === false ? ` · <span style="color:var(--status-warn)">sources ≠ uses</span>` : "") + `</div>`;
     }
   })();
@@ -1943,22 +2015,76 @@ async function applyCapabilities() {
   lastMembershipProject = projectId;
 }
 
-// live notification badge on the Construction workspace tab (SSE)
+/**
+ * Live notification state for the room tab strip (SSE).
+ *
+ * **THIS FUNCTION HAS BEEN ENTIRELY DEAD SINCE THE ROOM SPINE LANDED, and the file already says
+ * why.** It queried `.ws-btn[data-ws="construction"]`, returned early because nothing matches, and
+ * never opened a stream at all — so the notification badge it exists to paint has never once
+ * appeared. `roomLabel`'s docstring 1,100 lines above records the identical mistake being found and
+ * fixed in this same file (*"a class that does not exist anywhere in the running shell: the tab
+ * strip is `[data-room]` since the room spine landed"*), and `shell/wsReturn.test.ts`'s fixture
+ * comment says flatly *"there is no `.ws-btn` anywhere in the app"*.
+ *
+ * *The lesson is the one that docstring already paid for: **ask the DOM the app actually renders.***
+ * Found while wiring FIELD-STREAM-POISON's `refused` state into it — a new state routed into a
+ * function that never runs is the most expensive kind of dead code, because it tests clean.
+ *
+ * **THE CLASS WAS WIDER THAN THIS FUNCTION, and WS-BTN-DEAD closed the rest of it.** When this
+ * docstring was written `.ws-btn` was still queried from three other places in this file — a
+ * "documented fallback" at `wsLabel` and two `querySelectorAll(".ws-btn")` loops over an empty
+ * NodeList — with six rules in `style.css` styling it and `.ws-btn.active` sitting in
+ * `ACCENT_ALLOWED`. **`data-ws` was never SET anywhere in the tree**, only read, which was the
+ * shortest proof that none of it could work. All of it is gone, and
+ * `shell/wsBtnGone.test.ts` now fails the build if the class returns to any of those positions.
+ *
+ * One of those loops was `applyPersona`, so **every persona that declares a `ws` allowlist had one
+ * with no effect**: every room showed to everyone. It filtered `.ws-btn` and `.rail-btn` in two
+ * adjacent lines and `.rail-btn` really is rendered, so half the function demonstrably worked and a
+ * reader who switches persona and watches the rail change concludes the whole thing does. *A dead
+ * branch beside a live one is not read as dead.*
+ *
+ * **"all ten personas" is what this docstring said, and `PERSONAS` has eight** — seven of them
+ * declaring a list, since `all` declares `null`. The wrong count was written here, copied into
+ * WS-BTN-DEAD's roadmap entry and copied again into NOTIF-BADGE-DEAD's, so three documents asserted
+ * it and no reader had cause to doubt a number three places agreed on. *A number nobody measures is
+ * a number that propagates, and agreement between copies is not evidence.*
+ *
+ * The persona half was left open as a behavioural question — rooms replaced workspaces, so "which
+ * rooms does a subcontractor see" looked like it had to be answered before `buildRoomTabs` could
+ * take a persona. **It did not: `orderRooms` had already answered it in its own docstring**
+ * (*weighting rather than filtering*), and the filtering reading turns out to be measurably wrong
+ * — see `personaRooms`. *A question left open for a product decision is worth re-deriving before
+ * it is asked, because the architecture may have answered it already.*
+ *
+ * It now owns STATE and repaints through `paintRoomTabs`, rather than reaching into the DOM for an
+ * element the strip rebuilds on every render. The count and the refusal land on the room
+ * `preselectedRoom("construction")` resolves to — derived, never a second list.
+ */
+let notifStream: { retry: () => void; close: () => void } | null = null;
+let notifLive: { room: string; count: number; refused: string | null } | null = null;
+
 function connectNotifications() {
   if (!projectId) return;
-  const ws = document.querySelector<HTMLElement>('.ws-btn[data-ws="construction"]');
-  if (!ws) return;
-  let badge = ws.querySelector<HTMLElement>(".ws-badge");
-  if (!badge) { badge = document.createElement("span"); badge.className = "ws-badge"; ws.appendChild(badge); }
+  notifStream?.close();
+  const room = roomForWorkspace("construction");
+  notifLive = { room, count: 0, refused: null };
   try {
     const stream = api.notificationStream(projectId, ({ count }) => {
-      badge!.textContent = count > 0 ? String(count) : "";
-      badge!.style.display = count > 0 ? "" : "none";
-    }, (s) => {
-      // surface a silent disconnect instead of the badge just going stale
-      ws.title = s === "reconnecting" ? "Live notifications disconnected — reconnecting…" : "";
-      badge!.style.opacity = s === "reconnecting" ? "0.5" : "";
+      notifLive = { room, count: typeof count === "number" ? count : 0, refused: null };
+      paintRoomTabs();
+    }, (s, why) => {
+      // THREE states, not two. A `refused` stream is never coming back on its own, so saying
+      // "reconnecting…" about it is a promise the client cannot keep — and that is what this said,
+      // for ever, with a page reload as the only cure that would not have worked either.
+      notifLive = {
+        room,
+        count: notifLive?.count ?? 0,
+        refused: s === "refused" ? (why ?? "refused by the server") : null,
+      };
+      paintRoomTabs();
     });
+    notifStream = stream;
     window.addEventListener("pagehide", () => stream.close(), { once: true });
   } catch { /* SSE unsupported / offline */ }
 }

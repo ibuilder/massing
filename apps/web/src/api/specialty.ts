@@ -79,7 +79,13 @@ export function withSpecialty<TBase extends Ctor<HttpCore>>(Base: TBase) {
     iterations?: number; seed?: number; targets?: Record<string, number>;
     years?: number; ramp_years?: number; ramp_start?: number; terminal_cap?: number;
   }) {
-    return this.json<{ iterations: number; metrics: Record<string, MonteCarloMetric> }>(
+    // `seed` and `variables` were undeclared (MC-UNDEFINED closed the entry): the seed is the only
+    // thing that makes a quoted P50 comparable between two people, and `variables` is the engine's
+    // echo of what it sampled. `iterations` is the draws REQUESTED — this engine publishes no
+    // solved count, so the honest denominator for a percentile is the metric's own `n`.
+    return this.json<{ iterations: number; seed: number;
+      variables: { path: string; dist: Record<string, unknown> }[];
+      metrics: Record<string, MonteCarloMetric> }>(
       `/projects/${pid}/specialty/monte-carlo`, { method: "POST", body: JSON.stringify(body) });
   }
   };

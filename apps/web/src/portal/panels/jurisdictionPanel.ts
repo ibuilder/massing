@@ -6,6 +6,9 @@ import {
   adoptionLine, attributionLine, checkGate, checkSummary, deleteConfirm, exampleCaveat,
   importRefusal, outcomeLine, packHeadline,
 } from "./jurisdictionPacks";
+import {
+  type Adoptions, adoptionRows, adoptionScope, primaryCaveat, seededHint,
+} from "./codeAdoption";
 
 /**
  * R23-JURISDICTION-PACKS — data requirements published by an authority, and the screen that reaches
@@ -33,10 +36,71 @@ export async function renderJurisdiction(ctx: PanelContext) {
     + "looks exactly like the right one. Importing and deleting need <b>admin</b>.";
   root.appendChild(intro);
 
-  const applies = el("div"); applies.style.marginTop = "8px"; applies.textContent = "loading…";
+  // CODE-ADOPT-DARK: which code editions govern comes BEFORE what data you must submit — it is the
+  // first question the master-builder order asks, and `/codes/adoptions` had no caller anywhere.
+  const governing = el("div"); governing.style.marginTop = "8px";
+  const applies = el("div"); applies.style.marginTop = "12px"; applies.textContent = "loading…";
   const results = el("div"); results.style.marginTop = "12px";
   const library = el("div"); library.style.marginTop = "16px";
-  root.append(applies, results, library);
+  root.append(governing, applies, results, library);
+
+  /**
+   * Section 0: the governing code editions, and which of them are this jurisdiction's.
+   *
+   * **With no jurisdiction the server is not asked.** `/codes/adoptions` answers an empty
+   * jurisdiction with the national baseline and a `resolved: false` nobody has to read, so calling
+   * it would put eight editions on screen for a project that has no place — the same reason this
+   * panel resolves no pack without one.
+   */
+  const drawGoverning = async (jurisdiction: string | null) => {
+    governing.innerHTML = "";
+    const head = el("div");
+    if (!jurisdiction) {
+      const scope = adoptionScope(null, null);
+      head.innerHTML = `<div><b>${esc(scope.headline)}</b> — ${esc(scope.detail)}</div>`;
+      governing.appendChild(head);
+      return;
+    }
+    governing.innerHTML = "<span class='meta'>resolving the governing code editions…</span>";
+    let a: Adoptions;
+    try { a = await ctx.host.api.codeAdoptions(jurisdiction); }
+    catch (e) { governing.textContent = `code adoptions failed: ${(e as Error).message}`; return; }
+    governing.innerHTML = "";
+    const scope = adoptionScope(a, jurisdiction);
+    head.innerHTML = `<div><b>⚖ Governing code editions</b></div>`
+      + `<div style="margin-top:2px"><b>${esc(scope.headline)}</b> — `
+      + `${esc(scope.detail)}</div>`;
+    if (scope.tone === "warn") head.style.borderLeft = "3px solid var(--status-warn)";
+    if (scope.tone === "warn") head.style.paddingLeft = "6px";
+    governing.appendChild(head);
+    // The panel's own idiom — a card of escaped rows. `kvTable` lives in `ui/result.ts`, which is
+    // the viewer's modal body; no portal panel imports it and this one is not the place to start.
+    const rows = el("div", "dash-card"); rows.style.cssText = "margin-top:6px";
+    rows.innerHTML = adoptionRows(a, jurisdiction).map((r) =>
+      `<div class="meta"${r.strong ? ' style="font-weight:600"' : ""}>`
+      + `${esc(r.k)} — ${esc(r.v)}</div>`).join("");
+    governing.appendChild(rows);
+    const caveat = primaryCaveat(a, jurisdiction);
+    if (caveat) {
+      const c = el("div", "meta"); c.style.marginTop = "4px"; c.textContent = caveat;
+      governing.appendChild(c);
+    }
+    if (scope.kind === "unseeded") {
+      // A second request, and the section survives losing it: the hint makes the refusal
+      // actionable, it is not what the refusal rests on.
+      let hint: string | null;
+      try { hint = seededHint((await ctx.host.api.codeSeeded()).jurisdictions); }
+      catch { hint = null; }
+      if (hint) {
+        const h = el("div", "meta"); h.style.marginTop = "4px"; h.textContent = hint;
+        governing.appendChild(h);
+      }
+    }
+    // The engine attaches this to EVERY answer, seeded or not, and it is the whole reason the seed
+    // is safe to ship. Rendered as visible text rather than a tooltip: a tablet has no hover.
+    const v = el("div", "meta"); v.style.marginTop = "4px"; v.textContent = a.verify;
+    governing.appendChild(v);
+  };
 
   /** Section 1 + 2: what applies here, and what the model does against it. */
   const drawProject = async () => {
@@ -45,6 +109,7 @@ export async function renderJurisdiction(ctx: PanelContext) {
     try { req = await ctx.host.api.projectRequirements(pid); }
     catch (e) { applies.textContent = `requirements failed: ${(e as Error).message}`; return; }
 
+    await drawGoverning(req.jurisdiction);
     applies.innerHTML = `<div><b>${esc(adoptionLine(req))}</b></div>`;
     for (const p of req.packs) {
       const card = el("div", "dash-card"); card.style.cssText = "margin-top:6px";

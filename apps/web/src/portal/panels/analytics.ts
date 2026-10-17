@@ -1,11 +1,26 @@
+import { downloadPostedPdf, optionsBoardBody, optionsBoardPath } from "../../api/downloadPdf";
 import { esc, money as cmoney } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
 import { toast } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 import { renderPlanningBrief } from "./planningBrief";
+import { BASIS_CSS, basisRows, classNote, midpointReading, sectorLine }
+  from "./conceptualBasis";
+import { declarationGap, deficiencyPageNote, deficiencyRows, editionNote, PERMIT_CSS }
+  from "./permitReading";
+import { exclusionLine, RATE_CSS, ratePageNote, spreadReading } from "./unitRateRead";
+import { pricedCoverageLine, pricingSuspect, varianceBasisLine } from "./pricingCoverage";
+import { carbonCoverageLine, carbonSuspect, excludedMaterialsLine, noFactorLine }
+  from "./carbonCoverage";
+import { coverageLine, estimateReading, groupRows } from "./permitTimeline";
 import {
   attributionLine, coiLine, isReassuring, lienExposure, ordered, summaryLine, verdictTone,
 } from "./vendorScorecard";
+import {
+  TONE_CSS as WAIVER_TONE, coiHorizonLine, coiRows, expiryCoverage, exposureHeadline,
+  exposureInstruction, prequalLapseLine, prequalLapseRows,
+  securityRows, settledNote, splitBasisNote,
+} from "./waiverRead";
 
 /**
  * Analytics & benchmarking panels (cross-project benchmarks, subcontractor risk & cost).
@@ -67,19 +82,59 @@ export async function renderBenchmarks(ctx: PanelContext) {
         const tbl = el("table", "portal-table") as HTMLTableElement;
         tbl.style.cssText = "width:100%;font-size:12px";
         const thead = el("thead");
+        // UNITRATE-BASIS: the SPREAD column. The engine's `limitation` says, in as many words,
+        // "Check `spread_ratio` and `per_project` before quoting a median" — and this table printed
+        // the median, p25 and p75 and withheld the spread. `pooled` is beside it because the
+        // engine's `basis` says it "answers a different question": the distribution is over
+        // PROJECTS, the pooled rate is Σcost ÷ Σquantity and one large project sets it.
         thead.innerHTML = "<tr><th scope=\"col\" style=\"text-align:left\">Cost code</th><th scope=\"col\">Unit</th>"
-          + "<th scope=\"col\">n</th><th scope=\"col\">median</th><th scope=\"col\">p25</th><th scope=\"col\">p75</th></tr>";
+          + "<th scope=\"col\">n</th><th scope=\"col\">median</th><th scope=\"col\">p25</th><th scope=\"col\">p75</th>"
+          + "<th scope=\"col\">spread</th><th scope=\"col\">pooled</th></tr>";
         const tb = el("tbody");
-        for (const c of usable.slice(0, 20)) {
+        const page = usable.slice(0, 20);
+        for (const c of page) {
           const tr = el("tr");
           const td = (t: string, align = "right") => {
             const d = el("td"); d.style.textAlign = align; d.textContent = t; return d;
           };
+          const sp = spreadReading(c);
+          const spCell = td(sp.text, "center");
+          spCell.style.color = RATE_CSS[sp.tone];
+          // The engine calls an order-of-magnitude spread "usually a reporting-lag artefact rather
+          // than a price difference", so the title says what to do rather than only flagging it.
+          spCell.title = sp.quotable
+            ? "high ÷ low across the projects behind this median"
+            : "the projects behind this median disagree by an order of magnitude or more — usually a "
+              + "reporting-lag artefact rather than a price difference. Do not quote this median.";
           tr.append(td(c.cost_code, "left"), td(c.unit, "center"), td(String(c.projects), "center"),
-            td(cmoney(c.median)), td(cmoney(c.p25)), td(cmoney(c.p75)));
+            td(cmoney(c.median)), td(cmoney(c.p25)), td(cmoney(c.p75)), spCell,
+            td(c.pooled_rate == null ? "—" : cmoney(c.pooled_rate)));
           tb.appendChild(tr);
         }
         tbl.append(thead, tb); ratesSlot.appendChild(tbl);
+        const pageNote = ratePageNote(page.length, usable.length);
+        if (pageNote) {
+          const pn = el("div", "meta"); pn.style.marginTop = "2px"; pn.textContent = pageNote;
+          ratesSlot.appendChild(pn);
+        }
+        // WHAT COULD NOT BE MEASURED AT ALL — mixed units, cost with no quantity, quantity with no
+        // cost. The engine counts each and refuses to drop them: "a project that could not be
+        // measured is not a project that cost zero." None of it reached this screen.
+        const ex = exclusionLine(ur);
+        if (ex) {
+          const e = el("div", "meta");
+          e.style.cssText = `margin-top:2px;color:${RATE_CSS[ex.tone]}`;
+          e.textContent = ex.text;
+          ratesSlot.appendChild(e);
+        }
+        // The engine's own two sentences, verbatim. A second wording of a caveat is a second thing
+        // to keep in step with the engine that computes it.
+        for (const t of [ur.basis, ur.limitation]) {
+          if (!t) continue;
+          const d = el("div", "meta"); d.style.cssText = "margin-top:2px;font-size:11px";
+          d.textContent = t;
+          ratesSlot.appendChild(d);
+        }
       }
     } catch (e) { ratesSlot.textContent = `unit rates failed: ${(e as Error).message}`; }
 
@@ -310,6 +365,8 @@ export async function renderRiskCost(ctx: PanelContext) {
     const carbonCompSlot = slot();
     section("Permit-submission readiness");
     const permitSlot = slot();
+    section("Entitlement duration — days to issue, and which permits the estimate is about");
+    const permitDaysSlot = slot();
     section("Takeoff pricing vs estimate");
     const priceSlot = slot();
     section("Model classification (improve QTO + carbon)");
@@ -380,15 +437,34 @@ export async function renderRiskCost(ctx: PanelContext) {
     }).catch((e) => { pqSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.coiExpiry(pid).then((r) => {
-      coiSlot.innerHTML = `<div class="meta">${r.expired_count} expired · ${r.expiring_count} expiring ≤30d</div>`;
-      const rows = [...r.expired.map((x) => ({ ...x, k: "EXPIRED" })), ...r.expiring_soon.map((x) => ({ ...x, k: "soon" }))];
+      // WAIVER-FLAT. The horizon was the literal text "≤30d" beside an unread `soon_days` — true
+      // only because the one caller passes the default. `carrier` was sent and undeclared, and it
+      // is who you telephone; an expired certificate shows an age rather than a negative countdown.
+      coiSlot.innerHTML = `<div class="meta">${esc(coiHorizonLine(r))}</div>`;
+      const rows = coiRows(r);
       if (rows.length) {
         const ul = el("ul"); ul.style.cssText = "margin:4px 0 0 16px;font-size:12px";
         rows.forEach((x) => { const li = el("li");
-          li.innerHTML = `<span style="color:${x.k === "EXPIRED" ? "var(--status-crit)" : "var(--status-warn)"}">${x.k}</span> `
-            + `${esc(x.vendor || "")} — ${esc(x.coverage_type || "")} exp ${x.expires} (${x.days}d)`; ul.append(li); });
+          li.innerHTML = `<span style="color:${WAIVER_TONE[x.tone]}">${esc(x.kind)}</span> `
+            + `${esc(x.vendor)} — ${esc(x.coverage)} · ${esc(x.carrier)} · exp ${esc(x.expires)} `
+            + `(${esc(x.age)})`; ul.append(li); });
         coiSlot.append(ul);
       }
+      // PREQUAL-LAPSE. `coi_expiry`'s docstring reads "...plus prequals lapsing" and its body
+      // read the `coi` table alone, so this card — the one place compliance documents get a
+      // warning window — never showed the one document that had no warning anywhere else.
+      const pqLine = prequalLapseLine(r);
+      if (pqLine) {
+        coiSlot.insertAdjacentHTML("beforeend",
+          `<div class="meta" style="color:var(--status-warn);margin-top:6px">${esc(pqLine)}</div>`);
+        const pul = el("ul"); pul.style.cssText = "margin:4px 0 0 16px;font-size:12px";
+        prequalLapseRows(r).forEach((x) => { const li = el("li");
+          li.innerHTML = `<span style="color:${WAIVER_TONE[x.tone]}">${esc(x.kind)}</span> `
+            + `${esc(x.company)} — ${esc(x.trade)} · exp ${esc(x.expires)} (${esc(x.age)})`;
+          pul.append(li); });
+        coiSlot.append(pul);
+      }
+      coiSlot.insertAdjacentHTML("beforeend", `<div class="meta">${esc(expiryCoverage(r))}</div>`);
     }).catch((e) => { coiSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.procurementComplianceFeed(pid).then((r) => {
@@ -402,29 +478,62 @@ export async function renderRiskCost(ctx: PanelContext) {
             + `<td style="text-align:center">${v.can_bill ? "✅" : "⛔"}</td></tr>`).join("") + `</tbody>`;
         gateSlot.append(t);
       } else {
-        gateSlot.insertAdjacentHTML("beforeend", `<div class="meta">✅ All vendors clear on insurance + prequalification.</div>`);
+        // PREQUAL-LAPSE: say what window the tick is over. This read as an unqualified all-clear
+        // while the nudge list's `within_days` controlled nothing — a caller asking for 7 days got
+        // a 30-day answer labelled 7, so the tick was over a window nobody had chosen.
+        gateSlot.insertAdjacentHTML("beforeend",
+          `<div class="meta">✅ No vendor is blocked, and none has insurance or an approved `
+          + `prequalification lapsing within ${r.warn_days} day(s).</div>`);
       }
     }).catch((e) => { gateSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.lienExposure(pid).then((r) => {
-      lienSlot.innerHTML = `<div class="meta">Total exposure <b style="color:${r.total_lien_exposure > 0 ? "var(--status-crit)" : "var(--status-good)"}">${cmoney(r.total_lien_exposure)}</b>`
-        + (r.vendors_at_risk.length ? ` · at risk: ${r.vendors_at_risk.join(", ")}` : "") + `</div>`;
-      const risky = r.vendors.filter((v) => v.exposure > 0);
-      if (risky.length) {
+      // WAIVER-FLAT. This table was Vendor / Paid / Unconditional waived / Exposure, so a vendor
+      // holding a conditional release for the whole balance and one holding nothing at all came
+      // out as the SAME ROW, both in --status-crit — measured at $200,000 each. `status` and
+      // `waived_conditional` were declared on the client type and read by nothing.
+      // `apps/web/src/portal/panels/waiverRead.ts` holds the readings and the measurement.
+      const head = exposureHeadline(r, cmoney);
+      lienSlot.innerHTML = `<div class="meta" style="color:${WAIVER_TONE[head.tone]}">`
+        + `${esc(head.text)}</div>`;
+      const line = (text: string | null, tone = "") => {
+        if (!text) return;
+        const d = el("div", "meta"); d.textContent = text;
+        if (tone) d.style.color = tone;
+        lienSlot.append(d);
+      };
+      line(exposureInstruction(r), WAIVER_TONE.warn);
+      line(splitBasisNote(r));
+      const rows = securityRows(r);
+      if (rows.length) {
         const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
-        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Vendor</th><th scope="col">Paid</th><th scope="col">Unconditional waived</th><th scope="col">Exposure</th></tr></thead><tbody>`
-          + risky.map((v) => `<tr><td>${esc(v.vendor)}</td><td style="text-align:right">${cmoney(v.paid)}</td>`
-            + `<td style="text-align:right">${cmoney(v.waived_unconditional)}</td>`
-            + `<td style="text-align:right;color:var(--status-crit)">${cmoney(v.exposure)}</td></tr>`).join("") + `</tbody>`;
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Vendor</th><th scope="col">Paid</th>`
+          + `<th scope="col">Unconditional waived</th><th scope="col">Conditional waived</th>`
+          + `<th scope="col">Exposure</th><th scope="col" style="text-align:left">Release</th></tr></thead><tbody>`
+          + rows.map((v) => `<tr><td>${esc(v.vendor)}</td><td style="text-align:right">${cmoney(v.paid)}</td>`
+            + `<td style="text-align:right">${cmoney(v.unconditional)}</td>`
+            + `<td style="text-align:right">${cmoney(v.conditional)}</td>`
+            + `<td style="text-align:right;color:${WAIVER_TONE.crit}">${cmoney(v.exposure)}</td>`
+            + `<td style="color:${WAIVER_TONE[v.tone]}">${esc(v.security)}</td></tr>`).join("") + `</tbody>`;
         lienSlot.append(t);
       }
+      line(settledNote(r));
     }).catch((e) => { lienSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.projectCarbon(pid).then((r) => {
-      if (!r.line_count) { carbonSlot.innerHTML = `<div class="meta">${r.message || "No material quantities."}</div>`; return; }
-      const mats = Object.entries(r.by_material).slice(0, 6).map(([m, v]) => `${m}: ${(v / 1000).toFixed(1)} t`).join(" · ");
-      carbonSlot.innerHTML = `<div><b>${r.total_tco2e.toLocaleString()} tCO₂e</b> embodied (A1-A3)`
-        + (r.unmatched ? ` · ${r.unmatched} line(s) unmatched` : "") + `</div><div class="meta">${mats}</div>`;
+      if (!r.line_count) { carbonSlot.innerHTML = `<div class="meta">${esc(r.message || "No material quantities.")}</div>`; return; }
+      // CARBON-UNCONVERTED. `${r.unmatched} line(s) unmatched` collapsed two refusals with
+      // different remedies, and hid the worse one: a material the engine RECOGNISES whose unit it
+      // cannot convert leaves the total and both rollups with no trace but that tally. Measured,
+      // 2,400 t of concrete in kg vanished from a 329 tCO2e figure it would near-double.
+      const mats = Object.entries(r.by_material).slice(0, 6).map(([m, v]) => `${esc(m)}: ${(v / 1000).toFixed(1)} t`).join(" · ");
+      const excluded = excludedMaterialsLine(r);
+      const noFactor = noFactorLine(r);
+      carbonSlot.innerHTML = `<div><b>${r.total_tco2e.toLocaleString()} tCO₂e</b> embodied (A1-A3)</div>`
+        + `<div class="meta"${carbonSuspect(r) ? ` style="color:var(--status-warn)"` : ""}>${esc(carbonCoverageLine(r))}</div>`
+        + `<div class="meta">${mats}</div>`
+        + (excluded ? `<div class="meta" style="color:var(--status-warn);margin-top:2px">${esc(excluded)}</div>` : "")
+        + (noFactor ? `<div class="meta">${esc(noFactor)}</div>` : "");
     }).catch((e) => { carbonSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.carbonComplianceReport(pid).then((r) => {
@@ -453,30 +562,122 @@ export async function renderRiskCost(ctx: PanelContext) {
       }
     }).catch(() => { carbonCompSlot.innerHTML = `<div class="meta">Load a model in the Model workspace to compute per-element carbon.</div>`; });
 
-    api.permitReadiness(pid).then((r) => {
-      const good = r.verdict === "READY";
-      permitSlot.innerHTML = `<div><b style="color:${good ? "var(--status-good)" : "var(--status-warn)"}">${r.verdict}</b>`
-        + ` · readiness ${r.readiness_pct}% · approvability ${Math.round(r.approvability_score)}%</div>`;
-      if (r.deficiencies.length) {
+    // PERMIT-BLIND. Three things were wrong with this card and the route behind it, and the worst
+    // one was silent: `code_edition` came back null on every call ever served (the server read two
+    // key names `code_analysis` does not have), the route's FOUR declarations were never passed by
+    // anything, and the disclaimer — "NOT a certified plan review. The authority having jurisdiction
+    // rules" — was neither declared on the client type nor rendered on a screen that prints READY
+    // over a building.
+    //
+    // The declaration row is the half that changes what a user can DO: the checklist item "occupancy
+    // group + construction type declared" tests the INPUTS on purpose, because an occupancy group
+    // inferred from the model is not a declaration for permit purposes — so until there was a way to
+    // pass them, that row could never be satisfied and its deficiency never cleared.
+    const permitAsked: { occupancy_group?: string; construction_type?: string;
+                         sprinklered?: boolean; jurisdiction?: string } = {};
+    const permitRow = el("div"); permitRow.style.cssText = "display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-bottom:4px";
+    const occIn = el("input", "portal-filter") as HTMLInputElement;
+    occIn.placeholder = "occupancy (B)"; occIn.size = 12; occIn.setAttribute("aria-label", "IBC occupancy group");
+    const ctIn = el("input", "portal-filter") as HTMLInputElement;
+    ctIn.placeholder = "type (II-B)"; ctIn.size = 12; ctIn.setAttribute("aria-label", "IBC construction type");
+    const jurIn = el("input", "portal-filter") as HTMLInputElement;
+    jurIn.placeholder = "state (CA)"; jurIn.size = 8; jurIn.setAttribute("aria-label", "Jurisdiction (US state code)");
+    const sprWrap = el("label", "meta"); sprWrap.style.cssText = "display:inline-flex;gap:3px;align-items:center";
+    const sprIn = el("input") as HTMLInputElement; sprIn.type = "checkbox";
+    sprWrap.append(sprIn, document.createTextNode("sprinklered"));
+    const recheck = el("button", "portal-btn") as HTMLButtonElement; recheck.textContent = "↻ Re-check";
+    recheck.title = "Re-run the permit pre-check with these declarations — an inferred occupancy group is not a declaration";
+    permitRow.append(occIn, ctIn, jurIn, sprWrap, recheck);
+    const permitOut = el("div");
+    permitSlot.innerHTML = ""; permitSlot.append(permitRow, permitOut);
+    const runPermit = () => {
+      permitOut.innerHTML = `<div class="meta">running the intake pre-check…</div>`;
+      api.permitReadiness(pid, permitAsked).then((r) => {
+        const good = r.verdict === "READY";
+        const ed = editionNote(r);
+        const gap = declarationGap(r);
+        const rows = deficiencyRows(r);
+        const page = deficiencyPageNote(rows.length, r.deficiencies.length);
+        permitOut.innerHTML = `<div><b style="color:${good ? "var(--status-good)" : "var(--status-warn)"}">${esc(r.verdict)}</b>`
+          + ` · readiness ${r.readiness_pct}% · approvability ${Math.round(r.approvability_score)}%</div>`
+          + `<div class="meta" style="margin-top:2px;color:${esc(PERMIT_CSS[ed.tone])}">${esc(ed.text)}</div>`
+          + (gap ? `<div class="meta" style="margin-top:2px;color:${esc(PERMIT_CSS.warn)}">${esc(gap.text)}</div>` : "")
+          + (rows.length
+            ? `<ul style="margin:4px 0 0 16px;font-size:12px">`
+              + rows.map((d) => `<li><span style="color:${d.severity === "critical" ? "var(--status-crit)"
+                  : d.severity === "major" ? "var(--status-warn)" : "var(--muted)"}">${esc(d.severity)}</span> `
+                + `${esc(d.item)} — <span class="meta">${esc(d.action)}</span>`
+                // THE SOURCE, which the old line dropped: "resolve before submission: X" tells a
+                // reader what to do and never what the finding was computed FROM.
+                + (d.source ? ` <span class="meta">(${esc(d.source)})</span>` : "") + `</li>`).join("")
+              + `</ul>`
+              + (page ? `<div class="meta" style="margin-top:2px">${esc(page)}</div>` : "")
+            : `<div class="meta">✅ No deficiencies — the intake checklist is clear.</div>`)
+          // THE DISCLAIMER, last and always. A screen that prints READY over a building must carry
+          // the sentence saying it is not a plan review, and this one never did.
+          + (r.disclaimer ? `<div class="meta" style="margin-top:4px;font-size:11px">${esc(r.disclaimer)}</div>` : "");
+      }).catch(() => { permitOut.innerHTML = `<div class="meta">Load a model to run the permit-submission pre-check (egress + approvability + sheet series).</div>`; });
+    };
+    recheck.onclick = () => {
+      // Only non-empty declarations are sent: the route treats "" as "not declared", and sending it
+      // explicitly would be the same thing said twice.
+      permitAsked.occupancy_group = occIn.value.trim() || undefined;
+      permitAsked.construction_type = ctIn.value.trim() || undefined;
+      permitAsked.jurisdiction = jurIn.value.trim() || undefined;
+      permitAsked.sprinklered = sprIn.checked || undefined;
+      runPermit();
+    };
+    runPermit();
+
+    // PERMIT-BASIS-DARK: days-to-issue over the project's own cached permits. The estimate BROADENS
+    // its cohort until the sample is stable and names the one it settled on in `basis` — and the
+    // last fallback, "all permits", fires regardless of sample size. So the reading states what the
+    // number is ABOUT before it states the number. No body: the route falls back to the project's
+    // `permit` records, which is the record of authority here.
+    api.permitsTimeline(pid, {}).then((t) => {
+      const asked = {};
+      const r = estimateReading(t, asked);
+      const cov = coverageLine(t);
+      permitDaysSlot.innerHTML = `<div><b>${esc(r.headline)}</b></div>`
+        + `<div class="meta" style="margin-top:2px">${esc(r.detail)}</div>`
+        + (cov ? `<div class="meta" style="margin-top:2px">${esc(cov)}</div>` : "");
+      if (r.tone === "bad") permitDaysSlot.style.borderLeft = "3px solid var(--status-crit)";
+      else if (r.tone === "warn") permitDaysSlot.style.borderLeft = "3px solid var(--status-warn)";
+      if (r.tone === "bad" || r.tone === "warn") permitDaysSlot.style.paddingLeft = "6px";
+      const rows = groupRows(t);
+      if (rows.length) {
         const ul = el("ul"); ul.style.cssText = "margin:4px 0 0 16px;font-size:12px";
-        for (const d of r.deficiencies.slice(0, 6)) {
+        for (const g of rows) {
           const li = el("li");
-          const col = d.severity === "critical" ? "var(--status-crit)" : d.severity === "major" ? "var(--status-warn)" : "var(--muted)";
-          li.innerHTML = `<span style="color:${col}">${d.severity}</span> ${d.item} — <span class="meta">${d.action}</span>`;
+          li.innerHTML = `${esc(g.k)} — <span class="meta">${esc(g.v)}</span>`;
           ul.append(li);
         }
-        permitSlot.append(ul);
-      } else {
-        permitSlot.insertAdjacentHTML("beforeend", `<div class="meta">✅ No deficiencies — the intake checklist is clear.</div>`);
+        permitDaysSlot.append(ul);
       }
-    }).catch(() => { permitSlot.innerHTML = `<div class="meta">Load a model to run the permit-submission pre-check (egress + approvability + sheet series).</div>`; });
+      permitDaysSlot.insertAdjacentHTML("beforeend",
+        `<div class="meta" style="margin-top:4px">${esc(t.note)}</div>`);
+    }).catch(() => { permitDaysSlot.innerHTML = `<div class="meta">No cached permit records for this project — days-to-issue needs filed and issued dates on the permit register.</div>`; });
 
     api.pricingReconcile(pid).then((r) => {
-      if (!r.matched) { priceSlot.innerHTML = `<div class="meta">No priced quantities (${r.pricing_source}).</div>`; return; }
+      // PRICE-MATCHED. This printed `Priced $X vs estimate $Y — variance $Z` with no denominator
+      // anywhere: 3 priced lines out of 400 and 3 out of 3 rendered the same sentence. And `v` was
+      // `priced_total - estimated_total`, two totals over different populations — on the repo's own
+      // fixture that is +12,250 where the comparable variance is −1,500, so the red/green colour
+      // below was showing an overrun on a takeoff the book prices BELOW estimate. The engine now
+      // subtracts over one population and states the coverage; this renders both.
+      if (!r.matched) {
+        priceSlot.innerHTML = `<div class="meta">No priced quantities (${esc(r.pricing_source)}).</div>`
+          + `<div class="meta">${esc(pricedCoverageLine(r))}</div>`;
+        return;
+      }
       const v = r.variance_total;
-      priceSlot.innerHTML = `<div>Priced <b>${cmoney(r.priced_total)}</b> (${r.pricing_source})`
-        + (v != null ? ` vs estimate ${cmoney(r.estimated_total)} — variance <b style="color:${v > 0 ? "var(--status-warn)" : "var(--status-good)"}">${cmoney(v)}</b>` : "")
-        + `</div>`;
+      const hue = v == null ? "" : v > 0 ? "var(--status-warn)" : "var(--status-good)";
+      priceSlot.innerHTML = `<div>Priced <b>${cmoney(r.priced_total)}</b> (${esc(r.pricing_source)})`
+        + (v != null ? ` — <b style="color:${hue}">${esc(varianceBasisLine(r))}</b>` : "")
+        + `</div>`
+        + `<div class="meta"${pricingSuspect(r) ? ` style="color:var(--status-warn)"` : ""}>`
+        + `${esc(pricedCoverageLine(r))}</div>`
+        + (v == null ? `<div class="meta">${esc(varianceBasisLine(r))}</div>` : "");
     }).catch((e) => { priceSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.ifcClassify(pid).then((r) => {
@@ -496,19 +697,52 @@ export async function renderRiskCost(ctx: PanelContext) {
       region.setAttribute("aria-label", "Region");
       region.innerHTML = cat.regions.map((rg) => `<option value="${esc(rg)}"${rg === "us_average" ? " selected" : ""}>${esc(rg)}</option>`).join("");
       const gfa = el("input", "portal-filter") as HTMLInputElement; gfa.type = "number"; gfa.placeholder = "GFA (sf)"; gfa.setAttribute("aria-label", "Gross floor area (sf)"); gfa.style.cssText = "width:110px;margin:2px 4px";
+      // ESTIMATE-BASIS: the two inputs that compute the midpoint escalation, which nothing passed.
+      // The engine runs Track M on every call and, without these, reports only today's money — and
+      // today's money is 9.4% below the construction-midpoint total on a 2027/24-month build
+      // (measured). *The engine computed the number to underwrite to and the screen showed the
+      // other one.*
+      const startY = el("input", "portal-filter") as HTMLInputElement; startY.type = "number";
+      startY.placeholder = "start yr"; startY.setAttribute("aria-label", "Construction start year");
+      startY.style.cssText = "width:80px;margin:2px 4px";
+      const durM = el("input", "portal-filter") as HTMLInputElement; durM.type = "number";
+      durM.placeholder = "months"; durM.setAttribute("aria-label", "Construction duration in months");
+      durM.style.cssText = "width:78px;margin:2px 4px";
+      const stories = el("input", "portal-filter") as HTMLInputElement; stories.type = "number";
+      stories.placeholder = "storeys"; stories.setAttribute("aria-label", "Storeys");
+      stories.style.cssText = "width:78px;margin:2px 4px";
       const go = el("button", "file-btn") as HTMLButtonElement; go.textContent = "Estimate";
       const out = el("div"); out.style.marginTop = "6px";
       go.onclick = async () => {
         if (!Number(gfa.value)) { toast("Enter GFA", "error"); return; }
         out.textContent = "estimating…";
         try {
-          const r = await api.conceptualEstimate(pid, { building_type: type.value, region: region.value, gfa_sf: Number(gfa.value) });
+          const r = await api.conceptualEstimate(pid, {
+            building_type: type.value, region: region.value, gfa_sf: Number(gfa.value),
+            ...(Number(stories.value) ? { stories: Number(stories.value) } : {}),
+            ...(Number(startY.value) ? { start_year: Number(startY.value) } : {}),
+            ...(Number(durM.value) ? { duration_months: Number(durM.value) } : {}),
+          });
           if (r.error) { out.textContent = r.error; return; }
+          const mid = midpointReading(r);
+          const sector = sectorLine(r);
+          const cls = classNote(r);
           out.innerHTML = `<div><b>${cmoney(r.total_cost)}</b> total (${cmoney(r.range.low)}–${cmoney(r.range.high)}) `
-            + `· ${cmoney(r.metrics.total_per_sf ?? 0)}/sf · hard ${cmoney(r.hard_cost)} + soft ${cmoney(r.soft_cost)}</div>`;
+            + `· ${cmoney(r.metrics.total_per_sf ?? 0)}/sf · hard ${cmoney(r.hard_cost)} + soft ${cmoney(r.soft_cost)}</div>`
+            // THE MIDPOINT TOTAL, or which input would produce it. Never silence: a figure that is
+            // materially lower than the right one, shown unlabelled, is this item's whole defect.
+            + `<div class="meta" style="margin-top:2px;color:${esc(BASIS_CSS[mid.tone])}">${esc(mid.text)}</div>`
+            // THE BASIS — type, region+index, cost year+escalation, height premium, soft %. A
+            // total without them cannot be reconciled against anything.
+            + `<table class="portal-table" style="width:100%;font-size:11px;margin-top:4px"><tbody>`
+            + basisRows(r).map((b) => `<tr><td>${esc(b.label)}</td>`
+              + `<td style="text-align:right">${esc(b.value)}</td></tr>`).join("")
+            + `</tbody></table>`
+            + (sector ? `<div class="meta" style="margin-top:2px;color:${esc(BASIS_CSS[sector.tone])}">${esc(sector.text)}</div>` : "")
+            + (cls ? `<div class="meta" style="margin-top:2px;font-size:11px">${esc(cls)}</div>` : "");
         } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
       };
-      ceWrap.append(type, region, gfa, go, out);
+      ceWrap.append(type, region, gfa, stories, startY, durM, go, out);
 
       // GEN-SCORE: massing-option comparison — generate FAR variants of a zoning envelope and rank
       // them through cost ($/SF) + embodied carbon + yield + FAR/height compliance in one pass.
@@ -519,6 +753,26 @@ export async function renderRiskCost(ctx: PanelContext) {
       const scoreBtn = el("button", "file-btn") as HTMLButtonElement; scoreBtn.textContent = "⚖ Score options";
       scoreBtn.title = "Generate FAR variants of this envelope and rank them: cost · carbon · yield · compliance";
       const optOut = el("div"); optOut.style.marginTop = "6px";
+      // OPTION-BOARD-DARK: the deck this ranking exists to support. `POST …/design/options/board.pdf`
+      // is called "the client-facing artifact of a GEN-SCORE run" by its own route docstring and had
+      // no caller, so the table below was where the comparison ended — nobody could take it to the
+      // client meeting it was made for.
+      //
+      // DISABLED UNTIL A SCORE HAS RUN, because the route refuses an empty option set with
+      // `option_score.EMPTY_OPTIONS` (a 400), and a button that produces a 400 reads as a broken
+      // feature rather than an unavailable move — the rule `modelReviewPanel.ts` states for its own
+      // action set.
+      const boardBtn = el("button", "file-btn") as HTMLButtonElement;
+      boardBtn.textContent = "📄 Board PDF"; boardBtn.disabled = true;
+      boardBtn.style.marginLeft = "4px";
+      boardBtn.title = "Score the options first — the deck is rendered from the set that was scored";
+      // THE SAME INPUT THE TABLE WAS DRAWN FROM, held rather than recomputed. The route scores the
+      // set it is given, so posting the SCORED output would re-score already-scored dicts, and
+      // posting a freshly generated set would re-generate from inputs the reader may have edited
+      // since. *A deliverable derived from a different input than the screen it is taken from is a
+      // second opinion wearing the first one's name.* `weights` travels with it for the same
+      // reason: this panel passes none, so the board must pass none.
+      let scored: { options: Record<string, unknown>[]; weights?: Record<string, number> } | null = null;
       scoreBtn.onclick = async () => {
         if (!Number(lotW.value) || !Number(lotD.value) || !Number(farIn.value)) { toast("Enter lot W/D + FAR", "error"); return; }
         optOut.textContent = "scoring options…";
@@ -528,22 +782,63 @@ export async function renderRiskCost(ctx: PanelContext) {
             ...(Number(hLim.value) ? { height_limit: Number(hLim.value) } : {}) };
           const g = await api.designOptionsGenerate(pid, base, [type.value]);
           const s = await api.designOptionsScore(pid, g.options);
+          scored = { options: g.options };
+          boardBtn.disabled = false;
+          boardBtn.title = "Download the scored option set as a one-page client deck";
           const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:11px;margin-top:4px";
           t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Option</th><th scope="col">Score</th><th scope="col">$/sf</th>`
             + `<th scope="col">tCO₂e</th><th scope="col">Floors</th><th scope="col">GFA (sf)</th><th scope="col" style="text-align:left">Code</th></tr></thead><tbody>`
             + s.options.map((o) => `<tr${o.label === s.recommended ? ' style="background:var(--hover)"' : ""}>`
-              + `<td>${o.label === s.recommended ? "★ " : ""}${o.label}</td><td style="text-align:center"><b>${o.composite}</b></td>`
+              // ◧ IS NOT A DECORATION. A partially-scored option is RANKED, so it can sit at the top
+              // of this table with no star — and until this marker there was nothing on the screen
+              // saying why the top row was not the recommendation. The title names the criteria it is
+              // missing, because "incomplete" without "incomplete in what" sends a reader to re-run.
+              + `<td>${o.label === s.recommended ? "★ " : !o.fully_scored
+                  ? `<span style="color:var(--status-warn)" title="scored on fewer criteria — missing ${esc((o.missing_criteria || []).join(", "))}; ranked but never recommended">◧</span> `
+                  : ""}${esc(o.label)}</td><td style="text-align:center"><b>${o.composite}</b></td>`
               + `<td style="text-align:right">${o.cost_per_sf != null ? "$" + Math.round(o.cost_per_sf) : "—"}</td>`
-              + `<td style="text-align:right">${o.carbon_total_tco2e.toLocaleString()}</td>`
+              // The per-row basis is shown ONLY when the set is mixed. On a like-for-like set it is
+              // noise on every row; on a mixed one it is the difference between two unlike claims,
+              // and a single tCO₂e column with no basis is what made them look comparable.
+              + `<td style="text-align:right">${o.carbon_total_tco2e.toLocaleString()}`
+              + `${s.carbon_basis_mixed ? ` <span class="meta" title="carbon basis for this option">${esc(o.carbon_basis)}</span>` : ""}</td>`
               + `<td style="text-align:center">${o.massing.floors}</td>`
               + `<td style="text-align:right">${Math.round(o.massing.buildable_gfa_sf).toLocaleString()}</td>`
-              + `<td>${o.compliant ? "✓" : `<span style="color:var(--status-crit)" title="${o.violations.join("; ")}">✗</span>`}</td></tr>`).join("")
+              + `<td>${o.compliant ? "✓" : `<span style="color:var(--status-crit)" title="${esc(o.violations.join("; "))}">✗</span>`}</td></tr>`).join("")
             + `</tbody>`;
           optOut.innerHTML = "";
           optOut.append(t);
-        } catch (e) { optOut.textContent = `failed: ${(e as Error).message}`; }
+          // THE ENGINE'S OWN SENTENCES, rendered. `note` carries the mixed-carbon warning appended
+          // to it — "⚠ CARBON BASES ARE MIXED … the carbon ranking across this set is not
+          // like-for-like" — and `partially_scored_note` explains the ◧ rows. Neither was read by
+          // the card that shipped with OPTION-BOARD-DARK, so the table above was a ranking with its
+          // caveats stripped off. *A qualifier the engine computes and the screen drops is worse
+          // than one that was never computed, because the screen looks complete.*
+          if (s.partially_scored.length) {
+            const w = el("div", "meta"); w.style.color = "var(--status-warn)";
+            w.textContent = `◧ ${s.partially_scored.length} of ${s.options.length} option(s) `
+              + `partially scored (${s.partially_scored.join(", ")}) — ${s.partially_scored_note}`;
+            optOut.append(w);
+          }
+          const nt = el("div", "meta");
+          if (s.carbon_basis_mixed) nt.style.color = "var(--status-warn)";
+          nt.textContent = s.note;
+          optOut.append(nt);
+        } catch (e) {
+          // A FAILED SCORE MUST TAKE THE BUTTON BACK. Leaving it enabled after the second run
+          // fails offers a deck built from the FIRST run's options under the second run's inputs,
+          // which is the one wrong answer that looks like a right one.
+          scored = null; boardBtn.disabled = true;
+          optOut.textContent = `failed: ${(e as Error).message}`;
+        }
       };
-      optRow.append(lotW, lotD, farIn, hLim, scoreBtn, optOut);
+      boardBtn.onclick = () => {
+        if (!scored) return;                      // disabled, but the guard states why rather than relying on it
+        void downloadPostedPdf(api, optionsBoardPath(pid), `${pid}-options-board.pdf`,
+                               optionsBoardBody(scored))
+          .catch((e) => toast(`Board PDF failed: ${(e as Error).message}`, "error"));
+      };
+      optRow.append(lotW, lotD, farIn, hLim, scoreBtn, boardBtn, optOut);
       ceWrap.append(optRow);
     }).catch(() => { ceWrap.innerHTML = `<div class="meta">conceptual estimator unavailable</div>`; });
 

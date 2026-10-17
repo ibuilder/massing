@@ -73,9 +73,45 @@ with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "Ref Graph"}, headers=HDR).json()["id"]
     P = f"/projects/{pid}"
 
-    # an empty set is navigable — vacuously, but it must not report phantom defects
+    # AN EMPTY SET IS **NOT** NAVIGABLE, and this assertion is the fix rather than a tightening.
+    # It read `navigable is True` with the comment "vacuously, but it must not report phantom
+    # defects". Both halves of that sentence were considered; only the second survives.
+    #
+    # "Vacuously true" is a correct statement about the logic and a wrong answer to the question. A
+    # reader asking *is my set navigable?* was told YES by a register with no references in it —
+    # indistinguishable from a fully cross-referenced set, on the one field a caller is most likely
+    # to read alone. **The empty case was thought about, named as vacuous, and then returned as the
+    # same boolean a clean set returns**, and no consumer can read a word in a test comment.
+    #
+    # The second half stands and is asserted below: nothing is REPORTED as a defect either. The
+    # state is `assessed: False` with its reason — not a pass, not a finding.
     g0 = c.get(f"{P}/drawing-set/references", headers=HDR).json()
-    assert g0["navigable"] is True and g0["reference_count"] == 0, g0
+    assert g0["navigable"] is False and g0["assessed"] is False, g0
+    assert g0["reference_count"] == 0 and g0["detail_count"] == 0, g0
+    # ...and NO phantom defects, which is what the original comment was right about
+    assert g0["dangling"] == [] and g0["orphans"] == [] and g0["unparseable"] == [], g0
+    assert "UNCHECKED set, not a clean one" in (g0["unassessed_reason"] or ""), g0
+
+    # A set with sheets but still no callouts or details is the same state, and it is the COMMON
+    # one: `details` and `callouts` are optional fields, so an ordinary drawing register that nobody
+    # has cross-referenced yet lands here rather than in the clean case.
+    pid0 = c.post("/projects", json={"name": "Sheets Only"}, headers=HDR).json()["id"]
+    mk(c, f"/projects/{pid0}", "A-101")
+    g0b = c.get(f"/projects/{pid0}/drawing-set/references", headers=HDR).json()
+    assert g0b["sheet_count"] == 1 and g0b["assessed"] is False, g0b
+    assert g0b["navigable"] is False, g0b
+    assert "1 sheet(s) are registered" in (g0b["unassessed_reason"] or ""), g0b
+
+    # THE INVARIANT A CONSUMER LEANS ON, asserted here because it is this engine's to keep.
+    # `assessed` is `bool(targets or edges or dangling or unparseable)`, so an unassessed graph
+    # cannot carry a finding — and `apps/web/src/viewer/tools/detailRefsCard.ts` relies on exactly
+    # that: it gates each findings table on its own length and has NO separate unassessed branch,
+    # after a mutation showed such a branch was unreachable and therefore untested. If this ever
+    # stops holding, the card would present findings from a set it also calls UNCHECKED.
+    for g in (g0, g0b):
+        assert g["assessed"] is False, g
+        assert not g["dangling"] and not g["orphans"] and not g["unparseable"], g
+        assert g["reference_count"] == 0 and g["resolved"] == 0, g
 
     # A-201 is a wall section calling out three details; A-501 carries two of them.
     mk(c, P, "A-201", callouts=[{"ref": "12/A-501"}, {"ref": "13/A-501"}, {"ref": "99/A-501"},
@@ -111,6 +147,10 @@ with TestClient(app) as c:
     g2 = c.get(f"{Q}/drawing-set/references", headers=HDR).json()
     assert g2["navigable"] is True, g2
     assert g2["resolved"] == 1 and not g2["dangling"] and not g2["orphans"], g2
+    # BOTH DIRECTIONS. Asserting only the empty case would pass a `navigable: False` constant, and
+    # asserting only this one would pass the pre-fix unguarded conjunction — the two together are
+    # what pin the guard.
+    assert g2["assessed"] is True and g2["unassessed_reason"] is None, g2
 
     # (route authorization is owned by test_route_authz, which enumerates every /projects/{pid} route
     #  and fails on any lacking a require_role gate — asserting it here would only test THIS file's

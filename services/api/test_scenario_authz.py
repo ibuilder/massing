@@ -12,6 +12,34 @@ The worst was `share_scenario`, which took `user: str = Body(...)` as the person
 access and had **no `current_user` dependency at all**. It had no notion of who was calling, so any
 authenticated caller could share any scenario with anyone.
 
+**SEC-SCENARIO-LIST, 2026-10-13: THE POPULATION WAS THE DEFECT.** The walk in section 1 reads
+`if "{sid}" not in str(path): continue` — so `GET /proforma/scenarios`, which serves **the same data
+for every scenario at once**, was outside this gate by construction, and it had no authorisation of
+any kind. `?project_id=<someone else's>` returned their scenario names, review states and solved
+returns (equity IRR, multiple, yield on cost, NPV) to any authenticated caller; with no
+`project_id` at all it returned **the entire table**. `create_scenario` was wrong in the other
+direction: no `current_user` dependency at all, so it had no notion of who was calling while taking
+`project_id` from the body — any authenticated caller could write a scenario into any project.
+
+*A predicate that decides what to LOOK at is more dangerous than one that decides what to report* —
+and the paragraph above celebrates "2 of the 8 `{sid}` routes", where the 8 is this predicate's own
+output.
+
+**Four gates, and not one could see it:**
+
+| gate | why not |
+|---|---|
+| this file | `{sid}` routes only — a collection route is not one |
+| `test_route_authz.py` | `/projects/{pid}` routes only; there is no `{pid}` in this path |
+| `test_global_authz.py` | skips anything under `main._PROTECTED_PREFIXES`, and `/proforma` is in it — but that list enforces **authentication** only, which is why every route *looked* guarded. It also considers MUTATING methods, so the GET was outside twice |
+| `test_body_pid_authz.py` | a behavioural test for one route, `/test-fit/optimize` |
+
+*Three exclusions that are each individually reasonable compose into a hole nobody owns* — the shape
+`test_schema_types_agree.py` recorded as *"seven exemptions and no owner is how an artifact stops
+being checked by anybody."* Section 5 replaces the path-shape predicate with **every route in this
+file that reads or writes the `Scenario` model**, derived from the AST, so the next collection route
+is in scope the day it is added.
+
 **Three claims, each asserted rather than described:**
 
 1. Every `{sid}` route is guarded — enumerated from the AST, so a ninth route added without a guard
@@ -26,6 +54,7 @@ from __future__ import annotations
 
 import ast
 import pathlib
+import re
 import sys
 
 ROUTER = pathlib.Path(__file__).parent / "src" / "aec_api" / "routers" / "proforma.py"
@@ -151,7 +180,331 @@ try:
 finally:
     rbac.RBAC_ON, rbac.role_for = _orig_on, _orig_role
 
+# --- 5. EVERY scenario route is authorised, not only the {sid} ones -------------------------------
+# Population by what the handler TOUCHES, not by what its path looks like. A route that reads or
+# writes `Scenario` is handling scenario data whatever its URL shape, and that is the only property
+# the leak above had in common with the eight routes this file already covered.
+
+#: Every mechanism in this router that scopes scenario data to the caller.
+#:
+#: **`member_project_ids` was missing from the first draft, and measuring is what found it.** The
+#: rule then reported FOUR unauthorised routes, and two of them — `GET /proforma/portfolio` and
+#: `/proforma/portfolio/compare` — are correctly scoped: both take `rbac.member_project_ids(db,
+#: user)` and skip every scenario outside it, which is a *stricter* filter than `_can_read` because
+#: it does not admit `shared_with`. *A gate that names its authorisers can only see the ones somebody
+#: remembered*, and the two it would have condemned are the ones R46 ⑥ built
+#: `test_portfolio_authz.py` for. Had the list shipped as drafted, its instruction would have been
+#: "add a guard here" to two routes that have one.
+#:
+#: `role_for` joined for the same reason one step later: `create_scenario`'s `project_id` comes from
+#: the BODY, so `rbac.require_role` is structurally unavailable to it — its inner signature is
+#: `dep(pid: str, ...)`, which FastAPI resolves from the path or query — and the check has to be
+#: written out against `rbac.role_for`. **Found by this gate reporting the REPAIRED route as
+#: unauthorised**, which is the right answer from a list that did not yet name the mechanism the
+#: repair was forced to use.
+AUTHORISERS = ("_scenario_for", "_can_read", "_can_write", "require_role", "_readable_scenarios",
+               "member_project_ids", "role_for", "authorize_pid")
+
+
+def _code_of(fn) -> str:
+    """The function's source with its DOCSTRING REMOVED.
+
+    **Section 3 above records this exact defect and section 5 reproduced it anyway.** That section
+    says: *"The unparsed source includes the DOCSTRING, and this function's docstring says 'there
+    was no `current_user` dependency at all' — so a substring check for 'current_user' passes on a
+    route that has none… The gate was reading its own documentation."*
+
+    The first draft of section 5 checked `ast.unparse(fn)`, and mutation found it: reinstating the
+    shipped `list_scenarios` and the shipped `create_scenario` **in the fixed tree** left this gate
+    GREEN both times, because the repaired routes' docstrings explain the fix and name `_can_read`
+    and `role_for` while doing so. **The better the comment, the more thoroughly it defeats the
+    check** — a prose explanation of a guard is indistinguishable, to a substring, from the guard.
+
+    *A lesson written four sections above the code that needs it is not applied by being true.*
+    """
+    body = fn.body
+    if (body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)):
+        body = body[1:]
+    stripped = type(fn)(name=fn.name, args=fn.args, body=body or [ast.Pass()],
+                        decorator_list=fn.decorator_list, returns=fn.returns,
+                        type_comment=None, type_params=[])
+    return ast.unparse(ast.fix_missing_locations(stripped))
+
+
+#: Does this route handle `Scenario` rows at all?
+#:
+#: **A WORD-BOUNDARY match, because the four-spelling list missed the one spelling nobody used.**
+#: The first version checked `"Scenario("`, `"Scenario)"`, `"Scenario."` and `"_scenario_for"`, and
+#: `ast.unparse` renders a primary-key fetch as `db.get(Scenario, sid)` — `Scenario` followed by a
+#: **comma**, which none of the four match. So `POST /proforma/compare`, which fetched arbitrary
+#: caller-supplied scenario ids with **no authorisation of any kind** and returned their `returns`
+#: and `sources_uses`, sat outside this gate's population while the commit that introduced the
+#: population claimed it was *"every route that touches the `Scenario` model"*.
+#:
+#: **And all five proof-of-reach fixtures used `db.query(Scenario)` or `_scenario_for`** — so the
+#: one spelling the analyser could not see was the one spelling no fixture exercised, and the
+#: self-checks confirmed a reach the rule did not have. *A defect the analyser cannot spell is
+#: invisible to it and reads exactly like an absent one*, which `test_gap_records.py` recorded, and
+#: a fixture set drawn from the same habit as the rule cannot find the habit's blind spot.
+_MODEL_RE = re.compile(r"\bScenario\b")
+
+
+def _touches_model(body: str) -> bool:
+    return bool(_MODEL_RE.search(body)) or "_scenario_for" in body
+
+
+def _route_decorators(fn) -> list:
+    return [d for d in fn.decorator_list
+            if isinstance(d, ast.Call) and isinstance(d.func, ast.Attribute)
+            and d.func.attr in ("get", "post", "put", "patch", "delete")]
+
+
+scenario_routes: list[tuple[str, str, str, bool]] = []
+for fn in ast.walk(tree):
+    if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        continue
+    routes = _route_decorators(fn)
+    if not routes:
+        continue
+    body = _code_of(fn)                      # NEVER `ast.unparse(fn)` — see `_code_of`
+    if not _touches_model(body):
+        continue
+    arg = routes[0].args[0] if routes[0].args else None
+    path = str(getattr(arg, "value", ""))
+    scenario_routes.append((routes[0].func.attr.upper(), path, fn.name,
+                            any(a in body for a in AUTHORISERS)))
+
+# Silence is not a signal, twice over: this derivation must find MORE routes than the {sid} one, or
+# it has reproduced the predicate it exists to replace.
+check("the model-touching walk found the scenario routes", len(scenario_routes) >= 10,
+      f"{len(scenario_routes)} route(s) read or write Scenario")
+check("...and it is STRICTLY WIDER than the {sid} predicate — otherwise it is the same gate "
+      "wearing a new docstring",
+      len(scenario_routes) > len(sid_routes),
+      f"{len(scenario_routes)} model-touching vs {len(sid_routes)} with a sid in the path")
+
+unauth = [f"{m} {p} ({fn})" for m, p, fn, ok in scenario_routes if not ok]
+check("every route that reads or writes a Scenario authorises the caller", not unauth,
+      "; ".join(unauth) or f"all {len(scenario_routes)} authorised")
+
+# PROOF OF REACH: the two shipped defects, reinstated as source, must BOTH be re-found. Without
+# this the check above is a claim about a tree that has already been fixed. Frozen as text rather
+# than fetched from history — `test_gap_records.py` paid for a replay that used `git show` and
+# failed only in CI, whose checkout is shallow.
+_PRE_FIX_LIST = "\n".join([
+    '@router.get("/proforma/scenarios")',
+    "def list_scenarios(project_id: str | None = None, db: Session = Depends(get_db)):",
+    "    q = db.query(Scenario)",
+    "    if project_id:",
+    "        q = q.filter(Scenario.project_id == project_id)",
+    '    return [{"id": s.id, "name": s.name} for s in q.all()]',
+])
+_PRE_FIX_CREATE = "\n".join([
+    '@router.post("/proforma/scenarios", status_code=201)',
+    "def create_scenario(body: ScenarioIn, db: Session = Depends(get_db)):",
+    "    s = Scenario(name=body.name, project_id=body.project_id, assumptions={})",
+    "    db.add(s)",
+    "    db.commit()",
+    '    return {"id": s.id}',
+])
+_GUARDED = "\n".join([
+    '@router.get("/proforma/scenarios/{sid}")',
+    "def get_scenario(sid: str, db: Session = Depends(get_db), user: str = Depends(current_user)):",
+    "    return _scenario_for(sid, db, user)",
+])
+#: The shipped `POST /proforma/compare`, which the four-spelling `_touches_model` could not see.
+#: `db.get(Scenario, sid)` is a primary-key fetch of a caller-supplied id — the spelling no other
+#: fixture here uses, which is why it was the one that got through.
+_PRE_FIX_COMPARE = "\n".join([
+    '@router.post("/proforma/compare")',
+    "def compare(ids: list[str] = Body(...), db: Session = Depends(get_db)):",
+    "    out = []",
+    "    for sid in ids:",
+    "        s = db.get(Scenario, sid)",
+    "        if s and s.result:",
+    '            out.append({"id": s.id, "returns": s.result.get("returns")})',
+    "    return out",
+])
+#: Scoped by `member_project_ids` rather than `_can_read` — the two portfolio routes the first draft
+#: of AUTHORISERS would have told somebody to "fix".
+_PORTFOLIO_SHAPE = "\n".join([
+    '@router.get("/proforma/portfolio")',
+    "def portfolio(db: Session = Depends(get_db), user: str = Depends(rbac.current_user)):",
+    "    allowed = rbac.member_project_ids(db, user)",
+    "    scens = [s for s in db.query(Scenario).all()",
+    "             if s.result and (allowed is None or s.project_id in allowed)]",
+    '    return {"deals": len(scens)}',
+])
+#: The docstring trap, as a fixture. A route with NO guard whose prose NAMES one must be reported.
+#: This is what `_code_of` exists for, and without it this file goes blind on exactly the commit
+#: that documents a fix — the better the comment, the worse the blindness.
+_PROSE_ONLY = "\n".join([
+    '@router.get("/proforma/scenarios")',
+    "def list_scenarios(project_id: str | None = None, db: Session = Depends(get_db)):",
+    '    """Scenarios for a project.',
+    "",
+    "    `_can_read` guards the eight {sid} routes and `rbac.role_for` backs it; this route is",
+    "    deliberately open because the middleware already 401s an anonymous caller.",
+    '    """',
+    "    return [{} for s in db.query(Scenario).all()]",
+])
+
+
+def _unauthorised_in(src: str) -> list[str]:
+    """The VERDICT over arbitrary source, separate from the walk so it can be mutated directly.
+
+    `test_unique_read_guard.py` had to learn this one layer up: asserting that the analyser still
+    REPORTS a site is not asserting how it classifies it, so a mutation routing everything to
+    "safe" passed. The classification is this function, and the self-checks below mutate it.
+    """
+    out: list[str] = []
+    for f in ast.walk(ast.parse(src)):
+        if not isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if not _route_decorators(f):
+            continue
+        b = _code_of(f)
+        if not _touches_model(b):
+            continue
+        if not any(a in b for a in AUTHORISERS):
+            out.append(f.name)
+    return out
+
+
+check("PROOF OF REACH: the shipped `list_scenarios` is re-found as unauthorised",
+      _unauthorised_in(_PRE_FIX_LIST) == ["list_scenarios"], str(_unauthorised_in(_PRE_FIX_LIST)))
+check("PROOF OF REACH: ...and the shipped `create_scenario` too — a collection READ and a "
+      "cross-project WRITE are two defects, and re-finding one is not re-finding both",
+      _unauthorised_in(_PRE_FIX_CREATE) == ["create_scenario"],
+      str(_unauthorised_in(_PRE_FIX_CREATE)))
+check("PROOF OF REACH: ...and a route whose DOCSTRING names a guard it does not use is still "
+      "reported — the regression this file already paid for once, now pinned",
+      _unauthorised_in(_PROSE_ONLY) == ["list_scenarios"], str(_unauthorised_in(_PROSE_ONLY)))
+check("PROOF OF REACH: ...and the shipped `compare`, whose `db.get(Scenario, sid)` the "
+      "four-spelling rule could not see at all",
+      _unauthorised_in(_PRE_FIX_COMPARE) == ["compare"], str(_unauthorised_in(_PRE_FIX_COMPARE)))
+check("...and a route that DOES authorise comes back clean, so the rule is not simply 'everything'",
+      _unauthorised_in(_GUARDED) == [], "a guarded route must not be reported")
+check("...and so does one scoped by `member_project_ids` rather than `_can_read`",
+      _unauthorised_in(_PORTFOLIO_SHAPE) == [], "a differently-scoped route must not be reported")
+
+# --- 6. behavioural: the collection filter actually refuses a stranger -----------------------------
+# The static rule above checks that an authoriser is MENTIONED in code. That is not the same as it
+# being applied to every row — `test_pid_lock_pgxproc.py`'s lesson one layer up: a check that the
+# lock is taken is not a check that it excludes anybody. So the filter is exercised directly.
+from aec_api.routers.proforma import _readable_scenarios  # noqa: E402
+
+_orig_on2, _orig_role2 = rbac.RBAC_ON, rbac.role_for
+try:
+    rbac.RBAC_ON = True
+    rbac.role_for = lambda db, pid, user: "editor" if (user, pid) == ("member", "p1") else None  # type: ignore
+    mine, theirs = _S(project_id="p1"), _S(project_id="p2")
+    shared = _S(project_id="p3", shared_with=["lp"])
+    for _s, _i in ((mine, "s1"), (theirs, "s2"), (shared, "s3")):
+        _s.id = _i
+    rows = [mine, theirs, shared]
+    check("a member sees only their own project's scenarios",
+          [s.id for s in _readable_scenarios(_DB(), rows, "member")] == ["s1"])
+    check("a stranger sees NONE — this is the leak, asserted rather than described",
+          _readable_scenarios(_DB(), rows, "nobody") == [])
+    check("an LP sees the one shared with them, and no other",
+          [s.id for s in _readable_scenarios(_DB(), rows, "lp")] == ["s3"])
+    # The api-key claim needs the REAL `role_for`, not the stub three lines up. Asserted against
+    # the stub it FAILED — correctly: the stub returns None for every user but `member`, so it was
+    # measuring the stand-in rather than the composition. *A test that supplies the thing under test
+    # cannot notice it being wrong*, and the inverse bites just as hard: a stub can refute a true
+    # claim about the real function. `role_for` short-circuits to "admin" for `api-key` before any
+    # query, so the real one is safe to call with a stub session here.
+    rbac.role_for = _orig_role2
+    check("the api-key identity still sees everything — `role_for` returns admin for it, as it "
+          "already did for the eight {sid} routes, so server-to-server callers are unaffected",
+          len(_readable_scenarios(_DB(), rows, "api-key")) == 3)
+    rbac.RBAC_ON = False
+    check("with RBAC off the filter is open — desktop/local deployments unaffected",
+          len(_readable_scenarios(_DB(), rows, "anyone")) == 3)
+finally:
+    rbac.RBAC_ON, rbac.role_for = _orig_on2, _orig_role2
+
+# --- 7. a project id from the BODY must be authorised SEPARATELY ----------------------------------
+# **`AUTHORISERS` is a per-FUNCTION substring test, and that is why section 5 cannot catch this
+# class.** `draw_package` calls `_scenario_for(sid, db, user, write=True)` — authorising the
+# scenario, which the caller already owns — and then takes its DESTINATION project from
+# `body.project_id` and never authorises it at all, deleting every SOV row for that project and
+# rewriting them from this scenario's cost tree. SOV is what the AIA G702/G703 pay application is
+# computed from, so an editor on any one project could destroy another tenant's schedule of values,
+# substitute their own numbers, and read the victim's G702 totals back out of the response.
+#
+# Section 5 reported that route as authorised, because one authorised object masks a second
+# unauthorised one. *A gate that asks whether a route authorises SOMETHING cannot tell you whether
+# it authorises EVERYTHING IT TOUCHES* — so this check is per-OBJECT: every route that reads a
+# project id out of its request body must call `rbac.authorize_pid`, the helper whose own docstring
+# exists for this shape (a body id is outside `require_role`, which resolves `pid` from the path or
+# query, and outside `test_route_authz`, which walks `/projects/{pid}` routes — both at once).
+#
+# `{pid}` paths are excluded because `require_role` covers them, and that exclusion is checked
+# below rather than trusted.
+_BODY_PID = re.compile(r"\bbody\.(?:project_id|pid)\b")
+
+
+def _body_pid_gaps(src: str) -> list[str]:
+    """Routes reading a body-supplied project id without `authorize_pid`. The verdict, mutable."""
+    out: list[str] = []
+    for f in ast.walk(ast.parse(src)):
+        if not isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        rs = _route_decorators(f)
+        if not rs:
+            continue
+        arg = rs[0].args[0] if rs[0].args else None
+        if "{pid}" in str(getattr(arg, "value", "")):
+            continue
+        b = _code_of(f)
+        if _BODY_PID.search(b) and "authorize_pid" not in b:
+            out.append(f.name)
+    return out
+
+
+_PRE_FIX_DRAW = "\n".join([
+    '@router.post("/proforma/scenarios/{sid}/draw-package")',
+    "def draw_package(sid: str, body: DrawPackageIn, db: Session = Depends(get_db),",
+    "                 user: str = Depends(current_user)):",
+    "    s = _scenario_for(sid, db, user, write=True)",
+    "    pid = body.project_id",
+    '    db.execute(delete(me.TABLES["sov"]).where(me.TABLES["sov"].c.project_id == pid))',
+    "    db.commit()",
+    "    return cost_engine.g702(db, pid, app_no=body.app_no)",
+])
+_PATH_PID_OK = "\n".join([
+    '@router.post("/projects/{pid}/thing")',
+    "def thing(pid: str, body: ThingIn, db: Session = Depends(get_db),",
+    '           _: str = Depends(require_role("editor"))):',
+    "    return me.create_record(db, 'thing', body.project_id, {}, 'x', 'GC')",
+])
+
+check("PROOF OF REACH: the shipped `draw_package` is re-found as an unauthorised body pid — the "
+      "route section 5 reports as GUARDED, because `_scenario_for` masks it",
+      _body_pid_gaps(_PRE_FIX_DRAW) == ["draw_package"], str(_body_pid_gaps(_PRE_FIX_DRAW)))
+check("...and a `{pid}` PATH route is not reported, since `require_role` resolves that one",
+      _body_pid_gaps(_PATH_PID_OK) == [], str(_body_pid_gaps(_PATH_PID_OK)))
+check("...and `_scenario_for` alone does NOT satisfy this check — the masking is the whole point",
+      "authorize_pid" not in _PRE_FIX_DRAW and _body_pid_gaps(_PRE_FIX_DRAW) != [],
+      "a route authorising one object must still be reported for the other")
+
+_gaps = _body_pid_gaps(ROUTER.read_text(encoding="utf-8"))
+check("every route taking a project id from its BODY authorises it with `rbac.authorize_pid`",
+      not _gaps, "; ".join(_gaps) or "all body-pid routes call authorize_pid")
+
+# Silence is not a signal: this check must have a population, or it passes by finding nothing.
+_bodied = [f.name for f in ast.walk(tree)
+           if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)) and _route_decorators(f)
+           and _BODY_PID.search(_code_of(f))]
+check("...and the body-pid population is not empty", len(_bodied) >= 2,
+      f"{len(_bodied)} route(s) read a body-supplied project id: {sorted(_bodied)}")
+
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)
-print("test_scenario_authz OK")
+print(f"test_scenario_authz OK - {len(scenario_routes)} scenario routes authorised "
+      f"({len(sid_routes)} of them carry a sid)")
+

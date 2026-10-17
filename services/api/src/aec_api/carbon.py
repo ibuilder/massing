@@ -71,29 +71,121 @@ def compute_item(material: str, quantity: float, unit: str) -> dict:
 
 
 def compute(items: list[dict]) -> dict:
-    """items: [{material|description, quantity, unit, cost_code?}] -> per-line + rollups."""
+    """items: [{material|description, quantity, unit, cost_code?}] -> per-line + rollups.
+
+    CARBON-UNCONVERTED. `unmatched` used to count BOTH refusals `compute_item` can return, and they
+    are not the same fact:
+
+    * **no EPD factor matched** -- the engine does not recognise the material. Remedy: add a factor.
+    * **unit not convertible** -- the material IS recognised and the factor's unit family differs
+      from the takeoff's, e.g. concrete factored per m3 against a quantity in kg. Remedy: record the
+      quantity in the factor's family, or supply a density. The engine refuses to guess one, which
+      is right, and that refusal was invisible inside a count shared with the first case.
+
+    The second is the dangerous one, because the line is a KNOWN EMITTER that leaves
+    `total_kgco2e`, `by_material` and `by_cost_code` with no trace but a tally. Measured: 2,400 t of
+    concrete recorded in kg, on a job with steel and glazing, reports `329.17 tCO2e - 1 line(s)
+    unmatched` and a `by_material` naming only steel and glazing. That concrete is worth roughly
+    another 300 tCO2e -- it near-doubles the figure, and on most frames it is the single largest
+    contributor. *A total that silently excludes its largest term is worse than no total.*
+
+    So the counts are split and `unconverted_materials` NAMES them: a reader shown a count cannot
+    tell which emitter is missing from the rollup in front of them, and the per-line `note` has
+    always said so one level down.
+
+    Same class as PRICE-MATCHED's `unmatched`/`unit_mismatch` split in `pricing.reconcile`, which
+    walks the same `production_quantity` records with the same keyword-table-plus-unit-conversion
+    shape. *Fixing a class in one engine is a reason to look at its twin, and this one had it.*
+
+    ### The class, swept: four engines refuse a line for two distinguishable reasons
+
+    | engine | refusals told apart? |
+    |---|---|
+    | `pricing.reconcile` | **no** -- fixed under PRICE-MATCHED |
+    | `carbon.compute` (here) | **no** -- fixed here |
+    | `cost.reconcile_tm_rates` | yes: `unmatched` vs `unpriced`, with `in_totals` and a reason |
+    | `production` reconciliation | yes: five named statuses plus `STATUS_MEANING` on the wire |
+
+    **What separates the two halves is the SHAPE OF THE RETURN VALUE, not how carefully each was
+    written.** Both engines that lost the distinction summarise into a single scalar
+    (`priced_total`, `total_kgco2e`) and report refusals as a count beside it; both that kept it
+    return a per-line STATUS, where there is nowhere for a reason to go except onto the line. An
+    engine whose output is a total has to choose to carry the refusal; an engine whose output is a
+    row cannot avoid it. *The return shape predicts the defect, which makes it a cheaper thing to
+    look for than the defect.*
+
+    Recorded as a comment and not a gate on purpose: the population is four, and a derivation over
+    four sites needing judgement at each one is the shape this repository's own notes warn about --
+    `noRespelledShapes.test.ts` bought that lesson at five exemptions. If a fifth engine of this
+    shape appears, the table above is the thing to re-measure.
+
+    *(An earlier draft of this note credited `cost.py`'s correctness to the three review rounds its
+    own comments record. Measuring `production.py` -- which had no such rounds and is the cleanest
+    of the four -- showed that was the wrong cause. A plausible explanation for a clean negative is
+    still a guess until the other negatives are checked.)*
+    """
     lines, by_material, by_code = [], {}, {}
     total = 0.0
-    unmatched = 0
+    no_factor = 0
+    unconverted: dict[str, float] = {}
     for it in items:
         mat = it.get("material") or it.get("description") or ""
         r = compute_item(mat, _num(it.get("quantity")), it.get("unit") or "")
         r["cost_code"] = it.get("cost_code") or ""
         lines.append(r)
         if r["kgco2e"] is None:
-            unmatched += 1
+            # The two refusals, told apart by whether the MATERIAL resolved to a factor.
+            if r.get("matched"):
+                unconverted[r["matched"]] = round(unconverted.get(r["matched"], 0.0)
+                                                  + _num(r.get("quantity")), 2)
+            else:
+                no_factor += 1
             continue
         total += r["kgco2e"]
         by_material[r["matched"]] = round(by_material.get(r["matched"], 0.0) + r["kgco2e"], 1)
         if r["cost_code"]:
             by_code[r["cost_code"]] = round(by_code.get(r["cost_code"], 0.0) + r["kgco2e"], 1)
     total = round(total, 1)
+    unit_mismatch = sum(1 for ln in lines if ln["kgco2e"] is None and ln.get("matched"))
+    assessed = len(lines) - no_factor - unit_mismatch
     return {"lines": lines, "total_kgco2e": total, "total_tco2e": round(total / 1000.0, 2),
             "by_material": dict(sorted(by_material.items(), key=lambda x: -x[1])),
             "by_cost_code": dict(sorted(by_code.items(), key=lambda x: -x[1])),
-            "line_count": len(lines), "unmatched": unmatched,
+            "line_count": len(lines),
+            # Kept as the SUM of the two below because it is declared and rendered: splitting a
+            # published figure out from under its readers is a second defect, not a fix.
+            "unmatched": no_factor + unit_mismatch,
+            "assessed": assessed,
+            "no_factor": no_factor,
+            "unit_mismatch": unit_mismatch,
+            # The materials recognised and NOT counted, with the quantity left out of the total.
+            # These are the emitters absent from `by_material` above.
+            "unconverted_materials": dict(sorted(unconverted.items())),
+            "coverage_note": _coverage_note(len(lines), assessed, no_factor, unconverted),
             "message": (None if lines else "No material quantities to assess — add production quantities "
                         "with a material and unit.")}
+
+
+def _coverage_note(total: int, assessed: int, no_factor: int, unconverted: dict[str, float]) -> str:
+    """The engine's own sentence about what the carbon total is over.
+
+    CARBON-UNCONVERTED. Embodied carbon is reported outward -- to lenders, to authorities -- so the
+    population the figure covers travels with it rather than being left for a reader to infer from a
+    count.
+    """
+    if not total:
+        return "No material quantities to assess."
+    bits = [f"{assessed} of {total} quantity line(s) assessed"]
+    if no_factor:
+        bits.append(f"{no_factor} with no EPD factor for the material")
+    head = bits[0] + (f" ({'; '.join(bits[1:])})" if len(bits) > 1 else "")
+    if not unconverted:
+        return head + ". Every recognised material was counted."
+    named = ", ".join(sorted(unconverted))
+    return (head + f". EXCLUDED from the total and from the material rollup: {named} — recognised, "
+            "but the quantity's unit is not in the factor's unit family (a mass against a volume "
+            "factor needs a density, which is not guessed here). Record these in the factor's unit "
+            "to bring them in; until then the total is missing them.")
 
 
 def project_carbon(db: Session, project_id: str) -> dict:

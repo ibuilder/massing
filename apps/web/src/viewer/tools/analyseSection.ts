@@ -5,7 +5,14 @@ import { enqueueAndWait, isJobStillRunning } from "../../api/waitForJob";
 import { LayerManager } from "../../tools/layers";
 import { LogisticsOverlay } from "../draft/logisticsOverlay";
 import { kvTable, resultNote, showResult } from "../../ui/result";
-import { toast, withLoading } from "../../ui/feedback";
+import { citedAnswerButton } from "./citedAnswer";
+import {
+  sequenceCoverage, sequenceHeadline, sequenceTone, supportCoverageNote,
+  unscheduledGuids, unscheduledPageNote, unscheduledRows,
+} from "./sequenceClashRead";
+import { codeReadinessButton } from "./codeReadiness";
+import { recipeLogButton } from "./recipeLogTool";
+import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { populate4dPanel } from "../fourD";
 import type { LogisticsResource } from "../../api/client";
 
@@ -132,15 +139,35 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
           let r;
           try { r = await api.sequenceClash(pid); }
           catch { toast("Needs a project with a schedule", "error"); return; }
-          const n = r.finding_count + r.support_finding_count;
-          out.textContent = n ? `${n} sequence clash${n === 1 ? "" : "es"}` : (r.clean ? "clean" : "checked");
+          // `clean` is true of the activities the engine COULD analyse AND the support pairs it
+          // could DATE — two populations with different coverage, and until SEQ-UNSCHED only the
+          // first reached this line. `sequenceClashRead` holds both, with the measured fixture:
+          // 2 pairs, 0 dated, `clean: true` printed here as a bare "clean" in green.
+          out.textContent = sequenceHeadline(r);
           showResult("Sequence clash — space contention + install-before-support", (body) => {
             body.appendChild(resultNote(
               `${r!.analyzed} dated locatable activit${r!.analyzed === 1 ? "y" : "ies"} · `
               + `<b>${r!.finding_count}</b> space contention · <b>${r!.support_finding_count}</b> install-before-support`
-              + (r!.support_unscheduled_count ? ` · ${r!.support_unscheduled_count} pair(s) missing a dated binding` : "")
+              + (r!.support_pairs
+                ? ` · support dated on <b>${r!.support_evaluated}</b> of ${r!.support_pairs} pair(s)`
+                : "")
               + `.`,
-              n ? "bad" : (r!.clean ? "ok" : "")));
+              // Green requires BOTH populations complete. As shipped this read
+              // `clean && !skipped_count`, so a project whose every support pair was undated
+              // painted var(--status-good) under the word "clean".
+              sequenceTone(r!)));
+            if (r!.skipped_count) {
+              // The engine names WHY each one was skipped, which makes the gap fixable rather than
+              // merely reported — every reason is a missing field on a schedule activity.
+              const why = new Map<string, number>();
+              for (const s of r!.skipped) why.set(s.reason, (why.get(s.reason) ?? 0) + 1);
+              body.appendChild(resultNote(
+                `<b>${r!.skipped_count}</b> activit${r!.skipped_count === 1 ? "y was" : "ies were"} `
+                + `not checked at all: `
+                + [...why].map(([reason, count]) => `${count} ${escapeHtml(reason)}`).join(" · ")
+                + `. Sequence clash can only see activities with a location and both dates.`,
+                "warn"));
+            }
             if (r!.findings.length) {
               body.appendChild(kvTable(r!.findings.slice(0, 40).map((f) => ({
                 k: f.location,
@@ -160,7 +187,27 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
                   () => { void layerMgr.isolateGuids(guids); }));
               }
             }
+            // The pairs the support half could not reach, and WHICH GUIDs they are: the count was
+            // already on screen and a count says there is work without saying where it is.
+            const cover = supportCoverageNote(r!);
+            if (cover) {
+              body.appendChild(resultNote(escapeHtml(cover),
+                sequenceCoverage(r!).supportVacuous ? "warn" : ""));
+              const rows = unscheduledRows(r!);
+              if (rows.length) body.appendChild(kvTable(rows));
+              const page = unscheduledPageNote(r!);
+              if (page) body.appendChild(resultNote(escapeHtml(page), ""));
+              const undated = unscheduledGuids(r!);
+              if (undated.length) {
+                body.appendChild(toolBtn2(`◎ Isolate ${undated.length} element(s) in undated pairs`,
+                  () => { void layerMgr.isolateGuids(undated); }));
+              }
+            }
             body.appendChild(resultNote(r!.not_covered, ""));
+            // The engine's own account of which populations `clean` ruled on. Rendered rather than
+            // paraphrased — the asymmetry between `skipped` and `support_unscheduled` is a design
+            // decision and the engine is where it is decided.
+            body.appendChild(resultNote(escapeHtml(r!.clean_scope), ""));
           });
         })));
         b.appendChild(toolBtn2("🏛 Occupancy & egress (IBC pre-check)", () => withLoading(container, "Computing occupancy load + egress", async () => {
@@ -194,6 +241,29 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
             }
           });
         })));
+        // EGRESS-TRAVEL-DARK — IBC 1017 travel distance, which the tool ABOVE deliberately excludes
+        // ("travel-distance / performance-based egress are out of scope", codecheck_egress.py). It
+        // sits here, immediately after it, because the two together are what a plan reviewer needs
+        // and the gap between them was invisible while one had a button and the other did not.
+        // EGRESS-TRAVEL-DARK — IBC 1017 travel distance, which the tool ABOVE deliberately
+        // excludes ("travel-distance / performance-based egress are out of scope",
+        // codecheck_egress.py). It sits here, immediately after it, because the two together are
+        // what a plan reviewer needs and the gap between them was invisible while one had a button
+        // and the other did not. The card is rendered INSIDE the lazily-imported module: this file
+        // is in the eager chunk and the thirty lines of card-building were what put the shell over
+        // its budget, not the reading.
+        b.appendChild(toolBtn2("🚪 Travel distance to exit (IBC 1017, routed)", () =>
+          withLoading(container, "Routing travel distance over the floor plate", async () => {
+            const { egressReading, renderEgressCard } = await import("./egressTravel");
+            let r;
+            try { r = await api.egressRoutes(pid); }
+            catch (e) { toast((e as Error).message, "error"); return; }
+            out.textContent = egressReading(r).kind === "refused" ? "not routed"
+              : `${(r.over_limit ?? 0) + (r.unreachable ?? 0)} egress finding(s)`;
+            renderEgressCard(r, { showResult, resultNote, kvTable, toolBtn2, esc: escapeHtml,
+                                  isolate: (g) => { void layerMgr.isolateGuids(g); },
+                                  planUrl: () => api.egressPlanUrl(pid) });
+          })));
         const runCodeAnalysis = (jur: string) => withLoading(container, "Assembling the IBC code-analysis summary", async () => {
           let r;
           try { r = await api.codeAnalysis(pid, jur ? { jurisdiction: jur } : {}); }
@@ -234,7 +304,39 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
             body.appendChild(resultNote(r!.disclaimer, ""));
           });
         });
+        // CODE-READY-DARK: the PRESENCE-only half of the code pre-check, beside the depth layer
+        // above it. `/elements/code-check` had no client caller, and its summary silently drops
+        // every rule whose subject class is absent from the model.
+        b.appendChild(codeReadinessButton({ toolBtn2, api, pid, container, layerMgr, toast }));
+        // CITED-ASK-DARK: the answer whose every claim traces to the GUIDs it came from, which no
+        // screen called. Here rather than beside the Query-select tool it extends, because
+        // `qaSection.ts` sits one line under its size pin — the ratchet's whole point is that the
+        // next feature finds another home rather than spending the last line.
+        b.appendChild(citedAnswerButton({ toolBtn2, api, pid, container, notify }));
         b.appendChild(toolBtn2("🏛 Code analysis (G-series summary)", () => { void runCodeAnalysis(""); }));
+        // CLASSIFY-DARK: all three `/classify/*` routes had no client method, and were invisible to
+        // the reachability gate in three DIFFERENT ways — `proposals` frozen in `KNOWN_UNCALLED`,
+        // `coverage` in `LEAF_COLLISION_BLIND`, and `plan` below `MIN_SEGMENT` so it appeared in no
+        // list at all. *One capability's parts in three frozen lists each read as somebody else's
+        // gap.* Whole body behind the import: this file is in the eager chunk.
+        const runClassify = (system: string) =>
+          withLoading(container, "Reading the model's classification coverage", async () => {
+            const m = await import("./classifyAssist");
+            let r;
+            try { r = await api.classifyCoverage(pid, system); }
+            catch (e) { toast((e as Error).message, "error"); return; }
+            out.textContent = `${r.classified_pct ?? "—"}% coded · ${r.unmapped} unmapped`;
+            m.renderClassifyCard(r, {
+              showResult, resultNote, kvTable, toolBtn2, esc: escapeHtml, notify,
+              isolate: (g) => { void layerMgr.isolateGuids(g); },
+              proposals: (sys, basis) => api.classifyProposals(pid, sys, { basis }),
+              plan: (accept, sys) => api.classifyPlan(pid, accept, sys),
+              apply: (steps) => api.editBatch(pid, steps).then(() => undefined),
+              reload: (sys) => { void runClassify(sys); },
+            });
+          });
+        b.appendChild(toolBtn2("🏷 Classification coverage (cost codes)",
+                               () => { void runClassify("masterformat"); }));
         // CODE-EBC — existing-building scope classifier (IEBC Work Area Method), inferred from phasing
         const runEbc = (jur: string) => withLoading(container, "Classifying the existing-building scope (IEBC)", async () => {
           let r;
@@ -352,6 +454,15 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
         qaBtn.onclick = askQa;
         qaInput.onkeydown = (e) => { if (e.key === "Enter") askQa(); };
         qaWrap.append(qaInput, qaBtn);
+        // RECIPE-LOG-DARK — the edit-recipe log reader. Two placements were wrong before this one.
+        // The authoring section is where the capability belongs by SUBJECT, and it sets
+        // `dataset.cap = "edit"` on its whole group, while `/recipes/log` is VIEWER-gated: mounting
+        // it there makes a read reachable for everyone who does not need it and nobody who does.
+        // `qaSection.ts` is the right gate and sits at its extraction ratchet in
+        // `services/api/test_file_sizes.py`, and **a ratchet is not raised to accommodate a mount**.
+        // Both sections render under the same "Analyze & Coordinate" heading, so the user-visible
+        // home is the same one either way.
+        b.appendChild(recipeLogButton({ api, pid, notify, toolBtn2 }));
         b.appendChild(qaWrap);
         b.appendChild(out);
 }

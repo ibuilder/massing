@@ -152,13 +152,38 @@ def test_an_actual_ON_the_data_date_counts():
     assert r["activities"][0]["state"] == "complete", r["activities"]
 
 def test_every_row_carries_the_same_keys_whatever_branch_produced_it():
+    """ROWKEY-SUPERSET — this test is named for an EQUALITY and used to assert a CONTAINMENT.
+
+    It read `keys[0] >= keys[1] and keys[1] >= set(_ROW_KEYS) | {...}`, and a superset is satisfied
+    by the normal row carrying a key the blank row lacks — which is exactly what had happened:
+    `future_actual_ignored` went into `_row` and not into `_ROW_KEYS`, so rows were 15 keys against
+    14 and `row["future_actual_ignored"]` raised `KeyError` on the first dateless activity. *A test
+    named for an equality that asserts a containment passes in precisely the state it exists to
+    exclude.*
+
+    `>=` is the natural thing to write because TWO different requirements were chained into one
+    assertion — "the branches agree with each other" and "every branch meets this floor" — and the
+    weaker one swallows the stronger. They are separate assertions now, and the agreement is
+    checked over all THREE producers (`_row`, the `unknown` blank, and the no-data-date blank)
+    rather than the two that used to be compared.
+    """
     # A row missing eight keys makes `row["days_overdue"]` a KeyError the moment one dateless
     # activity appears — a trap for every consumer rather than a fact about the row.
     with_dd = ss.status([a("A1", "2026-05-01", "2026-05-10"), {"ref": "A2", "data": {}}], DD)
-    keys = [set(x) for x in with_dd["activities"]]
-    assert keys[0] >= keys[1] and keys[1] >= set(ss._ROW_KEYS) | {"ref", "state", "detail"}, keys
+    normal, blank = set(with_dd["activities"][0]), set(with_dd["activities"][1])
     no_dd = ss.status([a("A1", "2026-05-01", "2026-05-10")], None)
-    assert set(no_dd["activities"][0]) >= set(ss._ROW_KEYS), no_dd["activities"]
+    dateless = set(no_dd["activities"][0])
+
+    # ① THE AGREEMENT, as an equality, over every branch that can produce a row.
+    assert normal == blank, sorted(normal ^ blank)
+    assert normal == dateless, sorted(normal ^ dateless)
+
+    # ② THE FLOOR, as its own assertion — what a consumer may rely on being present at all.
+    floor = set(ss._ROW_KEYS) | {"ref", "state", "detail"}
+    assert normal == floor, sorted(normal ^ floor)
+
+    # ③ and the key whose absence this test used to allow is readable on a blank row
+    assert with_dd["activities"][1]["future_actual_ignored"] is None
     assert no_dd["activities"][0]["days_overdue"] is None      # present and None, not absent
 
 def test_a_record_answers_to_the_same_name_with_or_without_a_data_date():

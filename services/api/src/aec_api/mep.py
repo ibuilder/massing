@@ -100,12 +100,26 @@ _MEP_CLASSES = {
 }
 
 
+UNKNOWN_DISCIPLINE = "Unattributed"
+
+
 def extract_from_model(idx: dict[str, dict] | None) -> dict[str, Any]:
     """Read MEP elements off the loaded model (property index) by IFC class — the model-derived
-    counterpart to the register-driven schedule. Complements, doesn't replace, the equipment register."""
+    counterpart to the register-driven schedule. Complements, doesn't replace, the equipment register.
+
+    **`by_discipline` is the division a contractor BUYS by**, and it used to attribute any class the
+    classifier could not place to *Mechanical* — a default that looks like data. Measured: all
+    **25** of `_MEP_CLASSES` resolve today, so that branch was unreachable and nothing was ever
+    mis-attributed. *A clean negative, and it is stated as one rather than written up as a fix.*
+    What makes it stay clean is `services/api/test_mep.py`, which asserts every key resolves: add one
+    class the classifier does not know and the build goes red instead of a plumbing element quietly
+    landing in the mechanical column. The fallback itself now says `Unattributed`, because if it ever
+    does fire, naming a real discipline is the worst available answer.
+    """
     from . import classification
     if not idx:
         return {"model_scored": False, "mep_elements": 0, "by_class": [], "by_discipline": [],
+                "class_count": 0, "unattributed": 0,
                 "note": "No model loaded — MEP extraction needs a published model."}
     by_class: dict[str, int] = {}
     by_disc: dict[str, int] = {}
@@ -113,15 +127,22 @@ def extract_from_model(idx: dict[str, dict] | None) -> dict[str, Any]:
         cl = e.get("ifc_class", "")
         if cl in _MEP_CLASSES:
             by_class[cl] = by_class.get(cl, 0) + 1
-            disc = classification.discipline_name(classification.discipline_of_ifc_class(cl)) or "Mechanical"
+            disc = (classification.discipline_name(classification.discipline_of_ifc_class(cl))
+                    or UNKNOWN_DISCIPLINE)
             by_disc[disc] = by_disc.get(disc, 0) + 1
     return {
         "model_scored": True, "mep_elements": sum(by_class.values()),
         "by_class": [{"ifc_class": k, "label": _MEP_CLASSES[k], "count": v}
                      for k, v in sorted(by_class.items(), key=lambda kv: -kv[1])],
+        # The number of DISTINCT classes present, so a screen that pages the list above can say what
+        # it is paging — the length of a page is never the size of the answer.
+        "class_count": len(by_class),
         "by_discipline": [{"discipline": k, "count": v} for k, v in sorted(by_disc.items())],
+        "unattributed": by_disc.get(UNKNOWN_DISCIPLINE, 0),
         "note": "MEP elements counted off the model by IFC class (ducts, pipes, terminals, equipment, "
-                "electrical). Pair with the equipment register for the engineered schedule.",
+                "electrical). Disciplines are derived from the IFC class, not from the model's own "
+                "discipline metadata, so they follow what each element IS rather than who authored "
+                "it. Pair with the equipment register for the engineered schedule.",
     }
 
 

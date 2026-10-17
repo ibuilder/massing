@@ -106,6 +106,13 @@ def from_rent_roll(rent_roll: dict | None, ner: dict | None = None) -> dict[str,
         "recovery_income_annual": round(rec or 0.0, 2),
         "potential_rent_annual": round(base + (rec or 0.0), 2),
         "occupancy_pct": rent_roll.get("occupancy_pct"),
+        # RENTROLL-BASIS. The basis travels with the figure. This module already refuses to
+        # underwrite an empty rent roll as zero income -- "every sum is legitimately 0.0, so the
+        # arithmetic succeeds" -- and the substituted DENOMINATOR is the same hazard one field
+        # along: `occupancy_pct` is 100 and `vacant_sf` is 0 whenever the project carries no
+        # rentable area. *The engine was careful about the case its author thought of.*
+        "occupancy_basis": rent_roll.get("occupancy_basis"),
+        "occupancy_measured": rent_roll.get("occupancy_basis") == "building",
         "walt_years": rent_roll.get("walt_years"),
         "occupied_sf": rent_roll.get("occupied_sf"),
         "vacant_sf": rent_roll.get("vacant_sf"),

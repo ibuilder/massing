@@ -3,6 +3,12 @@ import { type ChipTone, statusChip } from "../../ui/chips";
 import { confirmModal, promptModal } from "../../ui/modal";
 import { resultNote, showResult } from "../../ui/result";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
+// TYPE-ONLY, so this import is erased and costs no shell bytes. The three functions are loaded
+// DYNAMICALLY in `renderFreshness` below: `viewer/tools/*` lands in the eager `app-*` chunk, and
+// `npm run budget` refused the static import at 224.1 KB against a 224 KB ceiling — with 0.1 KB
+// over, the choice was to raise the ceiling a second time this branch or to trim, and the script's
+// own message names trimming first. A tool that runs on a click is the right thing to defer.
+import type { CoordStale } from "./coordFreshness";
 
 /**
  * The model's publish history AND its review gate — R41-REACH-WRITES 4/4, the last of the four.
@@ -75,6 +81,59 @@ function signedInAs(): string | null {
 export function modelReviewButton(deps: ModelReviewDeps): HTMLButtonElement {
   const { api, pid, out, container, toolBtn2 } = deps;
 
+  /**
+   * The freshness result, in its own panel.
+   *
+   * COORD-UNANCHORED: the reading answers whether the comparison could be made, then what it could
+   * NOT rule on, then what it found — and the re-check button is offered only when
+   * `recheckPrompt` says there is something not already flagged, because the route is idempotent
+   * and a button promising to flag 6 that would flag 0 is the same lie as a full progress bar.
+   */
+  const renderFreshness = async (cs: CoordStale, a: number, b: number) => {
+    const { freshnessReading, freshnessRows, recheckPrompt } = await import("./coordFreshness");
+    const read = freshnessReading(cs);
+    showResult(`Clash freshness v${a} → v${b}`, (body) => {
+      body.appendChild(resultNote(`<b>${escapeHtml(read.headline)}</b>`, read.tone));
+      body.appendChild(resultNote(escapeHtml(read.detail), ""));
+      const tbl = document.createElement("table");
+      tbl.className = "result-table";
+      tbl.innerHTML = freshnessRows(cs).map((x) =>
+        `<tr><th scope="row">${escapeHtml(x.k)}</th><td>${escapeHtml(x.v)}</td></tr>`).join("");
+      body.appendChild(tbl);
+      for (const st of cs.stale.slice(0, 20)) {
+        body.appendChild(resultNote(`<b>${escapeHtml(st.title)}</b> — `
+          + `${st.changed_guids.length} changed element(s)`
+          + `${st.already_flagged ? " · already flagged" : ""}`, st.already_flagged ? "" : "warn"));
+      }
+      // The topics the check could NOT rule on, named rather than counted — the only action that
+      // makes this check apply to them next time is anchoring them, and the reader needs to know
+      // which ones.
+      for (const u of cs.unanchored_topics.slice(0, 20)) {
+        body.appendChild(resultNote(`<b>${escapeHtml(u.title)}</b> — no element GlobalIds, so this `
+          + "check could not rule on it. Open the issue and attach the elements it is about.", ""));
+      }
+      const prompt = recheckPrompt(cs);
+      if (prompt) {
+        const rb = document.createElement("button");
+        rb.className = "file-btn";
+        rb.style.marginTop = "8px";
+        rb.textContent = prompt.label;
+        rb.onclick = async () => {
+          if (!await confirmModal("Flag for re-verification?", prompt.confirm, "Flag", false)) return;
+          rb.disabled = true;
+          let res;
+          try { res = await api.coordinationStaleRecheck(pid, a, b); }
+          catch (e) { rb.disabled = false; toast((e as Error).message, "error"); return; }
+          // Report what the SERVER flagged, not what was offered: the scan re-runs there and the
+          // set can have moved since the read.
+          toast(`${res.flagged} issue(s) flagged for re-verification`, "success");
+          await renderFreshness(res, a, b);
+        };
+        body.appendChild(rb);
+      }
+    });
+  };
+
   const render = (rows: ModelVersionRow[]) => {
     const approved = rows.filter((r) => r.review_status === "approved").length;
     out.textContent = `${rows.length} version(s) · ${approved} approved`;
@@ -109,6 +168,28 @@ export function modelReviewButton(deps: ModelReviewDeps): HTMLButtonElement {
 
         const acts = document.createElement("div");
         acts.style.cssText = "display:flex;gap:6px;flex-shrink:0";
+        // COORD-UNANCHORED — clash freshness against the PREVIOUS version, which is the comparison
+        // a coordinator actually makes ("what did this publish invalidate?"). It lands here because
+        // this panel already knows the version numbers the route needs, and nothing else did: both
+        // /coordination/stale and /recheck were frozen as routes no screen reaches.
+        //
+        // Offered only where there IS a previous version — a button that can only 422 reads as a
+        // broken feature, which is the same argument the NEXT table above makes for the review
+        // actions.
+        const prev = rows.find((x) => x.version === r.version - 1);
+        if (prev) {
+          const fb = document.createElement("button");
+          fb.className = "file-btn";
+          fb.textContent = "⟲ Clash freshness";
+          fb.title = `Which open coordination issues touch an element that changed v${prev.version} → v${r.version}`;
+          fb.onclick = () => void withLoading(container, "Checking clash freshness", async () => {
+            let cs;
+            try { cs = await api.coordinationStale(pid, prev.version, r.version); }
+            catch (e) { toast((e as Error).message, "error"); return; }
+            await renderFreshness(cs, prev.version, r.version);
+          });
+          acts.append(fb);
+        }
         for (const nx of NEXT[r.review_status]) {
           const b = document.createElement("button");
           b.className = "file-btn";

@@ -73,7 +73,51 @@ acc = cv_bridge.ingest({"activity": "A1", "percent": 140, "source": "vision-svc"
 assert acc["accepted"] is True and acc["percent"] == 100.0, acc          # clamped to 0–100
 os.environ.pop("AEC_CV_BRIDGE", None)
 
+# --- CV-BRIDGE-DARK: `accepted` is a verdict about the PAYLOAD, not about the writes -------------
+# The batch door has reported per-item outcomes since the write path landed; the SUMMARY reported
+# only `accepted`, which is decided before the first write is attempted and therefore stays True on
+# a sweep in which every one of them failed.
+os.environ["AEC_CV_BRIDGE"] = "1"
+
+# ① the single door now ANSWERS the did-it-land question when no activity was given. It used to
+# return `accepted: true` with NO `applied` key, and a missing key is `undefined`, not `false`.
+_bare = cv_bridge.ingest({"percent": 30})
+assert _bare["accepted"] is True and "NOT written" in _bare["note"], _bare
+assert "written to that activity" in cv_bridge.ingest({"activity": "A1", "percent": 30})["note"]
+
+# ② the batch cap is a REFUSAL, not a truncation: applying 500 of a 5,000-estimate sweep and
+# reporting success is the defect `write_coverage` exists to prevent, at the door.
+_over = cv_bridge.ingest_batch([{"activity": "A", "percent": 1}] * (cv_bridge.MAX_BATCH + 1))
+assert _over["accepted"] is False and _over["limit"] == cv_bridge.MAX_BATCH, _over
+assert str(cv_bridge.MAX_BATCH) in _over["reason"] and "split" in _over["reason"], _over
+assert cv_bridge.ingest_batch([{"activity": "A", "percent": 1}] * cv_bridge.MAX_BATCH)["accepted"]
+os.environ.pop("AEC_CV_BRIDGE", None)
+
+# ③ the four reasons a percent did not move, each counted separately — `written` is the only one
+# that means a `schedule_activity.percent` changed.
+_cov = cv_bridge.write_coverage([
+    {"ok": True, "activity": "A", "applied": True},
+    {"ok": True, "activity": "B", "applied": False, "apply_error": "no schedule_activity matched"},
+    {"ok": True, "activity": "", "applied": False, "apply_error": "no activity given"},
+    {"ok": False, "reason": "percent must be a number 0–100"},
+])
+assert _cov == {"received": 4, "written": 1, "write_failed": 1, "no_activity": 1, "invalid": 1,
+                "reason": "1 of 4 estimate(s) were written"}, _cov
+assert "complete" not in _cov, _cov      # no boolean, and no null placeholder to be read as one
+
+# ④ EVERY-OF-NOTHING IS NOT "EVERY". `len(written) == len(items)` holds on an empty batch, so a
+# reason computed in the obvious order says "every estimate was written" about zero estimates —
+# the vacuous-quantifier shape `services/api/test_quant_vacuous.py` exists for. Asserted rather
+# than described, because the guard is one line and reordering it is invisible in a diff.
+assert cv_bridge.write_coverage([])["reason"] == "the batch was empty, so nothing was written"
+assert cv_bridge.write_coverage([{"ok": True, "activity": "A", "applied": True}])["reason"] \
+    == "every estimate in the batch was written"
+assert cv_bridge.write_coverage([{"ok": True, "activity": "A", "applied": False}])["reason"] \
+    == "nothing was written"
+
 print("FIELD AI OK - E1: productivity log -> units/man-hr per entry + by-trade rollup (Concrete "
       "210 cy / 96 mh = 2.188 cy/man-hr; no-production entry excluded); report PDF served. E2: CV "
       "bridge disabled by default (ingest = no-op, nothing fabricated); enabling AEC_CV_BRIDGE accepts "
-      "estimates, clamped 0–100")
+      "estimates, clamped 0–100. CV-BRIDGE-DARK: the batch summary states how much of a sweep was "
+      f"WRITTEN rather than only that it was accepted, the cap ({cv_bridge.MAX_BATCH}) refuses "
+      "instead of truncating, and every-of-nothing is not 'every'")

@@ -135,6 +135,101 @@ assert set(r) == {"template", "name", "visible", "hidden_count", "visible_count"
                   "colored_count", "note"}, sorted(r)
 assert r["colors"]["W1"] == "#cc0000"
 
+# ── VG-DARK: the per-element map is the engine's product and NOT a payload ───────────────────────
+# `style_summary` collapses it into the distinct resolved states, which is what a screen asks. The
+# grouping key is the WHOLE state on both sides, so two categories that resolve identically collapse
+# and a rule that changed one of them splits them again.
+S = vt.style_summary(G)
+assert sum(b["count"] for b in S) == len(G) == 4, S
+assert [b["count"] for b in S] == sorted((b["count"] for b in S), reverse=True), "worst-first by count"
+# W1 (fire-rated, red) and W2 (default colour) are the same CATEGORY and must not collapse together.
+walls = [b for b in S if b["group"] == "enclosure"]
+assert len(walls) == 2, f"a colour rule on one wall must split the bucket: {walls}"
+assert {b["cut"]["color"] for b in walls} == {"#cc0000", "#111111"}, walls
+# Two elements that resolve identically DO collapse — otherwise the summary is the map again.
+IDX_PAIR = {"A": {"guid": "A", "ifc_class": "IfcColumn"}, "B": {"guid": "B", "ifc_class": "IfcColumn"}}
+pair = vt.style_summary(vt.graphics(IDX_PAIR, vt._norm({"id": "p", "hide_classes": ["IfcNope"]}))["graphics"])
+assert len(pair) == 1 and pair[0]["count"] == 2, pair
+assert pair[0]["sample"] == ["A", "B"], pair
+assert len(vt.style_summary({})) == 0
+
+# `cut_count: 0` has two causes and they are not the same answer.
+assert vt.graphics(IDX, tpl, cut_guids={"W1"})["cut_supplied"] is True
+assert vt.graphics(IDX, tpl)["cut_supplied"] is False, "no cut list is not the same as nothing cut"
+assert vt.graphics(IDX, tpl)["cut_count"] == 0
+
+# `sample` is bounded, so a 40,000-element bucket does not carry 40,000 GUIDs back.
+many = {f"{i:022d}": {"guid": f"{i:022d}", "ifc_class": "IfcColumn"} for i in range(50)}
+big = vt.style_summary(vt.graphics(many, vt._norm({"id": "m", "hide_classes": ["IfcNope"]}))["graphics"])
+assert len(big) == 1 and big[0]["count"] == 50 and len(big[0]["sample"]) == 5, big
+
+# ── the ROUTE decides what crosses the wire; the engine still returns everything ──────────────────
+import json as _json  # noqa: E402
+import os as _os  # noqa: E402
+
+_os.environ["DATABASE_URL"] = "sqlite:///./test_vg_overrides.db"
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import storage  # noqa: E402
+from aec_api.main import app  # noqa: E402
+
+_N = 3000
+_CL = ["IfcWall", "IfcSlab", "IfcColumn", "IfcDuctSegment", "IfcDoor"]
+with TestClient(app) as _c:
+    _pid = _c.post("/projects", json={"name": "VG"}).json()["id"]
+    storage.put(f"{_pid}/props.json", _json.dumps({"elements": [
+        {"guid": f"{i:022d}", "ifc_class": _CL[i % len(_CL)]} for i in range(_N)]}).encode())
+    assert _c.put(f"/projects/{_pid}/view-templates", json={"templates": [{
+        "id": "t1", "name": "Sheet Lines", "hide_classes": ["IfcDuctSegment"],
+        "object_styles": {"ifcwall": {"cut": {"weight": 1.4}}}}]}).status_code == 200
+
+    _base = f"/projects/{_pid}/view-templates/t1/graphics"
+    # DEFAULT: counts + styles, and NOT 2,400 per-element entries. The shipped behaviour was the
+    # whole map unconditionally — measured at 8.9 MB on a 50,000-element index, in a viewer-role GET,
+    # read by nothing.
+    _d = _c.get(_base)
+    _none = _d.json()
+    assert _none["graphics"] == {} and _none["graphics_mode"] == "none", _none["graphics_mode"]
+    assert _none["graphics_count"] == _none["visible_count"] == 2400, _none
+    # 3 styles, not 4: `IfcSlab` and `IfcColumn` are both `structure` and resolve identically, so
+    # they COLLAPSE into one row — which is the summary doing its job rather than restating the map.
+    # The first draft of this line asserted 4, one per surviving IFC class.
+    assert _none["hidden_count"] == 600 and _none["style_count"] == 3, _none
+    assert [b["group"] for b in _none["styles"]] == ["structure", "enclosure", "opening"], _none["styles"]
+    assert _none["styles"][0]["count"] == 1200, "two classes in one group, one row"
+    # The enclosure row carries the object-style override and the default projection beside it.
+    assert _none["styles"][1]["cut"]["weight"] == 1.4, _none["styles"][1]
+    assert _none["styles"][1]["projection"]["weight"] == 0.18, _none["styles"][1]
+    assert _none["graphics_truncated"] is False and _none["graphics_unknown"] == []
+    assert _none["max_graphics"] == vt.MAX_DETAIL == 2000
+    # The bound is the POINT, so measure it rather than asserting a flag.
+    assert len(_d.content) < 4000, f"default response is {len(_d.content)} bytes"
+
+    # ?guids= — named elements only, and anything not visible is NAMED rather than dropped.
+    _g1 = _none["styles"][0]["sample"][0]
+    _gq = _c.get(_base, params={"guids": f"{_g1},NOPE", "cut": _g1}).json()
+    assert _gq["graphics_mode"] == "guids" and list(_gq["graphics"]) == [_g1], _gq["graphics"]
+    assert _gq["graphics_unknown"] == ["NOPE"], _gq["graphics_unknown"]
+    assert _gq["graphics_count"] == 2400, "the population is the population in every mode"
+    assert _gq["graphics_truncated"] is False, "a filter is not a truncation"
+    assert _gq["cut_supplied"] is True and _gq["cut_count"] == 1, _gq
+    assert _gq["graphics"][_g1]["is_cut"] is True
+
+    # ?detail=true — the whole map, bounded, and the shortfall DECLARED.
+    _all = _c.get(_base, params={"detail": "true"}).json()
+    assert _all["graphics_mode"] == "all" and len(_all["graphics"]) == 2000, len(_all["graphics"])
+    assert _all["graphics_truncated"] is True and _all["graphics_count"] == 2400, _all["graphics_count"]
+    assert _all["graphics_unknown"] == [], "only the guids mode can fill this"
+    # Under the cap it is NOT truncated — the flag must track the population, not the mode.
+    assert _c.put(f"/projects/{_pid}/view-templates", json={"templates": [
+        {"id": "t1", "name": "Sheet Lines", "hide_classes": ["IfcDuctSegment"],
+         "object_styles": {"ifcwall": {"cut": {"weight": 1.4}}}},
+        {"id": "t2", "name": "Walls only", "isolate": "IfcWall"}]}).status_code == 200
+    _small = _c.get(f"/projects/{_pid}/view-templates/t2/graphics", params={"detail": "true"}).json()
+    assert _small["visible_count"] == 600 and len(_small["graphics"]) == 600, _small["visible_count"]
+    assert _small["graphics_truncated"] is False, "600 < 2000 is not truncated"
+    assert _c.get(f"/projects/{_pid}/view-templates/nope/graphics").status_code == 404
+
 print("R21-VG-OVERRIDES OK - view templates now carry the distinction that separates a drawing from a "
       "dump: CUT vs PROJECTION. The same element draws two ways in one view - heavy where the view "
       "plane cuts it, light where it is only seen beyond the cut - and that weight difference, not "
@@ -148,4 +243,9 @@ print("R21-VG-OVERRIDES OK - view templates now carry the distinction that separ
       "replacement override would let any colour rule silently erase the cut/projection difference "
       "for everything it touched. Rules may scope themselves to one side, later rules win, every "
       "template saved before this change still validates and resolves identically, and resolve() "
-      "keeps its exact old shape for the consumers already on it.")
+      "keeps its exact old shape for the consumers already on it. VG-DARK: the per-element map was "
+      "8.9 MB in a viewer-role GET on a 50k-element model and read by NOTHING, so the route now "
+      "serves the distinct resolved styles (3 rows over 2,400 elements, under 4 KB) and the map is "
+      "opt-in - ?guids= names the misses, ?detail=true is capped at 2,000 with the shortfall "
+      "declared, graphics_count is the population in all three - and cut_supplied separates 'nothing "
+      "is cut' from 'nobody said what is cut'.")

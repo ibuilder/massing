@@ -2,6 +2,21 @@
  * R39-DECOMP-VIEWER ③ — the five panels that read and write an element's *state*, moved out of
  * `app.ts`: family types, groups/arrays, phasing, LOD, and as-built verification.
  *
+ * MODEL-STATE-LAZY (2026-10-13) — WHY `app.ts` IMPORTS THIS MODULE DYNAMICALLY.
+ * Every export here is an `openXPanel(deps)` a tool-rail button calls on a CLICK, and
+ * `viewer/tools/*` lands in the EAGER `app-*` chunk — so a static import put all five panels in the
+ * boot path of a viewer that may never open any of them. `npm run budget` refused the shell at
+ * 225.1 KB against a 225 KB ceiling when CV-BRIDGE-DARK added one client method, and the script's
+ * own message names trimming before raising the ceiling. *A panel that runs on a click is the right
+ * thing to defer* — the same reading `modelReviewPanel.ts` records for its own `coordFreshness`
+ * import. 225.1 → 221.4 KB. `ModelStateDeps` is still imported statically, as a TYPE: that import
+ * is erased at build and costs no shell bytes, so the call sites keep their checking.
+ *
+ * This paragraph is INSIDE the existing header rather than a second block above it, because
+ * `apps/web/src/tooling/docStranded.test.ts` pins the file-header exemption at exactly one
+ * occurrence — a second stacked doc comment is the stranded shape that gate exists to find, and it
+ * found this one. *An exemption whose count is pinned cannot be grown by accident.*
+ *
  * WHY THESE FIVE, AND WHY NOW
  * ---------------------------
  * `app.ts` sits on a per-file ratchet with zero headroom, and R36-VIEWER-SUBAPP needs room in it for
@@ -37,10 +52,11 @@
 
 import { type ApiClient } from "../../api/client";
 import { LayerManager } from "../../tools/layers";
-import { toast, withLoading } from "../../ui/feedback";
+import { escapeHtml as esc, toast, withLoading } from "../../ui/feedback";
 import { askText } from "../../ui/prompt";
 import { kvTable, resultNote, showResult } from "../../ui/result";
 import { loadSelSets } from "../../tools/selectionSetsStore";
+import { bucketRows, coverageReading } from "./colorCoverage";
 
 /** LOD maturity stages, BIMForum 100 (schematic) → 500 (field-verified as-built). */
 const LODS = ["100", "200", "300", "350", "400", "500"] as const;
@@ -296,10 +312,18 @@ export async function openPhasingPanel(d: ModelStateDeps): Promise<void> {
       try {
         const r = await d.api.colorBy(d.pid, "Massing_Phasing.Status", 6);
         showResult("Isolate by phase", (b2) => {
-          if (!r.buckets.length) { b2.appendChild(resultNote("No phased elements yet.", "")); return; }
-          for (const bk of r.buckets) {
-            b2.appendChild(d.toolBtn2(`◎ ${bk.label} · ${bk.count}`,
-              () => { void d.layerMgr.isolateGuids(bk.guids); d.notify(`isolated ${bk.count} · ${bk.label}`, "success"); }));
+          // COLOR-UNSET: the engine returns `total`, `colored` and `unset` and this rendered the
+          // buckets alone — so 40 phased elements out of 4,000 showed four tidy phase buttons and
+          // nothing said that 99% is UNPHASED. For a phasing tool the unphased set is the finding.
+          const cov = coverageReading(r);
+          b2.appendChild(resultNote(esc(cov.text), cov.tone));
+          if (!r.buckets.length) {
+            b2.appendChild(resultNote("No phased elements yet — tag phases above, then come back.", ""));
+            return;
+          }
+          for (const bk of bucketRows(r)) {
+            b2.appendChild(d.toolBtn2(`◎ ${bk.k} · ${bk.v}`,
+              () => { void d.layerMgr.isolateGuids(bk.guids); d.notify(`isolated ${bk.guids.length} · ${bk.k}`, "success"); }));
           }
           b2.appendChild(d.toolBtn2("Show all", () => { void d.layerMgr.showAll?.(); }));
         });

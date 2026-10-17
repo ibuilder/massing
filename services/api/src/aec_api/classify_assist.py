@@ -52,9 +52,17 @@ from . import classification as cls
 BASES = ("declared", "keyword", "class_map", "unmapped")
 
 #: Systems this module will propose codes for — those with a published IFC-class map in
-#: `classification.CLASSIFICATIONS`.
+#: `classification.CLASSIFICATIONS`, **minus anything in `REFUSED`**.
+#:
+#: The subtraction was missing until 2026-10-12 and the two sets happen to be disjoint today, so
+#: nothing was wrong — but this function's answer is what a UI picker offers and what the error
+#: message below lists as "known", while `_system()` checks `REFUSED` FIRST. Add a published map for
+#: a refused system and this would advertise a choice that every request for it refuses, with the
+#: refusal naming it in the same breath as known. *A catalog that does not honour its own refusal
+#: list contradicts the function three lines down, and nothing goes red because the contradiction
+#: needs a future entry to become visible.* Found while building the picker it exists for.
 def systems() -> list[str]:
-    return sorted(cls.CLASSIFICATIONS)
+    return sorted(k for k in cls.CLASSIFICATIONS if k not in REFUSED)
 
 
 #: Systems this module refuses to propose for, and why. Kept as data so the refusal carries a reason

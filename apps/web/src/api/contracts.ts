@@ -35,8 +35,103 @@ import { HttpCore } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** R22-NOTICE-CLOCK — one event crossed with one notice provision, and what that leaves open. */
+export interface NoticeItem {
+  event: { type: string; date: string; date_basis: string; summary?: string; source?: string;
+           record_id?: string; became_aware_on?: string | null };
+  clause: { id: string; reference: string; days: number; basis: string; starts_on: string;
+            consequence: string; notify?: string; citation?: string } | null;
+  status: string;
+  days_remaining?: number | null;
+  due_on?: string | null;
+  why?: string;
+  missing?: string[];
+  holidays_supplied?: boolean;
+}
+
+/** What one source register contributed to a scan, and what it left out. */
+export interface NoticeSource {
+  present: boolean;
+  scanned: number;
+  total: number;
+  truncated: boolean;
+  /** The RECORDING date the slice stops at — `created_at`, not the event date. */
+  oldest_scanned: string | null;
+}
+
+/**
+ * The notice register.
+ *
+ * Three fields decide whether the rest means anything, and they are independent:
+ * `adopted` (a contract family is adopted — without one nothing is computed and `why` says so),
+ * `complete` (every record in the field register was scanned), and `override` (computed under a
+ * family other than the executed one, i.e. a what-if).
+ */
+export interface NoticeRegister {
+  family: string | null;
+  family_label?: string;
+  adopted: boolean;
+  why?: string;
+  as_of?: string;
+  calendar?: string;
+  counts: Record<string, number>;
+  items: NoticeItem[];
+  events_found?: number;
+  adopted_family?: string | null;
+  adopted_raw?: string | null;
+  override?: { family: string; note: string };
+  /** NOTICE-CLOCK-TRUNC: the coverage beside the verdict. */
+  sources?: Record<string, NoticeSource>;
+  complete?: boolean;
+  coverage?: string;
+  verify?: string;
+}
+
 export function withContracts<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class extends Base {
+  /**
+   * R22-NOTICE-CLOCK — the contractual notice register: every triggering event in the field record
+   * against every notice provision of the adopted contract family, expired first.
+   *
+   * **The engine, its clause library and its letter drafter shipped and no screen reached any of
+   * them** — two of the three routes sat in `services/api/test_route_reachability.py`'s uncalled
+   * list and the third in a different one, so each part of one capability read as somebody else's
+   * gap. Meanwhile the register was computed over the OLDEST 500 records of each source, because
+   * `list_records` orders ascending before applying a limit and the limit was a query parameter
+   * defaulting to 500 — so the events whose notice periods were still running were the ones left
+   * out. `complete` and `sources` are what say so now.
+   *
+   * Nothing here is advice: `consequence` reports what the contract TEXT says and stops.
+   */
+  notices(pid: string, opts: { as_of?: string; family?: string; due_soon_days?: number;
+                               weekend?: string; holidays?: string } = {}) {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts)) if (v !== undefined) q.set(k, String(v));
+    const qs = q.toString();
+    return this.json<NoticeRegister>(`/projects/${pid}/notices${qs ? `?${qs}` : ""}`);
+  }
+  /** The notice-provision library: families, clauses, periods and citations — the standard
+   *  provisions of the unamended forms, to verify against the executed contract. */
+  noticeClauses(pid: string, opts: { family?: string; event_type?: string } = {}) {
+    const q = new URLSearchParams(opts as Record<string, string>).toString();
+    return this.json<{ families: { id: string; label: string }[]; event_types: string[];
+      consequences: Record<string, string>; verify: string;
+      clauses: { id: string; family: string; family_label: string; reference: string;
+        event_types: string[]; days: number; basis: string; starts_on: string;
+        consequence: string; notify?: string; citation: string }[] }>(
+      `/projects/${pid}/notices/clauses${q ? `?${q}` : ""}`);
+  }
+  /** Draft the notice letter for one register item (editor role). */
+  draftNotice(pid: string, item: NoticeItem, fromParty?: string, toParty?: string) {
+    const q = new URLSearchParams();
+    if (fromParty) q.set("from_party", fromParty);
+    if (toParty) q.set("to_party", toParty);
+    const qs = q.toString();
+    return this.json<{ subject: string; body: string; due_on?: string | null;
+      clause?: string; citation?: string; warning?: string }>(
+      `/projects/${pid}/notices/draft${qs ? `?${qs}` : ""}`,
+      { method: "POST", body: JSON.stringify(item) });
+  }
   /** URL of a generated contract document — doc = agreement | prime | co | exhibit. */
   contractDocUrl(pid: string, key: string, rid: string, doc: string, clauses?: string, attach = false) {
     const q = new URLSearchParams({ doc, ...(clauses ? { clauses } : {}), ...(attach ? { attach: "1" } : {}) }).toString();
@@ -135,12 +230,30 @@ export function withContracts<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/selections/push-change-events`, { method: "POST", body: "{}" });
   }
 
-  /** coLog — CO value pipeline (pending/approved/executed), reason mix, schedule exposure. */
+  /** coLog — CO value pipeline (pending/approved/executed), reason mix, schedule exposure.
+   *
+   *  CO-REJECTED declared the rest. `total_value` is **every** COR raised, rejected ones included,
+   *  so it is a volume-of-change figure and not exposure — and it was printed beside `pending`,
+   *  `approved` and `executed` with no fourth term to explain the gap. Measured on a four-COR
+   *  fixture: total $575,000, those three $175,000, and a $400,000 residue that is the rejected COR
+   *  and had no name on the screen. `live_value` is the figure a report wants; `rejected_value`,
+   *  `by_state` and the two schedule-day figures are what make the arithmetic auditable. */
   coLog(pid: string) {
-    return this.json<{ co_count: number; total_value: number; pending_value: number;
-      approved_value: number; executed_value: number; total_schedule_days: number;
+    return this.json<{ co_count: number; total_value: number;
+      /** `total_value` minus the rejected CORs — what is or may become money. */
+      live_value?: number;
+      pending_value: number;
+      approved_value: number; executed_value: number;
+      /** CORs the owner refused. In `total_value`, out of `live_value`. */
+      rejected_value?: number;
+      /** EXCLUDES the rejected CORs' days, which is the opposite treatment to `total_value` and
+       *  the reason both figures are now published with their refusal named. */
+      total_schedule_days: number;
+      rejected_schedule_days?: number;
       change_events_open: number; change_event_rom_exposure: number;
+      by_state?: Record<string, number>;
       by_reason: Record<string, number>; ball_in_court: Record<string, number>;
+      change_events_by_scope?: Record<string, number>;
       rows: Record<string, unknown>[] }>(`/projects/${pid}/change-orders/log`);
   }
   };

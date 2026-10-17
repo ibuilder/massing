@@ -66,11 +66,31 @@ def summary(reports: list[dict]) -> dict[str, Any]:
             "has_delay": has_delay, "state": st,
         })
     n = len(rows)
+    # FIELDLOG-WINDOW. `span_days` is the span of the LOGGED dates, so the denominator of
+    # `coverage_pct` is derived from the answer: it is coverage of the window the reports themselves
+    # define, never of the job. Measured -- one report: span 1, logged 1, 100.0%. Three contiguous
+    # days on a 200-day build: span 3, logged 3, 100.0%. Twenty of thirty-one with gaps: 64.5%.
+    # *A superintendent who logged three days and stopped gets a clean 100%.*
+    #
+    # The figure is NOT redefined: "how complete is the run I have" is a real question, and
+    # measuring against the schedule's own span would be a different one (and a product decision --
+    # the schedule may not exist, may be unbaselined, and a field log legitimately starts after
+    # mobilisation). What changes is that the window travels with the percentage, so no reader has
+    # to assume it means something it cannot.
     span_days = (max(dates) - min(dates)).days + 1 if dates else 0
     logged_days = len(set(dates))
     coverage = round(100 * logged_days / span_days, 1) if span_days else None
     return {
         "report_count": n, "submitted_count": submitted, "draft_count": n - submitted,
+        # The sentence, owned here so the screen, the assistant and any API consumer say the same
+        # thing -- RENTROLL-BASIS's `occupancy_note` for the same reason.
+        "coverage_note": ("No report carries a date, so there is no window to measure coverage "
+                          "against." if not span_days else
+                          f"Coverage is {logged_days} logged day(s) out of the {span_days}-day "
+                          "window BETWEEN THE FIRST AND LAST REPORT -- not out of the job. A "
+                          "single report, or an unbroken run of any length, is 100% by "
+                          "construction. Days before the first report and after the last are "
+                          "outside the denominator."),
         "first_date": min(dates).isoformat() if dates else None,
         "last_date": max(dates).isoformat() if dates else None,
         "span_days": span_days, "logged_days": logged_days, "coverage_pct": coverage,

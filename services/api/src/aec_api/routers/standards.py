@@ -377,7 +377,17 @@ def progress_capture_diff(pid: str, payload: dict = Body(...), db: Session = Dep
                           _: str = Depends(require_role("viewer"))):
     """SCAN-4D — the diff between two capture timestamps: newly installed per class/level, elements that
     *disappeared* (re-scan/rework flag), the progress delta and a daily rate. Body: `{installed_t1,
-    installed_t2, t1?, t2?, elements?}`; elements derive from the model's property index when omitted."""
+    installed_t2, t1?, t2?, elements?}`; elements derive from the model's property index when omitted.
+
+    CAPTURE-SESSION: `{"derive": "field_verification", "t1": …, "t2": …}` fills both installed sets
+    from the Field Verification register instead — every element observed on or before each date.
+    **A capture derived this way is CUMULATIVE**, so `removed` is structurally empty and this call
+    cannot raise a rework flag; `derived.note` says so and `derived.undated` counts the verifications
+    no date could place. Opt-in rather than a fallback: an empty `installed_t1` means *the caller
+    sent nothing*, and silently answering a different question than the one asked is how a screen
+    comes to show a diff over a set nobody chose.
+    """
+    from .. import modules as me
     from .. import progress_rollup as pr
     _project(db, pid)
     elements = payload.get("elements")
@@ -385,8 +395,29 @@ def progress_capture_diff(pid: str, payload: dict = Body(...), db: Session = Dep
         idx = _idx_for(pid) or {}
         elements = [{"guid": g, "ifc_class": e.get("ifc_class"), "storey": e.get("storey")}
                     for g, e in idx.items()]
-    return pr.capture_diff(elements, payload.get("installed_t1") or [], payload.get("installed_t2") or [],
-                           payload.get("t1"), payload.get("t2"))
+    t1, t2 = payload.get("t1"), payload.get("t2")
+    set1, set2 = payload.get("installed_t1") or [], payload.get("installed_t2") or []
+    derived: dict | None = None
+    if str(payload.get("derive") or "") == pr.DERIVED_FIELD_VERIFICATION:
+        recs = me.list_records(db, "field_verification", pid, limit=200_000) \
+            if "field_verification" in me.TABLES else []
+        a, b = pr.installed_as_of(recs, t1), pr.installed_as_of(recs, t2)
+        set1, set2 = a["guids"], b["guids"]
+        # The provenance of both sides, in one object rather than two flat key families: a caller
+        # that reads `derived` at all has to read which date each count belongs to, and a pair of
+        # `derived_t1_count` / `derived_t2_count` invites reading one and not the other.
+        derived = {"source": a["source"], "note": a["note"],
+                   "t1": {"as_of": t1, "count": a["count"]},
+                   "t2": {"as_of": t2, "count": b["count"]},
+                   "undated": a["undated"],
+                   "register_earliest": a["earliest"], "register_latest": a["latest"],
+                   # Structurally, not incidentally: a cumulative set cannot shrink. Published so a
+                   # consumer can suppress the rework half rather than render an empty table that
+                   # reads as "no rework found".
+                   "cumulative": True}
+    out = pr.capture_diff(elements, set1, set2, t1, t2)
+    out["derived"] = derived
+    return out
 
 
 @router.get("/projects/{pid}/rules")
@@ -491,10 +522,17 @@ def rules_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_
     by-severity rollup. When a space rule pack is stored and the project has a source IFC, the
     geometric space checks (dimensional / daylight / wet-wall, via the adjacency engine) run too and
     fold into the SAME rollup as `space:*` rows — one rule spine for elements AND spaces."""
-    from .. import rule_library
+    from .. import firm_standards, rule_library
     _project(db, pid)
-    stored = rule_library.load(pid) or rule_library.STARTER_RULES
-    out = rule_library.run(_idx_for(pid), stored)
+    # FIRM-RULES-OPTIONAL. This was `rule_library.load(pid) or STARTER_RULES`: the project's own
+    # rules and nothing else, so a firm standard a project inherits was never evaluated, and a
+    # project with no library was checked against three samples with nothing in the response saying
+    # so. `applicable_rules` answers both, and returns the provenance in the same dict so a caller
+    # cannot take the rules and drop where they came from.
+    app = firm_standards.applicable_rules(pid)
+    out = firm_standards.attach_provenance(rule_library.run(_idx_for(pid), app["rules"]),
+                                           app["rules"])
+    out["provenance"] = app["provenance"]
     pack = rule_library.load_space_pack(pid)
     if pack:
         try:
@@ -503,6 +541,11 @@ def rules_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_
         except HTTPException:
             out["space_rules_note"] = "space pack stored but no source IFC is loaded — space checks skipped"
         else:
+            # Labelled, not left with a null source: these come from the space pack, not from any
+            # rule library, and an unlabelled row beside labelled ones reads as "nobody knows".
+            for row in space_rows:
+                row["source"] = "space-pack"
+                row["overrides"] = None
             out["rules"] = (out.get("rules") or []) + space_rows
             out["total_rules"] = len(out["rules"])
             for row in space_rows:
@@ -552,16 +595,29 @@ def view_template_resolve(pid: str, tid: str, db: Session = Depends(get_db),
 
 
 @router.get("/projects/{pid}/view-templates/{tid}/graphics")
-def view_template_graphics(pid: str, tid: str, cut: str = "",
+def view_template_graphics(pid: str, tid: str, cut: str = "", guids: str = "", detail: bool = False,
                            db: Session = Depends(get_db),
                            _: str = Depends(require_role("viewer"))):
-    """R21-VG-OVERRIDES — the full graphic state per visible element: weight, colour, pattern and
-    halftone, resolved SEPARATELY for the cut side and the projection side.
+    """R21-VG-OVERRIDES — the graphic state of a view template: weight, colour, pattern and halftone,
+    resolved SEPARATELY for the cut side and the projection side.
 
     Cut lines are heavier than projection lines; that weight difference — not colour — is how a reader
     reads depth off a flat sheet, and it is what makes output look like a drawing rather than a dump.
     Overrides layer as partials, so a rule that names only a colour never flattens the weights beneath
     it. `cut` is an optional comma-separated GUID list naming what the view plane actually cuts.
+
+    **VG-DARK: this used to return the per-element map unconditionally, and that is not a payload.**
+    Measured on a 50,000-element index: 42,857 entries, **8.9 MB in a viewer-role GET**, on every call
+    — and read by nothing, because the only client declaration for this route named two top-level keys
+    (`cut`, `projection`) the server has never sent. What a screen asks is *what weight does each
+    category draw at*, which `styles` answers in a handful of rows; the per-element map is now opt-in:
+
+    - default — counts plus `styles`, the distinct resolved states and how many elements carry each;
+    - `?guids=a,b,c` — those elements only, with anything not visible named in `graphics_unknown`;
+    - `?detail=true` — the whole map, bounded at `max_graphics` with `graphics_truncated` set.
+
+    `graphics_mode` says which of the three you got, and `graphics_count` is the full visible
+    population in all three — *the length of what shipped is never the size of the answer* (TRUNC-COUNTED).
     """
     from .. import view_templates as vt
     _project(db, pid)
@@ -569,7 +625,28 @@ def view_template_graphics(pid: str, tid: str, cut: str = "",
     if t is None:
         raise HTTPException(404, f"view template {tid!r} not found")
     cut_guids = {g.strip() for g in cut.split(",") if g.strip()} or None
-    return vt.graphics(_idx_for(pid), t, cut_guids)
+    out = vt.graphics(_idx_for(pid), t, cut_guids)
+    full: dict[str, dict] = out.pop("graphics")
+    want = {g.strip() for g in guids.split(",") if g.strip()}
+    if want:
+        mode, shown = "guids", {g: full[g] for g in sorted(want) if g in full}
+        unknown, truncated = sorted(want - set(full)), False
+    elif detail:
+        keys = sorted(full)[:vt.MAX_DETAIL]
+        mode, shown = "all", {g: full[g] for g in keys}
+        unknown, truncated = [], len(keys) < len(full)
+    else:
+        mode, shown = "none", {}
+        unknown, truncated = [], False
+    out["styles"] = vt.style_summary(full)
+    out["style_count"] = len(out["styles"])
+    out["graphics"] = shown
+    out["graphics_count"] = len(full)
+    out["graphics_mode"] = mode
+    out["graphics_truncated"] = truncated
+    out["graphics_unknown"] = unknown
+    out["max_graphics"] = vt.MAX_DETAIL
+    return out
 
 
 # SMART-VIEWS — user-authored saved view presets (name + QUERY-DSL selector + isolate/color/hide).
@@ -773,7 +850,15 @@ async def roundtrip_diff(pid: str, file: UploadFile = File(...), db: Session = D
         changes += row_changes
         unchanged += row_unchanged
     return {"checked": checked, "changes": changes[:1000], "truncated": len(changes) > 1000,
-            "unknown_guids": unknown[:100], "unchanged": unchanged}
+            # EVERY bound in this function is now reported, because a caller applies `changes`
+            # verbatim through `set_props_by_guid`: a sheet with more changes than the cap was
+            # applied in part and reported as whole. `change_count` is the number a screen should
+            # print; `len(changes)` is the size of the page it was handed.
+            "change_count": len(changes),
+            "unknown_guids": unknown[:100], "unknown_count": len(unknown),
+            "rows_read": max(0, len(rows) - 1), "rows_cap": 5000,
+            "rows_truncated": len(rows) - 1 > 5000,
+            "unchanged": unchanged}
 
 
 @router.post("/projects/{pid}/ci/run")

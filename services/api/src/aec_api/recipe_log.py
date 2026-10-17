@@ -27,6 +27,20 @@ descriptor — its type, size and a hash — and the entry is marked `params_eli
 elided entry is **refused**, not attempted with the descriptor: the point of the log is that a replay
 either reproduces the edit or says it cannot.
 
+**`replayable` is an end-to-end claim, and it used to be two different kinds of wrong.** It was
+`all(not params_elided for r in entries)`, which is `True` over an EMPTY sequence — so a project that
+had never been authored reported *replayable*. And the log is a **ring**: `record()` keeps the most
+recent `_MAX` and said so in no payload, so a project past the cap reported *replayable* while the
+edits needed to rebuild it had already been discarded. The second is the worse of the two, because it
+is wrong about a real populated project rather than an empty one, and nothing in the file could even
+say whether anything had been forgotten — `len(entries) == _MAX` reads identically for "exactly
+`_MAX` edits, none lost" and "`_MAX` kept, an unknown number dropped".
+
+Both are fixed by COUNTING the drops at `record()` and guarding the verdict.
+`replay_coverage.history` carries `unknown` as a real third state for logs written before the counter
+existed: folding that into either answer would be a guess, and the flattering guess is the one that
+makes a partial history read as a whole one.
+
 **Replay is a plan, not an execution.** `replay_plan()` returns the steps in order for the caller to
 apply through the existing `/edit/batch` path. Re-running edits is exactly the kind of thing that
 should have one author and one audit row, and a log that could re-run itself would have neither.
@@ -116,7 +130,7 @@ def _load(pid: str) -> dict:
     except Exception:  # noqa: BLE001 — a backend that cannot answer is treated as "unknown", below
         present = True
     if not present:
-        return {"version": LOG_VERSION, "entries": []}
+        return {"version": LOG_VERSION, "entries": [], "dropped": 0}
     try:
         raw = storage.get(key)
     except Exception as e:  # noqa: BLE001 — exists() said yes and get() failed: do not assume empty
@@ -139,7 +153,25 @@ def _load(pid: str) -> dict:
     if not isinstance(d, dict) or not isinstance(d.get("entries"), list):
         raise LogUnreadable(
             f"the recipe log for {pid} parsed but is not a log document. It has NOT been overwritten.")
-    return {"version": d.get("version", LOG_VERSION), "entries": list(d["entries"])}
+    return {"version": d.get("version", LOG_VERSION), "entries": list(d["entries"]),
+            # Named explicitly because `_load` REBUILDS the document rather than returning the parsed
+            # one, so any key it does not name is silently discarded on the next `_save` — the
+            # counter would reset to zero on every append and the ring would go back to being
+            # untrackable, with nothing failing.
+            "dropped": _count(d.get("dropped"))}
+
+
+def _count(v: Any) -> int:
+    """A stored counter, or 0 — never a raise.
+
+    Every refusal in `_load` above is about a file that is genuinely unreadable. A non-integer in an
+    OPTIONAL counter is not that, and `int("many")` would turn a cosmetically odd log into a 409 on
+    every read of it.
+    """
+    try:
+        return max(0, int(v or 0))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _save(pid: str, d: dict) -> None:
@@ -313,7 +345,12 @@ def record(pid: str, entries: list[dict[str, Any]]) -> int:
     if not entries:
         return 0
     d = _load(pid)
-    d["entries"] = (d["entries"] + list(entries))[-_MAX:]
+    merged = d["entries"] + list(entries)
+    # COUNTED, not inferred. This slice silently discarded the oldest entries, and `export()` then
+    # reported the survivors as a complete, replayable history. See the header.
+    dropped = max(0, len(merged) - _MAX)
+    d["entries"] = merged[-_MAX:]
+    d["dropped"] = _count(d.get("dropped")) + dropped
     _save(pid, d)
     return len(entries)
 
@@ -343,7 +380,14 @@ def log(pid: str, *, limit: int = 200, offset: int = 0, recipe: str | None = Non
         "recipes": sorted({r.get("recipe") for r in d["entries"] if r.get("recipe")}),
         "elided": sum(1 for r in d["entries"] if r.get("params_elided")),
         "bounded_at": _MAX,
-        "note": (f"the log keeps the most recent {_MAX} entries; older edits have been dropped"
+        # Precise where the counter can be precise, and still hedged where it cannot: a log at
+        # the cap that predates the counter genuinely does not know, and the old sentence asserted
+        # something the file could not support.
+        "note": (f"the log keeps the most recent {_MAX} entries; {d['dropped']} older edit(s) have "
+                 "been dropped"
+                 if d["dropped"] else
+                 f"the log keeps the most recent {_MAX} entries and is full; whether older edits "
+                 "have been dropped is not recorded for this log"
                  if len(d["entries"]) >= _MAX else None),
     }
 
@@ -417,10 +461,41 @@ def export(pid: str) -> dict[str, Any]:
     the order `replay_plan` needs. `log()` is newest-first because that is the order a person reads a
     history in. The two orders are deliberate and are each stated in the payload."""
     d = _load(pid)
+    entries = d["entries"]
+    elided = sum(1 for r in entries if r.get("params_elided"))
+    dropped = d["dropped"]
+    history = ("truncated" if dropped
+               else "complete" if len(entries) < _MAX
+               else "unknown")
+    reason = ("nothing has been logged for this project" if not entries
+              else f"{elided} of {len(entries)} entr(ies) had a parameter elided for size, so the "
+                   "recipe cannot be called with the original argument" if elided
+              else f"{dropped} older entr(ies) have been dropped: the log keeps the most recent "
+                   f"{_MAX}, so a replay reproduces those and not the model" if dropped
+              else f"this log holds {len(entries)} of a maximum {_MAX} and predates the drop "
+                   "counter, so whether anything was lost is not recorded"
+              if history == "unknown"
+              else "every entry kept its parameters, and none have been dropped")
     return {
         "version": d["version"], "project": pid, "order": "oldest_first",
-        "count": len(d["entries"]), "entries": d["entries"],
-        "elided": sum(1 for r in d["entries"] if r.get("params_elided")),
-        "replayable": all(not r.get("params_elided") for r in d["entries"]),
+        "count": len(entries), "entries": entries,
+        "elided": elided,
+        # `bool(entries)` is the load-bearing half and was absent; `history == "complete"` is the
+        # other half. See the module header: one of those two omissions was true of an empty project
+        # and the other of a real one.
+        #
+        # The name decides the shape. A field called `replayable`, on an artifact whose stated
+        # purpose is replay against a fresh IFC, is read as *can I rebuild this model* — so it
+        # answers that, end to end, and the narrower fact (every entry the log HOLDS is faithful) is
+        # `replay_coverage.replayable_entries`. One verdict answering two questions is how a
+        # truncated history reads as a whole one.
+        # COVERAGE: elided
+        # COVERAGE: replay_coverage
+        "replayable": bool(entries) and not elided and history == "complete",
+        "replay_coverage": {
+            "entries": len(entries), "elided": elided,
+            "replayable_entries": len(entries) - elided,
+            "dropped": dropped, "history": history, "reason": reason,
+        },
         "bounded_at": _MAX,
     }

@@ -29,9 +29,33 @@ def parse_sheet_id(sheet_number: Any) -> dict[str, Any] | None:
             "sheet_type": typ, "sheet_type_name": _SHEET_TYPE.get(typ), "sequence": seq}
 
 
+def _label_kind(rev: Any) -> str:
+    """`blank`, `alpha` (letters only: A, B, C) or `numeric` (contains a digit: 0, 1, P1, C2).
+
+    SET-REVISED. The two kinds cannot be ordered against each other from the labels alone, and which
+    one is "later" is a FIRM CONVENTION, not a fact: some sets number the milestone issues and letter
+    the post-issue revisions, others do the reverse. `register` reports a sheet whose labels mix the
+    two instead of ranking them silently -- the only place the ordering is load-bearing.
+    """
+    t = str(rev or "").strip()
+    if not t:
+        return "blank"
+    return "numeric" if any(c.isdigit() for c in t) else "alpha"
+
+
 def _rev_key(rev: Any) -> tuple:
-    """Sortable revision key. Numeric revs sort numerically; alpha revs (A<B<C) after; blank lowest.
-    Handles 'P1'/'C2' style by (number, letters)."""
+    """Sortable revision key. Blank lowest, then ALPHA-only revs (A<B<C), then revs containing a
+    number, by that number then its letters ('P1' < 'C2').
+
+    **The docstring used to claim the opposite** -- "numeric revs sort numerically; alpha revs
+    (A<B<C) after" -- while the body put alpha at rank 1 and numeric at rank 2, i.e. alpha BEFORE
+    numeric. Measured: `sorted(["", "A", "B", "C", "0", "1", "2", "10"], key=_rev_key)` leaves `10`
+    last, and a sheet whose records read `1, 2, A, B` named rev `2` current with `A` and `B` listed
+    as "superseded by 2". The order here is now the one the code performs, and because the choice
+    between the two kinds is a convention rather than a fact, `register` REPORTS a sheet that mixes
+    them rather than trusting this ranking on it. *Correcting the comment to match the code is only
+    safe once something flags the cases where the code's choice cannot be justified.*
+    """
     s = str(rev or "").strip()
     if not s:
         return (0, 0, "")
@@ -42,37 +66,88 @@ def _rev_key(rev: Any) -> tuple:
     return (1 if (letters and not nums) else 2, n, letters)
 
 
+def _record_history(d: dict, data: dict, sheet: str) -> list[dict]:
+    """Every revision ONE drawing record knows about, oldest first.
+
+    SET-REVISED. `revise` keeps one record per sheet and APPENDS to `data["revisions"]`, so a
+    sheet's revision history lives INSIDE the record, not across records. `register` classified
+    issuance by counting records -- `"new" if len(revs) == 1` -- so a sheet revised twice through
+    this application's own endpoint, with ASI and CCD deltas recorded against it, came back
+    `change: "new", revisions: 1, revised_count: 0, superseded_count: 0`. `revisions()` in this same
+    file reads the same `data["revisions"]` and reports both deltas with their instruments: **two
+    engines over one record, disagreeing about whether the sheet was ever revised.**
+
+    It reached the field. `transmittal_pdf` renders `s["change"].title()` as the issuance column, so
+    the transmittal told subcontractors a revised sheet was New -- which is the flag that decides
+    whether they re-check their shop drawings against it.
+
+    The delta list is the authority on ORDER as well as on count: `revise` appends chronologically,
+    so no label ranking is involved inside a record. `_rev_key` is needed only ACROSS records that
+    share a sheet number (a drawing-log import), which is the one place the convention question
+    arises.
+    """
+    base = {"ref": d.get("ref"), "sheet_number": sheet, "title": data.get("title"),
+            "discipline": data.get("discipline"), "status": d.get("workflow_state")}
+    out: list[dict] = []
+    for delta in (data.get("revisions") or []):
+        out.append({**base, "revision": str(delta.get("rev") or ""), "rev_date": delta.get("date"),
+                    "description": delta.get("description"),
+                    "instrument": delta.get("instrument") or None, "source": "delta"})
+    cur = data.get("revision")
+    # The record's stated `revision` wins when it is not the last recorded delta -- an import, or a
+    # record whose revision was set without one. APPENDED rather than substituted: dropping the
+    # deltas would re-create the undercount this function exists to fix.
+    if cur not in (None, "") and (not out or out[-1]["revision"] != str(cur)):
+        out.append({**base, "revision": str(cur), "source": "record"})
+    if not out:
+        out.append({**base, "revision": cur, "source": "record"})
+    return out
+
+
 def register(drawings: list[dict]) -> dict[str, Any]:
     """drawings: each `drawing` record's data + ref/workflow_state. Returns the controlled set."""
     by_sheet: dict[str, list[dict]] = {}
     for d in drawings:
         data = d.get("data") or d
         sheet = (data.get("sheet_number") or data.get("number") or d.get("ref") or "?").strip()
-        by_sheet.setdefault(sheet, []).append({
-            "ref": d.get("ref"), "sheet_number": sheet,
-            "title": data.get("title"), "discipline": data.get("discipline"),
-            "revision": data.get("revision"), "status": d.get("workflow_state"),
-            "_k": _rev_key(data.get("revision")),
-        })
+        hist = _record_history(d, data, sheet)
+        by_sheet.setdefault(sheet, []).append({"history": hist, "_k": _rev_key(hist[-1]["revision"])})
     current_set, superseded, index = [], [], []
     by_discipline: dict[str, int] = {}
-    for sheet, revs in sorted(by_sheet.items()):
-        revs.sort(key=lambda r: r["_k"])
-        cur = revs[-1]
-        for r in revs[:-1]:
-            r2 = {k: v for k, v in r.items() if k != "_k"}
-            r2["superseded_by"] = cur["revision"]
-            superseded.append(r2)
-        cur_clean = {k: v for k, v in cur.items() if k != "_k"}
-        current_set.append(cur_clean)
+    ambiguous: list[str] = []
+    for sheet, recs in sorted(by_sheet.items()):
+        recs.sort(key=lambda r: r["_k"])
+        cur = recs[-1]["history"][-1]
+        # Every revision known for this sheet. The COUNT is over distinct labels so neither model
+        # double-counts: one record per revision (an import) and one record carrying a delta list
+        # (this app's own `revise`) both answer "how many revisions has this sheet had".
+        every = [e for r in recs for e in r["history"]]
+        labels = {str(e["revision"]) for e in every if e["revision"] not in (None, "")}
+        seen: set[tuple] = set()
+        for e in every:
+            if e is cur:
+                continue
+            k = (e.get("ref"), str(e["revision"]), e.get("source"))
+            if k in seen:
+                continue
+            seen.add(k)
+            superseded.append({**e, "superseded_by": cur["revision"]})
+        current_set.append(dict(cur))
         sid = parse_sheet_id(sheet)          # NCS Sheet ID → discipline + sheet-type + sequence
         disc = cur.get("discipline") or (sid and sid["discipline"]) or "Uncategorized"
         by_discipline[disc] = by_discipline.get(disc, 0) + 1
-        # issuance classification: a single revision is a new sheet; more than one means it was revised
-        change = "new" if len(revs) == 1 else "revised"
+        # issuance classification: ONE known revision is a new sheet; more than one means revised.
+        rev_count = max(len(labels), 1)
+        change = "new" if rev_count == 1 else "revised"
+        # The ordering question only arises ACROSS records -- inside one, `revise` appended in order.
+        kinds = {_label_kind(e["revision"]) for e in every} - {"blank"}
+        order_ambiguous = len(recs) > 1 and kinds == {"alpha", "numeric"}
+        if order_ambiguous:
+            ambiguous.append(sheet)
         index.append({"sheet_number": sheet, "title": cur.get("title"), "discipline": disc,
                       "sheet_id": sid, "current_revision": cur.get("revision"),
-                      "revisions": len(revs), "change": change})
+                      "revisions": rev_count, "change": change,
+                      "order_ambiguous": order_ambiguous})
     # order the sheet index the way a drawing set is bound: by NCS discipline, then sheet number
     from . import classification as cls
     _order = {d["name"]: i for i, d in enumerate(cls.disciplines())}
@@ -88,6 +163,20 @@ def register(drawings: list[dict]) -> dict[str, Any]:
         "sheet_index": index,
         "current_set": current_set,
         "superseded": superseded,
+        # SET-REVISED. Sheets whose revision labels mix alpha-only and numeric ACROSS records, where
+        # which kind is later is a firm convention rather than a fact. Reported rather than ranked
+        # silently: `_rev_key` still returns a deterministic order so the register stays stable, and
+        # this names the sheets where that order is the thing to check before issuing.
+        "order_ambiguous_sheets": sorted(ambiguous),
+        "order_note": (
+            f"{len(ambiguous)} sheet(s) carry both lettered and numbered revisions across separate "
+            "records. Which is later is a set convention, not something these labels state, so the "
+            "current revision on those sheets is this register's ranking rather than a recorded "
+            "fact -- check them before issuing."
+            if ambiguous else
+            "Every sheet's revision order is recorded: within a record the revision deltas are in "
+            "the order they were made, and no sheet mixes lettered and numbered revisions across "
+            "records."),
     }
 
 
@@ -198,7 +287,20 @@ def revise_sheet(db, pid: str, drawing_id: str, rev: str, description: str = "",
         # MARKUP-2a (slip-sheet): every existing markup on this sheet now predates the new revision — tag
         # it `carried_from` so reviewers verify it against the revised sheet. Markups keep rendering (a
         # located comment is never dropped); the tag is the honest "carried forward — re-check" state.
-        carried = 0
+        # REVISE-DARK. `carried` used to be incremented in the loop and returned whatever the loop
+        # reached, while `db.commit()` sat INSIDE the `except Exception: pass` below. Measured by
+        # injecting a failure on this commit: the response came back
+        # `201 {"revision": "1", "delta_count": 1, "markups_carried": 3}` with **0 of 3 markups
+        # actually tagged**. The revision landing anyway is correct and deliberate; claiming the
+        # carried-forward flags are in place when they are not is backwards on a slip-sheet, where
+        # that flag is the entire point — the reviewer is told to re-check and the marks say nothing.
+        #
+        # So the count is taken AFTER the commit returns, the attempted count is published beside
+        # it, and the partial mutations are rolled back rather than left pending in a session that
+        # some later commit in the same request could flush. *A count computed before the write that
+        # persists it is a count of intentions.*
+        attempted = carried = 0
+        carry_failed: str | None = None
         try:
             from .models import DrawingMarkup
             base = str(data.get("sheet_number") or data.get("number") or rec.get("ref") or "").strip()
@@ -210,13 +312,21 @@ def revise_sheet(db, pid: str, drawing_id: str, rev: str, description: str = "",
                     if d2.get("rev") != str(rev) and "carried_from" not in d2:
                         d2["carried_from"] = str(d2.get("rev") or old_rev or "prior")
                         m.data = d2
-                        carried += 1
-                if carried:
+                        attempted += 1
+                if attempted:
                     db.commit()
-        except Exception:                                # noqa: BLE001 — tagging must never block a revision
-            pass
+                    carried = attempted
+        except Exception as exc:                         # noqa: BLE001 — tagging must never block a revision
+            # The TYPE, not the message: a caller needs to know the tagging did not land and which
+            # failure it was, and the message can carry row content.
+            carry_failed = type(exc).__name__
+            try:
+                db.rollback()
+            except Exception:                            # noqa: BLE001 — a failed rollback is not the caller's problem
+                pass
         return {"drawing_id": drawing_id, "revision": str(rev), "delta_count": len(revs),
-                "markups_carried": carried}
+                "markups_carried": carried, "markups_to_carry": attempted,
+                "markups_carry_failed": carry_failed}
 
 
 def revisions(db, pid: str) -> dict[str, Any]:

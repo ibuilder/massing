@@ -115,18 +115,59 @@ export function freezeConfirm(kit: PrefabKit): string {
 
 /** What the write actually did, and whether it matched what was confirmed.
  *
- *  `expected` is the count the confirmation named. The server re-resolves the selector at write
- *  time, so a model that changed in between writes a different list than the one agreed to — a real
- *  race raised in review. Closing it properly needs an immutable snapshot on the register and a
- *  precondition on the POST, which is a server API change and is proposed separately. **What this
- *  can do is refuse to let the difference pass silently**, which is the half that matters: an
- *  unnoticed divergence is what puts the wrong list in front of a fabricator. */
+ *  `expected` is the count the confirmation named. **This started as a DETECTION control and is now
+ *  an INVARIANT CHECK, and the message had to change with it.** It shipped saying *"the model
+ *  changed between confirming and writing"*, which was the right sentence while the write had no
+ *  precondition: the server re-resolved the selector and the divergence was the expected,
+ *  unpreventable outcome of a race (PREFAB-FREEZE-RACE, raised in review on PR #524).
+ *
+ *  `if_scope_version` now makes that case a **409 rather than a 200** — the server refuses the
+ *  write when either half of the scope moved — so reaching here with a mismatch no longer means the
+ *  model changed. It means the token did NOT cover something that changed the resolution, which is
+ *  a different and worse statement, and the old sentence would have sent the reader to check a
+ *  model that is innocent.
+ *
+ *  **Kept rather than deleted, and the reason is a measurement about somebody else's module.** The
+ *  mismatch is unreachable only because the index cache has exactly one content writer
+ *  (`POST /projects/{pid}/properties/index`) and that route bumps the model version — a fact in
+ *  `routers/properties.py`, not here, which a future change could break without touching this
+ *  file. A backstop whose reachability rests on another module's behaviour is worth keeping; a
+ *  backstop whose MESSAGE describes the case it no longer catches is not. */
 export function freezeSummary(r: PrefabFreezeResult, expected?: number): string {
   const head = `${r.ref || "Kit"}: ${r.frozen} element${r.frozen === 1 ? "" : "s"} written `
     + `(selector matched ${r.matched}). ${r.note}`;
   if (expected != null && expected !== r.frozen) {
-    return `${head} — NOTE: you confirmed ${expected}. The model changed between confirming and `
-      + "writing, so the written scope is not the one you were shown. Check it before releasing.";
+    return `${head} — NOTE: you confirmed ${expected}, and the server accepted the scope version you `
+      + "were shown, so this difference should not have been possible. Treat the written scope as "
+      + "unverified and check it before releasing.";
   }
   return head;
+}
+
+/** What to say when the server refused the write because the scope moved — the 409 recovery.
+ *
+ *  `before` is the kit the reader confirmed against; `after` is the re-read. It names WHAT moved,
+ *  because "try again" with no reason is the message that teaches people to click twice and stop
+ *  reading.
+ *
+ *  **The third branch is the one worth writing down.** The two halves of the token are the model
+ *  version and the record's `modified_at`, and neither is a count — so a model republished with a
+ *  different set of elements that happens to match the same NUMBER moves the token while every
+ *  figure on the card stays identical. Reporting that as "nothing changed, try again" would be the
+ *  empty-versus-absent confusion wearing a third costume: the scope genuinely moved, and the only
+ *  honest thing to say is that the numbers agreeing is not evidence the elements do. */
+export function staleScopeNote(before: PrefabKit, after: PrefabKit): string {
+  const head = `${before.ref || "This kit"}: not written — its scope moved while the confirmation `
+    + "was open, so the server refused rather than record a list you have not seen. ";
+  if (before.selector.selector !== after.selector.selector) {
+    return `${head}The selector itself was edited (now “${after.selector.selector}”, `
+      + `matching ${after.selector.matched}). The numbers below are the new ones.`;
+  }
+  if (before.selector.matched !== after.selector.matched) {
+    return `${head}It matched ${before.selector.matched} when you confirmed and matches `
+      + `${after.selector.matched} now. Check the new scope below before writing it.`;
+  }
+  return `${head}The model was republished. It still matches ${after.selector.matched} element`
+    + `${after.selector.matched === 1 ? "" : "s"} — but the same count is not the same elements, so `
+    + "the scope below has to be confirmed again rather than assumed unchanged.";
 }

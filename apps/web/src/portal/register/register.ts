@@ -1057,8 +1057,11 @@ export class RegisterUI {
       if (!f.total_column || !n) return label;
       const col = f.columns?.find((c) => c.name === f.total_column);
       const sum = (v as Record<string, unknown>[]).reduce((t, r) => t + (Number(r[f.total_column!]) || 0), 0);
+      // `usd` rather than a local `$` + toLocaleString: the house formatter puts the minus OUTSIDE
+      // the currency mark, and a register total CAN be negative (a credit change order, a reversed
+      // line). The local spelling rendered that as "$-1,234".
       const shown = col?.type === "currency"
-        ? `$${sum.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+        ? usd(sum)
         : sum.toLocaleString(undefined, { maximumFractionDigits: 2 });
       return `${label} · ${shown}`;
     }
@@ -2392,38 +2395,16 @@ export class RegisterUI {
 
   // --- kanban / "scrum" board: columns by workflow state, drag to transition --
   private async renderBoard(m: ModuleDef) {
-    const pid = this.ctx.host.projectId()!;
-    this.skeleton(`Loading ${m.name} board…`);
-    const data = await this.ctx.host.api.moduleBoard(pid, m.key);
-    this.ctx.root.innerHTML = "";
-    this.ctx.root.appendChild(this.ctx.bar(`${m.name} — board`, () => this.openModule(m)));
-    const board = document.createElement("div"); board.className = "kanban";
-    for (const state of data.states) {
-      const col = document.createElement("div"); col.className = "kan-col"; col.dataset.state = state;
-      col.innerHTML = `<div class="kan-head">${state} <span class="count">${(data.columns[state] ?? []).length}</span></div>`;
-      // drop target: on drop, find a transition from the card's state -> this column's state
-      col.ondragover = (e) => { e.preventDefault(); col.classList.add("over"); };
-      col.ondragleave = () => col.classList.remove("over");
-      col.ondrop = async (e) => {
-        e.preventDefault(); col.classList.remove("over");
-        const rid = e.dataTransfer?.getData("rid"); const from = e.dataTransfer?.getData("from");
-        if (!rid || from === state) return;
-        const tr = data.transitions.find((t) => t.from === from && t.to === state);
-        if (!tr) { this.ctx.host.setStatus(`no direct transition ${from} → ${state}`); return; }
-        try { await this.ctx.host.api.transitionRecord(pid, m.key, rid, tr.action); void this.renderBoard(m); }
-        catch (err) { this.ctx.host.setStatus(`blocked: ${(err as Error).message}`); }
-      };
-      for (const c of data.columns[state] ?? []) {
-        const card = document.createElement("div"); card.className = "kan-card"; card.draggable = true;
-        card.innerHTML = `<div class="kc-ref">${esc(c.ref)}</div><div class="kc-title">${esc(c.title ?? "")}</div>` +
-          (c.assignee ? `<div class="kc-asg">@${esc(c.assignee)}</div>` : "");
-        card.ondragstart = (e) => { e.dataTransfer?.setData("rid", c.id); e.dataTransfer?.setData("from", state); };
-        card.onclick = () => this.openRecord(m, c.id);
-        col.appendChild(card);
-      }
-      board.appendChild(col);
-    }
-    this.ctx.root.appendChild(board);
+    // BOARD-SHIPPED: the whole board moved to `boardView.ts` under the extraction ratchet — the
+    // three readings it needed put this file 18 lines over its pin, and the ratchet's own
+    // precedent is that the file gives up lines rather than the pin moving up.
+    const { renderBoardView } = await import("./boardView");
+    await renderBoardView(this.ctx, m, {
+      skeleton: (msg) => this.skeleton(msg),
+      openModule: () => this.openModule(m),
+      openRecord: (rid) => this.openRecord(m, rid),
+      rerender: () => { void this.renderBoard(m); },
+    });
   }
 
   /** Draw-to-sign canvas pad; returns a getter for the signature data-URI ("" if blank). */

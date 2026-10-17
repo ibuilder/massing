@@ -250,6 +250,33 @@ with TestClient(app) as c:
     # the bad PUT left the good table intact
     assert c.get(f"/projects/{pid}/deal-room/authority").json()["counts"]["declared"] >= 3
 
+    # THE READ IS NOT LOSSY. `assess()` reports the AUTHORITATIVE view, so `table` omits archival
+    # rows by design — while the PUT replaces the whole stored blob. An editor that opened on the
+    # assessment alone could only send the authoritative rows back, so one save permanently deleted
+    # the supersedes history AND the reviewer on every row, and nothing went red: the response
+    # still reported a gate. The GET returns `entries`, the stored table verbatim, so a round-trip
+    # is possible at all. A lossy read and a replacing write are each defensible; together they are
+    # a delete button labelled "Save".
+    hist = ENTRIES + [{"fact_type": "rent_roll", "document": "RR_2025.xlsx",
+                       "as_of": "2025-06-01", "authoritative": False}]
+    hist = [dict(e, reviewer="K. Oyelaran") if e["fact_type"] == "tax" else e for e in hist]
+    assert c.put(f"/projects/{pid}/deal-room/authority",
+                 json={"entries": hist}).status_code == 200
+    read = c.get(f"/projects/{pid}/deal-room/authority").json()
+    assert "entries" in read, "the GET must return the stored table, not only the assessment"
+    assert len(read["entries"]) == len(hist), read["entries"]
+    # ENTRIES already carried one archival row (OM_v2.pdf), so the defect was destroying real
+    # history in this very fixture and no assertion here could see it.
+    archival = {e["document"] for e in read["entries"] if e["authoritative"] is False}
+    assert archival == {"OM_v2.pdf", "RR_2025.xlsx"}, read["entries"]
+    assert [e["document"] for e in read["table"] if e["document"] == "RR_2025.xlsx"] == [], \
+        "an archival row must NOT appear in the authoritative view — that asymmetry is the point"
+    assert any(e.get("reviewer") == "K. Oyelaran" for e in read["entries"]), read["entries"]
+    # and the round-trip is lossless: sending back exactly what the GET gave changes nothing
+    again = c.put(f"/projects/{pid}/deal-room/authority", json={"entries": read["entries"]})
+    assert again.status_code == 200, again.text
+    assert again.json()["entries"] == read["entries"]
+
     r = c.post(f"/projects/{pid}/supply/competitive",
                json={"projects": PROJECTS, "window_start": "2027-01-01",
                      "window_end": "2028-06-30", "product_type": "multifamily",
@@ -268,7 +295,9 @@ print("CRE-GOV OK - COVENANT counts days honestly (10 calendar -> Jul 11; 10 BUS
       "counsel warning; covenants with no actual are UNTESTED not passing, and a breach inside an "
       "open cure window reads differently from one past it. AUTHORITY refuses two authoritative "
       "docs per fact type and any undated entry, and GATES on a stale required tax bill / a missing "
-      "rent roll. SUPPLY discounts 900 raw units to 490 by recorded evidence (loan 100%, permit 85%, "
+      "rent roll -- and its GET returns the stored entries beside the authoritative view, so an "
+      "archival row and a reviewer survive a save instead of being deleted by it. SUPPLY discounts "
+      "900 raw units to 490 by recorded evidence (loan 100%, permit 85%, "
       "rendering 5% and still 'rumored'), excludes the office and the 2030 delivery with reasons, "
       "and shows 45.0 vs 24.5 months of supply so the discount is visible. DECISION-GATE blocks on "
       "an empty evidence set because unknown != pass, passes a complete one, and fails "

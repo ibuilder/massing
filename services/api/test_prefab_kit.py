@@ -246,6 +246,59 @@ for label, sel, idx_ in (("an empty selector", "", IDX),
     except ValueError:
         check(f"freeze refuses {label}", True)
 
+# --- 8b. the scope-version token (PREFAB-FREEZE-RACE) -----------------------------------------------
+#
+# The token is what `POST …/freeze` demands back, so what matters is exactly which changes move it.
+# Testing it through the route proves the two sides agree; testing it here proves the RULE — and the
+# rule is "both halves, or half the race stays open".
+from datetime import datetime, timezone  # noqa: E402
+
+T1 = datetime(2026, 4, 1, 9, 0, 0, tzinfo=timezone.utc)
+T2 = datetime(2026, 4, 1, 9, 0, 0, 1, tzinfo=timezone.utc)      # one microsecond later
+
+
+def stamped(ts=T1, **data):
+    return {**kit(**data), "modified_at": ts}
+
+
+check("the token is stable — two reads of an unchanged kit agree",
+      pk.scope_version(stamped(), 7) == pk.scope_version(stamped(), 7))
+check("the MODEL half moves it", pk.scope_version(stamped(), 7) != pk.scope_version(stamped(), 8))
+check("the RECORD half moves it",
+      pk.scope_version(stamped(T1), 7) != pk.scope_version(stamped(T2), 7))
+# One microsecond is the real resolution of this column: `modules._next_stamp` nudges a repeated
+# `modified_at` forward by exactly that so the CAS next door cannot be fooled by a clock that did
+# not advance. A token that rounded to the second would be fooled by the same thing.
+check("  including the one-microsecond nudge _next_stamp exists to make",
+      pk.scope_version(stamped(T1), 7) != pk.scope_version(stamped(T2), 7))
+check("neither half alone — a model bump cannot be mistaken for a record edit",
+      pk.scope_version(stamped(T1), 8) != pk.scope_version(stamped(T2), 7))
+# ABSENT is not ZERO, on both halves. A project with no published model and a registry that could
+# not be read must not produce the same token, or the precondition would pass across a republish it
+# never saw — the empty-versus-absent confusion, in a comparison nobody would look at twice.
+check("an unreadable model version is ABSENT, not version 0",
+      pk.scope_version(stamped(), None) != pk.scope_version(stamped(), 0))
+check("  and an unstamped record is absent, not the empty string",
+      pk.scope_version({**kit(), "modified_at": None, "created_at": None}, 7)
+      == pk.scope_version({**kit(), "modified_at": "", "created_at": ""}, 7))
+check("a record with only a created_at is stamped from it rather than reading as unstamped",
+      pk.scope_version({**kit(), "modified_at": None, "created_at": T1}, 7)
+      != pk.scope_version({**kit(), "modified_at": None, "created_at": None}, 7))
+# `True` is an `int` in Python, and a bool reaching this parameter means somebody passed a flag
+# where a version goes. It must not silently become version 1.
+check("a bool is not a version", pk.scope_version(stamped(), True)
+      == pk.scope_version(stamped(), None))
+check("an already-ISO string stamp is accepted as-is — list_records and get_record agree",
+      pk.scope_version({**kit(), "modified_at": T1.isoformat()}, 7)
+      == pk.scope_version(stamped(T1), 7))
+check("assess carries the token on the row the reader acts from",
+      pk.assess(stamped(selector="IfcDuctSegment & storey=L3"), IDX, today="2026-04-01",
+                model_version=7)["scope_version"] == pk.scope_version(stamped(), 7))
+check("  and the register carries the same one, not a second answer",
+      pk.register([stamped(selector="IfcDuctSegment & storey=L3")], IDX, today="2026-04-01",
+                  model_version=7)["kits"][0]["scope_version"]
+      == pk.scope_version(stamped(), 7))
+
 # --- 9. parsing the frozen list ---------------------------------------------------------------------
 check("the frozen list parses newlines and commas",
       pk.parse_guids("g1\ng2, g3\n\n g4 ") == ["g1", "g2", "g3", "g4"])

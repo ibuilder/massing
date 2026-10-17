@@ -36,7 +36,9 @@ import { withContracts } from "./contracts";
 import { withCounterpartyRisk } from "./counterpartyRisk";
 import { withAcceptanceGates } from "./acceptanceGates";
 import { withCoverageMaps } from "./coverageMaps";
+import { withStakeholder } from "./stakeholder";
 import { withDesignOptions } from "./designOptions";
+import { withModelOptions } from "./modelOptions";
 import { withFinance } from "./finance";
 import { withLibrary } from "./library";
 import { withAssetRights } from "./assetRights";
@@ -56,7 +58,11 @@ export * from "./types";
 // BASE of ApiClient and cannot see ApiClient's `private` members, which blocked every SSE method
 // from extraction. Re-exported because drawings.ts imports the type as
 // `import("../api/client").LiveStream`.
-export type { LiveStream } from "./httpCore";
+//
+// `LiveStatus` travels with it as of slice ⑦: three subscribers now render the stream's state, and
+// a caller that cannot name the state cannot be asked to handle it — which is part of why the three
+// passed no `onStatus` for a release.
+export type { LiveStatus, LiveStream } from "./httpCore";
 // The module-graph DTOs travelled with the /modules methods in SCALE-SEAM ④; re-exported because
 // portal/panels/moduleGraph.ts imports them as `from "../../api/client"`.
 export type { ModuleGraph, ModuleGraphEdge, ModuleGraphNode } from "./modules";
@@ -80,9 +86,9 @@ import type {
 //: members, and only a `class` DECLARATION clears it — a `const` split does not. All four
 //: measurements, and why this is enforced by a test rather than by this comment, are in
 //: `api/mixinStaging.test.ts`; `api/surface.test.ts` floors the method count.
-class _ApiStageA extends withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withClassification(withAuthoring(HttpCore))))))))))))))))))))))))) {}
+class _ApiStageA extends withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withModelOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withClassification(withAuthoring(HttpCore)))))))))))))))))))))))))) {}
 
-class _ApiStageB extends withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(_ApiStageA)))))))))))))))))))))))) {}
+class _ApiStageB extends withStakeholder(withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(_ApiStageA))))))))))))))))))))))))) {}
 
 export class ApiClient extends _ApiStageB {
   /**
@@ -215,16 +221,6 @@ export class ApiClient extends _ApiStageB {
   }
   /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
   masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
-  /** SPACE-UTIL benchmarking — capacity + m²/space across the portfolio's modelled projects. */
-  spaceUtilBenchmarks(areaPerPerson = 10) {
-    return this.json<{
-      area_per_person: number; projects: number; skipped_over_cap: number; unreadable_models: number;
-      rows: { project_id: string; project: string; space_count: number; total_area_m2: number;
-        capacity: number; m2_per_space: number; top_type: string | null; top_type_area_m2: number | null }[];
-      portfolio: { total_area_m2: number; total_capacity: number; median_m2_per_space: number | null };
-      note: string;
-    }>(`/benchmarks/space-utilization?area_per_person=${encodeURIComponent(areaPerPerson)}`);
-  }
   /** ABSORPTION-SELLOUT — phase revenue by absorption rate → the monthly sell-out curve + months-to-sellout
    * (the carry driver) + total revenue/carry. */
   feasibilitySellout(pid: string, body: {
@@ -290,10 +286,13 @@ export class ApiClient extends _ApiStageB {
     const res = await fetch(this.url(`/projects/${pid}/scan/deviation?tolerance=${tolerance}`),
       { method: "POST", body: fd, headers: this.authHeaders() });
     if (!res.ok) throw new HttpError((await res.json().catch(() => ({ detail: res.status }))).detail || `scan -> ${res.status}`, res.status);
-    return res.json() as Promise<{ point_count: number; reference_count: number; tolerance: number;
-      within_tolerance: number; within_pct: number | null; out_of_tolerance: number;
-      mean_deviation: number; max_deviation: number; p95_deviation: number;
-      histogram: { band: string; count: number }[]; note: string }>;
+    // A truncated REFERENCE produces no deviation figure at all — `within_pct` is null and every
+    // per-band field is absent — so those are optional and a reader has to handle the refusal.
+    return res.json() as Promise<{ point_count: number; reference_count: number; tolerance?: number;
+      points_total: number; points_truncated: boolean; reference_truncated: boolean;
+      within_pct: number | null; error?: string; within_tolerance?: number; out_of_tolerance?: number;
+      mean_deviation?: number; max_deviation?: number; p95_deviation?: number;
+      histogram?: { band: string; count: number }[]; note?: string }>;
   }
 
   // W9-1 property mapping / normalization — the transform verb between IDS-validate and COBie-export

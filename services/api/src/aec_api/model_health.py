@@ -123,20 +123,34 @@ def scorecard(db, pid: str, model=None, elements: list[dict] | None = None) -> d
     lenses.append(rd)
 
     # composite — weighted mean over the lenses that produced a score
+    #
+    # HEALTH-WEIGHT-COVER. `den` is the share of the composite this score actually covers, and it
+    # was computed here and thrown away: the response carried `scored_lenses`, a COUNT, and the
+    # screen printed it as the coverage. Those are different units. With these weights, two scored
+    # lenses are 30% of the composite when they are `verified` + `readiness` and 50% when they are
+    # `hygiene` + `information` — the same caption and the same number over bases 1.67x apart.
+    # Renormalising is correct (an unmeasured lens must not drag the score down); what follows from
+    # it is that the denominator moved, so the response has to say where to.
     num = den = 0.0
     for ln in lenses:
+        ln["weight"] = _WEIGHTS.get(ln["key"], 0.0)
         if ln["score"] is not None:
-            w = _WEIGHTS.get(ln["key"], 0.0)
-            num += ln["score"] * w
-            den += w
+            num += ln["score"] * ln["weight"]
+            den += ln["weight"]
     overall = round(num / den, 1) if den else None
     return {
         "overall_score": overall,
         "band": _band(overall),
         "lenses": lenses,
         "scored_lenses": sum(1 for ln in lenses if ln["score"] is not None),
+        "weight_scored": round(den, 6),
         "model_available": model is not None,
         "note": "A composite of the model-quality checks (hygiene, ISO 19650 KPIs, clash coordination, "
                 "verified-as-built, and code/permit readiness). Each lens links to the tool that acts on it; "
                 "lenses with no inputs show 'n/a' and are excluded from the score rather than guessed.",
+        "weight_basis":
+            "`overall_score` is a weighted mean renormalised over the lenses that scored, so the "
+            "coverage of that mean is `weight_scored` (0-1) and NOT `scored_lenses`: two lenses "
+            "carry 30% of the composite or 50% depending on which two, and both report the same "
+            "count. An unscored lens does not lower the score - it narrows what the score is about.",
     }

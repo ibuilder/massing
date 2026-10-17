@@ -85,8 +85,16 @@ def compare(before: dict[str, dict], after: dict[str, dict]) -> dict[str, Any]:
                     "changed_psets": sorted(p for p in set(b) & set(a) if b[p] != a[p]),
                 }
             changed.append(detail)
+    # NEGATED-VERDICT. `not missing and not added and not changed` is unconditionally True on an
+    # empty snapshot, so a model with no `IfcProduct` reported LOSSLESS — and the viewer's status
+    # line prints the bare verdict ("round-trip clean") with the count nowhere in it. The question
+    # this leaf exists to answer is *does what we author survive serialization*, and over zero
+    # elements that question was not answered. `bool(before)` is the evidence.
     return {
-        "fidelity_ok": not missing and not added and not changed,
+        # COVERAGE: nothing_compared
+        "fidelity_ok": bool(before) and not missing and not added and not changed,
+        # False for want of a model, rather than for a discrepancy. Two Falses, opposite meanings.
+        "nothing_compared": not before,
         "element_count": len(before),
         "missing": missing[:200], "added": added[:200], "changed": changed[:200],
         "counts": {"missing": len(missing), "added": len(added), "changed": len(changed)},

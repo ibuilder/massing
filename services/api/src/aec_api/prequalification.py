@@ -209,7 +209,35 @@ def score_project(db: Session, project_id: str, project_size: float | None = Non
 
 
 def coi_expiry(db: Session, project_id: str, soon_days: int = 30) -> dict:
-    """Certificates of insurance that are expired or expiring within `soon_days` — plus prequals lapsing."""
+    """Certificates of insurance expired or expiring within `soon_days`, plus prequals lapsing.
+
+    **PREQUAL-LAPSE — that second clause was in this docstring and in no line of the body.** The
+    loop read the `coi` table and nothing else. Measured on a project holding an approved
+    prequalification expiring in **10 days** beside a COI expiring in 10 days, the route answered
+    `expiring_count: 1` and the one row was the COI. *A function written to give compliance
+    documents a warning window promised two registers and read one.*
+
+    The prequal was the one with no warning anywhere else, which is what makes it the expensive
+    half. `procurement_gate.compliance_feed` reports `prequal not approved`, which becomes true
+    only AFTER the approval has lapsed — i.e. after `can_bid` has already flipped — and
+    `procurement_gate.gate` reported, for that same vendor, `can_bid: True` with
+    `bid_blockers: []` and `prequal: {"status": "approved"}`, with nothing to say the approval dies
+    inside the fortnight. On a register a GC chases paperwork from, that is a sub who gets
+    uninvited from a bid on the morning their file goes stale.
+
+    **Only an APPROVED prequal can lapse, and that is the workflow's design rather than a
+    guess.** `prequalification` declares `invited -> submitted` and `submitted -> approved |
+    rejected`, with **no transition out of `approved`** — so a rejection is a fact about one
+    submission and the date is the only thing that ends an approval, which is exactly what
+    `procurement_gate._pq_live` says in its own comment. A `submitted` or `rejected` record has no
+    approval to lose and is deliberately not a lapse.
+
+    The prequals are a SEPARATE pair of lists rather than extra rows in the COI ones: a lapsing
+    certificate and a lapsing prequalification have different remedies — telephone the carrier,
+    versus re-run a qualification package — and a merged list sends the reader to the wrong one.
+    `covers` names the registers read, so the promise in this docstring is checkable from outside
+    the function instead of being taken on trust, which is how it drifted.
+    """
     from datetime import timedelta
     today = datetime.now(timezone.utc).date()
     horizon = today + timedelta(days=soon_days)
@@ -226,7 +254,26 @@ def coi_expiry(db: Session, project_id: str, soon_days: int = 30) -> dict:
             expired.append(row)
         elif exp <= horizon:
             expiring.append(row)
-    expired.sort(key=lambda x: x["expires"])
-    expiring.sort(key=lambda x: x["expires"])
+    pq_expired, pq_expiring = [], []
+    have_pq = "prequalification" in me.TABLES
+    for r in (me.list_records(db, "prequalification", project_id, limit=100_000) if have_pq else []):
+        if r.get("workflow_state") != "approved":
+            continue
+        d = r.get("data", {})
+        exp = _to_date(d.get("expires"))
+        if not exp:
+            continue
+        row = {"company": d.get("company"), "trade": d.get("trade"), "ref": r.get("ref"),
+               "expires": exp.isoformat(), "days": (exp - today).days}
+        if exp < today:
+            pq_expired.append(row)
+        elif exp <= horizon:
+            pq_expiring.append(row)
+    for lst in (expired, expiring, pq_expired, pq_expiring):
+        lst.sort(key=lambda x: x["expires"])
     return {"expired": expired, "expiring_soon": expiring, "soon_days": soon_days,
-            "expired_count": len(expired), "expiring_count": len(expiring)}
+            "expired_count": len(expired), "expiring_count": len(expiring),
+            "prequals_expired": pq_expired, "prequals_expiring": pq_expiring,
+            "prequals_expired_count": len(pq_expired),
+            "prequals_expiring_count": len(pq_expiring),
+            "covers": ["coi"] + (["prequalification"] if have_pq else [])}

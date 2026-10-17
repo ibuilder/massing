@@ -80,6 +80,46 @@ print("labor demand: " + _trades)
 print(f"model estimate: total ${est['total']:,.0f}  L/M/E {est['by_kind']}  {est['labor_hours']:,.0f} crew-hr  "
       f"{len(est['lines'])} lines, {len(est['unmapped'])} unmapped")
 
+# --- ESTIMATE-ZEROQTY: a mapped class the takeoff cannot quantify ---
+# `_class_quantity` returns `agg.get(dim, 0.0)`, so before this item an IfcSlab carrying no volume
+# was priced at $0 and appended to `lines` as a successfully-priced line. `unmapped` cannot catch
+# it -- the class IS mapped -- so the card's only footnote stayed empty and the total read as the
+# whole building.
+_zero = ([{"ifc_class": "IfcWall", "area": 10.0}] * 20) + ([{"ifc_class": "IfcSlab"}] * 80)
+_z = asm.estimate_resource_based(_zero)
+# the slabs are NOT a priced line, and NOT in `unmapped`
+assert all(x["ifc_class"] != "IfcSlab" for x in _z["lines"]), _z["lines"]
+assert _z["unmapped"] == [], _z["unmapped"]
+assert _z["no_quantity"] == [{"ifc_class": "IfcSlab", "count": 80, "assembly": "cip_slab",
+                              "needs": "m3"}], _z["no_quantity"]
+# no line in `lines` is a zero-dollar line any more -- `lines` means PRICED
+assert all(x["total"] > 0 and x["quantity"] > 0 for x in _z["lines"]), _z["lines"]
+# the population: the total is over 20 of 100 elements and says so
+assert (_z["element_count"], _z["priced_elements"], _z["unpriced_elements"]) == (100, 20, 80), _z
+assert "20 of 100" in _z["coverage_note"] and "NOT priced at zero" in _z["coverage_note"], _z
+# THE DEFECT, in one assertion: the same 20 walls alone agree on every figure the card rendered.
+_walls = asm.estimate_resource_based([{"ifc_class": "IfcWall", "area": 10.0}] * 20)
+assert (_walls["total"], _walls["by_kind"], _walls["labor_hours"], _walls["unmapped"]) == (
+    _z["total"], _z["by_kind"], _z["labor_hours"], _z["unmapped"]), (_walls, _z)
+assert _walls["element_count"] != _z["element_count"], (_walls["element_count"], _z["element_count"])
+assert _walls["coverage_note"] != _z["coverage_note"], _walls["coverage_note"]
+assert "Every element in the takeoff is in this total" in _walls["coverage_note"], _walls
+# both causes at once stay separate, because the remedies differ
+_both = asm.estimate_resource_based(_zero + [{"ifc_class": "IfcPipeSegment", "length": 2.0}] * 30)
+assert [u["ifc_class"] for u in _both["unmapped"]] == ["IfcPipeSegment"], _both["unmapped"]
+assert [u["ifc_class"] for u in _both["no_quantity"]] == ["IfcSlab"], _both["no_quantity"]
+assert (_both["element_count"], _both["priced_elements"]) == (130, 20), _both
+assert "no assembly mapped" in _both["coverage_note"], _both["coverage_note"]
+assert "carries no m3 for" in _both["coverage_note"], _both["coverage_note"]
+# an empty takeoff is not a coverage failure -- a different sentence, not "0 of 0 priced"
+_e = asm.estimate_resource_based([])
+assert _e["element_count"] == 0 and "No elements in the takeoff" in _e["coverage_note"], _e
+# and the fully-priced case claims nothing outside the total
+assert est["priced_elements"] + sum(u["count"] for u in est["unmapped"]) \
+    + sum(u["count"] for u in est["no_quantity"]) == est["element_count"], est
+print(f"zero-qty: ${_z['total']:,.0f} over {_z['priced_elements']}/{_z['element_count']} elements; "
+      f"{len(_z['no_quantity'])} mapped class(es) unquantifiable, {len(_z['unmapped'])} unmapped")
+
 # --- endpoint smoke: catalog is reachable ---
 from fastapi.testclient import TestClient  # noqa: E402
 

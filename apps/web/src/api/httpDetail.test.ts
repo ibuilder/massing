@@ -31,7 +31,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 describe("a refused request carries the server's own sentence", () => {
   it("uses `detail` as the error message, and keeps the status", async () => {
     respond(422, { detail: "the selector matched no elements" });
-    const e = await refusal(api().prefabFreeze("p1", "k1"));
+    const e = await refusal(api().prefabFreeze("p1", "k1", "m1.r2026-09-11T00:00:00+00:00"));
     expect(e).toBeInstanceOf(HttpError);
     expect(e.message).toBe("the selector matched no elements");
     expect(e.status).toBe(422);
@@ -41,7 +41,7 @@ describe("a refused request carries the server's own sentence", () => {
     // A 502 from a proxy is not JSON with a `detail`; losing the path there would leave a reader
     // with nothing to search for.
     respond(502, { oops: true });
-    const e = await refusal(api().prefabFreeze("p1", "k1"));
+    const e = await refusal(api().prefabFreeze("p1", "k1", "m1.r2026-09-11T00:00:00+00:00"));
     expect(e.message).toContain("/projects/p1/prefab/kits/k1/freeze");
     expect(e.message).toContain("502");
     expect(e.status).toBe(502);
@@ -53,7 +53,7 @@ describe("a refused request carries the server's own sentence", () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({
       ok: false, status: 504, json: async () => { throw new SyntaxError("Unexpected token <"); },
     })));
-    const e = await refusal(api().prefabFreeze("p1", "k1"));
+    const e = await refusal(api().prefabFreeze("p1", "k1", "m1.r2026-09-11T00:00:00+00:00"));
     expect(e).toBeInstanceOf(HttpError);
     expect(e.status).toBe(504);
     expect(e.message).toContain("504");
@@ -63,7 +63,7 @@ describe("a refused request carries the server's own sentence", () => {
     // FastAPI's *validation* errors put an ARRAY in `detail`. Interpolating that gives the user
     // "[object Object]", which is strictly worse than the status line it replaced.
     respond(422, { detail: [{ loc: ["body", "x"], msg: "field required" }] });
-    const e = await refusal(api().prefabFreeze("p1", "k1"));
+    const e = await refusal(api().prefabFreeze("p1", "k1", "m1.r2026-09-11T00:00:00+00:00"));
     expect(e.message).toContain("422");
     expect(e.message).not.toContain("object Object");
   });

@@ -164,24 +164,81 @@ describe("renderMassing (characterization)", () => {
     expect(host.textContent).toContain("<b>422</b>");
   });
 
-  it("SOURCE PIN: every error-message innerHTML sink in proforma/ stays on the escaped path", async () => {
-    // The four sinks fixed on 2026-08-02 took `(e as Error).message` into innerHTML unescaped.
-    // Two are exercised above; the other two live in panels that need a deep api mock to drive,
-    // so pin ALL of them at the source level, DERIVED not enumerated: an interpolation of an
-    // error message into innerHTML must go through escapeHtml (textContent/setStatus are exempt —
-    // they don't parse markup). Down-to-zero is the required state; any new unescaped sink fails.
-    const { readFileSync, readdirSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const offenders: string[] = [];
-    for (const f of readdirSync(__dirname).filter((n) => n.endsWith(".ts") && !n.endsWith(".test.ts"))) {
-      const src = readFileSync(join(__dirname, f), "utf-8");
-      for (const [i, line] of src.split("\n").entries()) {
-        if (/innerHTML\s*[+]?=/.test(line) && /\((e|err) as Error\)\.message/.test(line)
-            && !/escapeHtml\(\((e|err) as Error\)\.message\)/.test(line)) {
-          offenders.push(`${f}:${i + 1}`);
-        }
+  // The four sinks fixed on 2026-08-02 took `(e as Error).message` into innerHTML unescaped.
+  // Two are exercised above; the other two live in panels that need a deep api mock to drive,
+  // so pin ALL of them at the source level, DERIVED not enumerated: an interpolation of an
+  // error message into innerHTML must go through `escapeHtml` (textContent/setStatus are exempt —
+  // they don't parse markup). Down-to-zero is the required state; any new unescaped sink fails.
+  //
+  // THE ESCAPE FUNCTION IS RESOLVED THROUGH THE FILE'S OWN IMPORT, NOT MATCHED BY NAME. The first
+  // version required the literal spelling `escapeHtml(...)`, and this directory imports it under two
+  // names: `escapeHtml` in `massingTab.ts` and `proforma.ts`, `escapeHtml as esc` in `testfitTab.ts`
+  // and `residualLandCard.ts`. So a line that escapes CORRECTLY under the conventional alias was
+  // reported as an unescaped XSS sink — and `residualLandCard.ts` is what met it.
+  //
+  // *A check keyed on the local NAME cannot see a call that is about the BINDING*, and this one failed
+  // in the direction that costs the most trust: not a miss, a confident accusation about a safe line.
+  // Renaming the import to suit the regex was the tempting repair and it is the wrong one — the
+  // convention it would bend to is the regex's, not the directory's, and the next person to write
+  // `esc` meets the same false alarm with a message telling them they have an XSS.
+  /** Local names bound to `ui/feedback`'s `escapeHtml` in this source — `esc` counts, an alias to
+   *  something else does not. Empty when the file imports no escaper, which makes every sink in it an
+   *  offender, as it should. */
+  const escapeNames = (src: string): string[] => {
+    const out: string[] = [];
+    for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*["'][^"']*ui\/feedback["']/g)) {
+      for (const spec of m[1]!.split(",")) {
+        const parts = spec.trim().split(/\s+as\s+/);
+        if (parts[0]?.trim() === "escapeHtml") out.push((parts[1] ?? parts[0]).trim());
       }
     }
+    return out;
+  };
+
+  /** Lines in `src` taking an error message into innerHTML without passing it through an escaper. */
+  const unescapedSinks = (src: string): number[] => {
+    const names = escapeNames(src);
+    const hits: number[] = [];
+    for (const [i, line] of src.split("\n").entries()) {
+      if (!/innerHTML\s*[+]?=/.test(line) || !/\((e|err) as Error\)\.message/.test(line)) continue;
+      const escaped = names.some((n) =>
+        new RegExp(`\\b${n}\\(\\((e|err) as Error\\)\\.message\\)`).test(line));
+      if (!escaped) hits.push(i + 1);
+    }
+    return hits;
+  };
+
+  it("SELF-TEST: the source pin resolves the escaper through the import, under either spelling", () => {
+    const sink = (call: string) => `import { escapeHtml as esc } from "../ui/feedback";\n`
+      + `x.innerHTML = \`<div>\${${call}}</div>\`;\n`;
+    // An aliased escaper IS escaping. This is the case that misfired on residualLandCard.ts.
+    expect(unescapedSinks(sink("esc((e as Error).message)")), "an aliased escape read as a sink").toEqual([]);
+    // The un-aliased spelling, in a file that aliases it, is bound to nothing — flag it.
+    expect(unescapedSinks(sink("escapeHtml((e as Error).message)")), "an unbound name read as safe").toEqual([2]);
+    // And the defect itself is still found, which is the only reason the check exists.
+    expect(unescapedSinks(sink("(e as Error).message")), "the raw sink was missed").toEqual([2]);
+    // A file importing no escaper at all cannot be escaping.
+    expect(unescapedSinks("x.innerHTML = `${esc((e as Error).message)}`;\n"),
+           "a sink in a file with no escaper import read as safe").toEqual([1]);
+  });
+
+  it("SOURCE PIN: every error-message innerHTML sink in proforma/ stays on the escaped path", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const files = readdirSync(__dirname).filter((n) => n.endsWith(".ts") && !n.endsWith(".test.ts"));
+    // The scan must reach the directory, or "no offenders" is a fact about an empty list.
+    expect(files.length, "the proforma/ source scan found no files").toBeGreaterThan(4);
+    const offenders: string[] = [];
+    let sinks = 0;
+    for (const f of files) {
+      const src = readFileSync(join(__dirname, f), "utf-8");
+      sinks += src.split("\n").filter((l) => /innerHTML\s*[+]?=/.test(l)
+                                             && /\((e|err) as Error\)\.message/.test(l)).length;
+      offenders.push(...unescapedSinks(src).map((n) => `${f}:${n}`));
+    }
+    // …and it must still be looking at sinks. Zero offenders out of zero sinks proves nothing, and
+    // that is how this pin would quietly stop meaning anything if the panels were refactored.
+    expect(sinks, "no error-message innerHTML sinks found at all").toBeGreaterThan(4);
     expect(offenders).toEqual([]);
   });
 });
@@ -493,5 +550,350 @@ describe("renderAppraisal — the screen no longer says less than the PDF", () =
   it("says nothing about exclusions when the server named none", async () => {
     const { txt } = await paint(base());
     expect(txt).not.toContain("excluded by the appraiser");
+  });
+});
+
+describe("renderOperations — an empty rent roll must not take the T-12 card with it", () => {
+  // The early `return` on `rr.lease_count === 0` silenced every card below it, including the
+  // seller's-T-12 card — which needs no lease at all: it normalises a PASTED statement. In an
+  // acquisition the T-12 arrives before any lease exists in this system, so the card was
+  // unreachable in precisely the case it is for. *An early return written for one card silenced
+  // every card below it.* Found by review, on a line the diff never touched.
+  const EMPTY_ROLL = {
+    lease_count: 0, occupancy_pct: 0, base_rent_annual: 0, in_place_gross_income: 0, walt_years: 0,
+  };
+  const FULL_ROLL = { ...EMPTY_ROLL, lease_count: 4, occupancy_pct: 92, base_rent_annual: 1_200_000 };
+
+  const ops = async (rentRoll: unknown) => {
+    const api = {
+      rentRoll: async () => rentRoll,
+      reportUrl: () => "#",
+      netEffectiveRent: async () => { throw new Error("no roll"); },
+      rentRollScrub: async () => { throw new Error("no roll"); },
+      dealAuthority: async () => ({ entries: [], gate: { blocking: [] } }),
+      leaseManagement: async () => { throw new Error("none"); },
+    };
+    const { root, ui } = mount(api, "p1");
+    const host = document.createElement("div");
+    root.appendChild(host);
+    await (ui as unknown as { renderOperations(h: HTMLElement): Promise<void> })
+      .renderOperations(host);
+    await flush();
+    return host;
+  };
+
+  it("THE DEFECT: the T-12 card mounts even with no active leases", async () => {
+    const host = await ops(EMPTY_ROLL);
+    expect(host.textContent).toContain("No active leases yet");
+    expect(host.textContent).toContain("Seller's T-12");
+    // ...and says so, rather than leaving the reader to wonder why it is there
+    expect(host.textContent).toContain("does not need them");
+  });
+
+  it("...and the rent-roll card itself is still withheld, because it has nothing to say", async () => {
+    const host = await ops(EMPTY_ROLL);
+    expect(host.textContent).not.toContain("Rent roll (operating)");
+  });
+
+  it("a populated roll still renders both", async () => {
+    const host = await ops(FULL_ROLL);
+    expect(host.textContent).toContain("Rent roll (operating)");
+    expect(host.textContent).toContain("Seller's T-12");
+    expect(host.textContent).not.toContain("No active leases yet");
+  });
+});
+
+describe("renderOperations — a normalisation invalidates the quality cards", () => {
+  // The caller's generation token advanced only on a new SCRUB, so a scrub in flight from one T-12
+  // could land under a newly normalised one, captioned "run against the normalised T-12 above".
+  // `t12Card.test.ts` proves the card FIRES `onNormaliseStart`; this proves the caller acts on it,
+  // which is a different claim — and the mutation that wires the hook to nothing passed until this
+  // existed. *A hook tested only at its source is a hook nobody has shown is connected.*
+  //
+  // NEITHER OF THOSE TWO MEASURES THE TOKEN ITSELF, which went unnoticed until OPS-REENTRY's
+  // mutation run: ignoring `gen === qualityGen` passed both. The discrimination is pinned in
+  // "the generation token must DISCRIMINATE, not merely exist" at the end of this file — do not
+  // read this block as coverage of it.
+  it("THE POINT: normalising repaints the quality cards from scratch", async () => {
+    let nerCalls = 0;
+    const api = {
+      rentRoll: async () => ({
+        lease_count: 4, occupancy_pct: 92, base_rent_annual: 1_200_000,
+        in_place_gross_income: 1_100_000, walt_years: 5,
+      }),
+      reportUrl: () => "#",
+      netEffectiveRent: async () => { nerCalls++; throw new Error("not the subject"); },
+      rentRollScrub: async () => { throw new Error("not the subject"); },
+      dealAuthority: async () => ({ entries: [], gate: { blocking: [] } }),
+      leaseManagement: async () => { throw new Error("none"); },
+      normalizeT12: async () => ({
+        stopped: false, tie_out: { reconciles: true, deltas: {}, tolerance: 1 },
+        source_totals: { income: 3_600_000, expense: 240_000, noi: 3_360_000 },
+        mapped_totals: { income: 3_600_000, expense: 240_000, noi: 3_360_000 },
+        line_count: 2, unmapped_count: 0, unmapped: [], categories: {},
+      }),
+    };
+    const { root, ui } = mount(api, "p1");
+    const host = document.createElement("div");
+    root.appendChild(host);
+    await (ui as unknown as { renderOperations(h: HTMLElement): Promise<void> })
+      .renderOperations(host);
+    await flush();
+    expect(nerCalls, "the initial paint").toBe(1);
+
+    const ta = host.querySelector("textarea")!;
+    ta.value = "Gross potential rent, 3600000\nRepairs, 240000";
+    const go = [...host.querySelectorAll("button")]
+      .find((b) => /Normalise/i.test(b.textContent ?? ""))!;
+    go.click();
+    await flush();
+    await flush();
+    expect(nerCalls, "and a repaint once a NEW statement is normalised").toBe(2);
+  });
+});
+
+describe("renderOperations — OPS-REENTRY: two renders racing for one host", () => {
+  // `showTab("ops")` calls `renderOperations(sections.ops)` on EVERY click of the Operations tab,
+  // into the same element. Click away and back while the first render's requests are in flight and
+  // two renders are live against one host — whichever finishes LAST wins the DOM, the status bar
+  // and the error line. These four pin the stale render standing down at each of those writes.
+  //
+  // It is also the third invalidator of a pending quality paint, and the one the per-closure
+  // generation token above cannot see: a second render builds a new closure with its own
+  // `qualityGen`, so the FIRST closure's guard still answers yes about its own last generation.
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    let reject!: (e: unknown) => void;
+    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+    return { promise, resolve, reject };
+  }
+
+  /** Wait for a condition rather than counting microtask turns — the number of turns between a
+   *  rejection and the next request depends on how many `await`s sit between them, so a hard-coded
+   *  flush count is a test that breaks when the code it watches is refactored, for no real reason. */
+  const until = async (what: string, p: () => boolean) => {
+    for (let i = 0; i < 100 && !p(); i++) await flush();
+    if (!p()) throw new Error(`timed out waiting for ${what}`);
+  };
+
+  /** Resolve to whether a render FINISHED, instead of awaiting it. A superseded render must stand
+   *  down, which means it must also terminate: with the epoch guard broken it carries on into
+   *  requests the test will never answer and a bare `await` hangs for ever. *A mutation that hangs
+   *  the suite is a worse signal than one that fails it*, so the property is asserted. */
+  const settled = async (p: Promise<unknown>) => {
+    let done = false;
+    const mark = () => { done = true; };
+    void p.then(mark, mark);
+    for (let i = 0; i < 100 && !done; i++) await flush();
+    return done;
+  };
+
+  const roll = (occupancy_pct: number) => ({
+    lease_count: 4, occupancy_pct, base_rent_annual: 1_200_000,
+    in_place_gross_income: 1_100_000, walt_years: 5,
+  });
+  const LM = {
+    renewals: { expiring: {}, holdover_count: 0, options_outstanding: 0, at_risk_rent: 0 },
+    escalations: { current_base_rent: 1_000, projected_base_rent: 1_100, years: 5 },
+    cam: { recoverable_income: 0 },
+  };
+
+  function harness(opts: { deferLease?: boolean } = {}) {
+    const rolls: ReturnType<typeof deferred<unknown>>[] = [];
+    const ners: ReturnType<typeof deferred<unknown>>[] = [];
+    const leases: ReturnType<typeof deferred<unknown>>[] = [];
+    const api = {
+      rentRoll: () => { const d = deferred<unknown>(); rolls.push(d); return d.promise; },
+      netEffectiveRent: () => { const d = deferred<unknown>(); ners.push(d); return d.promise; },
+      rentRollScrub: async () => { throw new Error("not the subject"); },
+      dealAuthority: async () => ({ entries: [], gate: { blocking: [] } }),
+      leaseManagement: () => {
+        if (!opts.deferLease) return Promise.reject(new Error("none"));
+        const d = deferred<unknown>(); leases.push(d); return d.promise;
+      },
+      reportUrl: () => "#",
+    };
+    const { root, ui, setStatus } = mount(api, "p1");
+    const host = document.createElement("div");
+    root.appendChild(host);
+    const ops = ui as unknown as { renderOperations(h: HTMLElement): Promise<void> };
+    return { host, setStatus, rolls, ners, leases, until, settled,
+             run: () => ops.renderOperations(host) };
+  }
+
+  it("THE DEFECT: the older render must not repaint the host after the newer one has", async () => {
+    const h = harness();
+    const a = h.run();                       // first click — its rent roll never comes back yet
+    const b = h.run();                       // second click supersedes it
+    h.rolls[1]!.resolve(roll(92));
+    await until("the newer render to reach its quality paint", () => h.ners.length === 1);
+    h.ners[0]!.reject(new Error("not the subject"));
+    expect(await h.settled(b), "the render terminates").toBe(true);
+    await flush();
+    expect(h.host.textContent, "the newer render owns the panel").toContain("92%");
+
+    h.rolls[0]!.resolve(roll(11));           // the stale render's data finally arrives
+    expect(await h.settled(a), "the render terminates").toBe(true);
+    await flush();
+    expect(h.host.textContent, "and the stale one does not take it back").not.toContain("11%");
+    expect(h.host.textContent).toContain("92%");
+  });
+
+  it("a stale quality run's status write is suppressed — guarding the commit is not guarding the report", async () => {
+    const h = harness();
+    const a = h.run();
+    h.rolls[0]!.resolve(roll(92));
+    await until("the first render to reach its quality paint", () => h.ners.length === 1);
+    const b = h.run();                       // supersede it while its NER is still in flight
+    h.rolls[1]!.resolve(roll(92));
+    await until("the second render to reach its own", () => h.ners.length === 2);
+    h.ners[1]!.reject(new Error("down"));    // B: both engines rejected → one status line
+    expect(await h.settled(b), "the render terminates").toBe(true);
+    await flush();
+    const said = () => h.setStatus.mock.calls.filter((c) => /quality unavailable/.test(String(c[0]))).length;
+    expect(said(), "B reports its own failure").toBe(1);
+
+    h.ners[0]!.reject(new Error("down"));    // A's failure lands after B rendered
+    expect(await h.settled(a), "the render terminates").toBe(true);
+    await flush();
+    expect(said(), "the superseded run stays quiet").toBe(1);
+    // And it carries on past its quality paint into the rest of the render, so the guard has to be
+    // re-asked there too: `renderT12Card` mounts synchronously and would append a SECOND seller's
+    // T-12 card into the panel this render no longer owns.
+    expect(h.host.querySelectorAll("textarea").length,
+           "one T-12 card, from the render that owns the host").toBe(1);
+  });
+
+  it("a stale render's error line must not wipe the live panel", async () => {
+    const h = harness();
+    const a = h.run();
+    const b = h.run();
+    h.rolls[1]!.resolve(roll(92));
+    await until("the newer render to reach its quality paint", () => h.ners.length === 1);
+    h.ners[0]!.reject(new Error("not the subject"));
+    expect(await h.settled(b), "the render terminates").toBe(true);
+    await flush();
+
+    h.rolls[0]!.reject(new Error("stale boom"));
+    expect(await h.settled(a), "the render terminates").toBe(true);
+    await flush();
+    expect(h.host.textContent, "the error belongs to a render nobody is watching").not.toContain("stale boom");
+    expect(h.host.textContent).toContain("92%");
+  });
+
+  it("a stale lease card must not append into the live panel", async () => {
+    const h = harness({ deferLease: true });
+    const a = h.run();
+    h.rolls[0]!.resolve(roll(92));
+    await until("the first render to reach its quality paint", () => h.ners.length === 1);
+    h.ners[0]!.reject(new Error("not the subject"));
+    await until("the first render to request lease management", () => h.leases.length === 1);
+    const b = h.run();
+    h.rolls[1]!.resolve(roll(92));
+    await until("the second render to reach its own quality paint", () => h.ners.length === 2);
+    h.ners[1]!.reject(new Error("not the subject"));
+    await until("the second render to request lease management", () => h.leases.length === 2);
+    h.leases[1]!.reject(new Error("none"));  // B renders no lease card
+    expect(await h.settled(b), "the render terminates").toBe(true);
+    await flush();
+    expect(h.host.textContent).not.toContain("Lease management");
+
+    h.leases[0]!.resolve(LM);                // the stale render's card finally arrives
+    expect(await h.settled(a), "the render terminates").toBe(true);
+    await flush();
+    expect(h.host.textContent, "it belongs to a render that was replaced").not.toContain("Lease management");
+  });
+});
+
+describe("renderOperations — the generation token must DISCRIMINATE, not merely exist", () => {
+  // CR-REVIEW-3 made every normalisation advance `qualityGen`, and the test beside it asserts the
+  // card FIRES `onNormaliseStart` and that the caller repaints. Both are about the hook. **Neither
+  // is about the token**: a mutation reducing `fresh()` to the panel-level epoch alone — so the
+  // token is computed and ignored — passed all of those tests. *A guard can be load-bearing and
+  // have no mutation that reds, and the hook tests read exactly like coverage of it.*
+  //
+  // The property is that the OLDER quality run does not commit after the newer one has, within one
+  // render. Two NER calls, resolved out of order, with different Face GPR so the committed card
+  // says which generation wrote it.
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((res) => { resolve = res; });
+    return { promise, resolve };
+  }
+  const ner = (face_gpr_annual: number) => ({
+    lease_count: 2, skipped_count: 0, excluded_not_active: 0, skipped: [], leases: [],
+    face_gpr_annual, discount_rate: 0.08, ner_gpr_annual_discounted: face_gpr_annual,
+    ner_gpr_annual_straight_line: face_gpr_annual, concession_load_pct: 0,
+    face_to_ner_delta_annual: 0, face_to_ner_delta_pct: 0, lc_included: true,
+  });
+
+  it("THE POINT: a superseded quality run does not overwrite the newer one's cards", async () => {
+    const ners: ReturnType<typeof deferred<unknown>>[] = [];
+    const api = {
+      rentRoll: async () => ({
+        lease_count: 4, occupancy_pct: 92, base_rent_annual: 1_200_000,
+        in_place_gross_income: 1_100_000, walt_years: 5,
+      }),
+      netEffectiveRent: () => { const d = deferred<unknown>(); ners.push(d); return d.promise; },
+      rentRollScrub: async () => { throw new Error("not the subject"); },
+      dealAuthority: async () => ({ entries: [], gate: { blocking: [] } }),
+      leaseManagement: async () => { throw new Error("none"); },
+      reportUrl: () => "#",
+      normalizeT12: async () => ({
+        stopped: false, tie_out: { reconciles: true, deltas: {}, tolerance: 1 },
+        source_totals: { income: 3_600_000, expense: 240_000, noi: 3_360_000 },
+        mapped_totals: { income: 3_600_000, expense: 240_000, noi: 3_360_000 },
+        line_count: 2, unmapped_count: 0, unmapped: [], categories: {},
+        // `incomeFromT12` reads THIS, and without it the hand-off button stays hidden — which the
+        // first draft of this test did not notice, because the button exists in the DOM from the
+        // start with `display:none` and a text match found it anyway. *A control located is not a
+        // control shown*, and clicking a hidden one is a click that quietly does nothing.
+        by_category: [
+          { category: "gross_potential_rent", amount: 3_600_000 },
+          { category: "bad_debt", amount: 12_000 },
+        ],
+      }),
+    };
+    const { root, ui } = mount(api, "p1");
+    const host = document.createElement("div");
+    root.appendChild(host);
+    const run = (ui as unknown as { renderOperations(h: HTMLElement): Promise<void> })
+      .renderOperations(host);
+
+    const spin = async (what: string, p: () => boolean) => {
+      for (let i = 0; i < 100 && !p(); i++) await flush();
+      if (!p()) throw new Error(`timed out waiting for ${what}`);
+    };
+    // The render AWAITS its first quality paint before mounting the T-12 card, so generation 1 has
+    // to land before there is a Normalise button to press at all — which is itself why the token's
+    // discrimination is only observable from the second normalisation onwards.
+    await spin("the first quality run", () => ners.length === 1);
+    ners[0]!.resolve(ner(900_900));
+    await spin("the T-12 card to mount", () => host.querySelector("textarea") !== null);
+
+    // Two more paints, from the card's two hooks: `onNormaliseStart` when a normalisation begins,
+    // and `scrubWithIncome` when the reader takes the normalised statement into the scrub — a
+    // separate button, which is why this needs two clicks rather than one. Generations 2 and 3.
+    const click = (re: RegExp) => [...host.querySelectorAll("button")]
+      .find((b) => re.test(b.textContent ?? ""))!.click();
+    const ta = host.querySelector("textarea")!;
+    ta.value = "Gross potential rent, 3600000\nRepairs, 240000";
+    click(/Normalise/i);
+    await spin("the paint the normalisation starts", () => ners.length === 2);
+    await spin("the scrub hand-off to be SHOWN", () => [...host.querySelectorAll("button")]
+      .some((b) => /Use in the rent-roll scrub/i.test(b.textContent ?? "")
+                   && (b as HTMLButtonElement).style.display !== "none"));
+    click(/Use in the rent-roll scrub/i);
+    await spin("the paint the hand-off starts", () => ners.length === 3);
+
+    ners[2]!.resolve(ner(222_222));            // the newer generation commits first
+    await spin("the newer generation to paint", () => /222,222/.test(host.textContent ?? ""));
+
+    ners[1]!.resolve(ner(111_111));            // the superseded one lands late
+    await flush(); await flush(); await flush();
+    expect(host.textContent, "the superseded generation does not take the card back")
+      .not.toContain("111,111");
+    expect(host.textContent, "and the newer one still holds it").toContain("222,222");
+    await run;
   });
 });

@@ -14,6 +14,14 @@ import {
   ENTITIES, countLine, emptyLine, errorLine, outcome, rowId, rowLabel, vendorFor,
 } from "./ledgerBrowse";
 import type { LedgerVendor } from "./ledgerBrowse";
+// SQL-CAP. The SQL console's reading module. Its `outcome` / `errorLine` / `emptyLine` are
+// deliberately named like `ledgerBrowse`'s — they answer the same three questions for a different
+// route's failure shape — so they are ALIASED here rather than renamed at the source: the parallel
+// is the point, and one file importing both is the only place the names can collide.
+import {
+  DEFAULT_LIMIT, LIMIT_CHOICES, isTruncated, rowCountLine,
+  emptyLine as sqlEmptyLine, errorLine as sqlErrorLine, outcome as sqlOutcome,
+} from "./sqlBrowseRead";
 
 type GetPid = () => string | null;
 
@@ -176,8 +184,22 @@ function browseConnection(api: ApiClient, id: string, name: string) {
   sql.placeholder = "SELECT … (read-only; SELECT/WITH only)";
   const runRow = document.createElement("div"); runRow.style.cssText = "display:flex;gap:8px;align-items:center";
   const run = document.createElement("button"); run.className = "file-btn"; run.textContent = "Run";
-  const info = document.createElement("span"); info.className = "meta";
-  runRow.append(run, info);
+  // SQL-CAP — the cap is selectable because it was previously hardcoded at 200 while the server
+  // clamps at 1000, so no query a user could type reached past it: an inner `LIMIT 1000` is still
+  // wrapped by the outer one. Telling somebody their read was truncated without giving them a way
+  // to widen it is half a fix.
+  const limitSel = document.createElement("select"); limitSel.className = "portal-filter";
+  limitSel.setAttribute("aria-label", "Row cap for one read");
+  limitSel.title = "Row cap for a single read. The server discards anything past it.";
+  for (const n of LIMIT_CHOICES) {
+    const o = document.createElement("option"); o.value = String(n); o.textContent = `${n} rows`;
+    limitSel.appendChild(o);
+  }
+  limitSel.value = String(DEFAULT_LIMIT);
+  // The count line is a sentence, not a number, so it gets its own row rather than being squeezed
+  // into the flex strip beside the button.
+  const info = document.createElement("div"); info.className = "meta"; info.style.marginTop = "6px";
+  runRow.append(run, limitSel);
   const grid = document.createElement("div"); grid.style.cssText = "overflow:auto;max-height:46vh;margin-top:8px";
 
   const renderGrid = (cols: string[], rows: unknown[][]) => {
@@ -188,11 +210,23 @@ function browseConnection(api: ApiClient, id: string, name: string) {
     grid.innerHTML = `<table class="portal-table"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
   };
   const runSql = async (q: string) => {
-    sql.value = q; msg.textContent = ""; info.textContent = "running…";
-    const r = await api.connectionQuery(id, q, 200);
-    if (r.error) { info.textContent = ""; msg.textContent = r.error; grid.innerHTML = ""; return; }
-    info.textContent = `${r.row_count} row${r.row_count === 1 ? "" : "s"}`;
-    renderGrid(r.columns ?? [], r.rows ?? []);
+    sql.value = q; msg.textContent = ""; info.textContent = "running…"; info.style.color = "";
+    const r = await api.connectionQuery(id, q, Number(limitSel.value) || DEFAULT_LIMIT);
+    const o = sqlOutcome(r);
+    if (o.state === "error") {
+      info.textContent = ""; msg.textContent = sqlErrorLine(o.message); grid.innerHTML = ""; return;
+    }
+    // SQL-CAP — never the bare count. `row_count` is the length of the PAGE, so a 5,000-row table
+    // read at 200 and a 200-row table read in full both reported `{row_count: 200, limit: 200}` and
+    // both printed "200 rows". The wording now depends on the server's `truncated`.
+    info.textContent = rowCountLine(r);
+    info.style.color = isTruncated(r) ? "var(--status-warn)" : "";
+    if (o.state === "empty") {
+      if (o.columns.length) renderGrid(o.columns, []); else grid.innerHTML = "";
+      grid.insertAdjacentHTML("beforeend", `<div class="meta">${escapeHtml(sqlEmptyLine())}</div>`);
+      return;
+    }
+    renderGrid(o.columns, o.rows);
   };
   run.onclick = () => { if (sql.value.trim()) void runSql(sql.value.trim()); };
 
@@ -209,7 +243,7 @@ function browseConnection(api: ApiClient, id: string, name: string) {
     }
   }).catch(() => { tablesBox.textContent = "could not list tables"; }).finally(ready);
 
-  card.append(tablesBox, sql, runRow, grid, msg);
+  card.append(tablesBox, sql, runRow, info, grid, msg);
 }
 
 /** The Data-connections admin modal (entry point). `getPid` reads the live current project id. */

@@ -936,19 +936,56 @@ def board(db: Session, key: str, project_id: str, per_state: int = 200) -> dict:
 
     Bounded: at most `per_state` cards per column (newest first) plus the TRUE per-state counts from
     `state_counts` (SQL GROUP BY), instead of materializing up to 100k full records per request — a
-    memory/DoS vector on large modules. A column deeper than the cap shows count > len(cards)."""
-    mod = get_module(key)
+    memory/DoS vector on large modules. A column deeper than the cap shows count > len(cards).
+
+    **BOARD-SHIPPED — this read the SHIPPED workflow while `transition` honours the CONFIGURED
+    one.** `workflow_config.effective` is what every other workflow consumer routes through, and the
+    single-record route says why in as many words: *"the actions offered must be the ones the ENGINE
+    will honour, or the UI shows a button that 409s. Same effective workflow on both sides."* This
+    function called `get_module` instead, so on a project with an overridden workflow the kanban
+    board was INVERTED. Measured, with RFI overridden to `draft -> answered (fast_answer)`:
+
+      * the board offered all five shipped transitions, and dragging `draft -> open` POSTed
+        `submit` -> **409 "action 'submit' not allowed from state 'draft'"**;
+      * `fast_answer`, the one the firm configured, returned **200** — and the board offered no drag
+        for it, because no shipped transition goes `draft -> answered`;
+      * `workflow_overridden`, the flag `effective` sets *"so a UI can say the states aren't the
+        shipped ones"*, was absent from the response entirely.
+
+    *Every drag the board offered failed, and the only one that worked it refused client-side* —
+    which is exactly the door COURT-SPLIT warned about when it noted both of its routes resolve
+    through `effective` "because `transition` does".
+
+    `states` is the DECLARED order followed by any state the data actually holds. It used to be the
+    declared list alone, while `columns` was keyed over the union — so a record in a state the
+    module does not declare got a column that a consumer iterating `states` never rendered.
+    Measured on three records with one moved to a `retired` state: the board drew **2 of 3**, and
+    the third was invisible rather than merely uncounted. `extra_states` names them, the same shape
+    `cx.matrix` uses for a phase outside its five.
+    """
+    from . import workflow_config
+    mod = workflow_config.effective(get_module(key), project_id)
     states = mod.get("workflow", {}).get("states", [])
     counts = state_counts(db, key, project_id)
+    extra = [s for s in sorted(counts) if s not in states]
     columns: dict[str, list] = {s: [] for s in states}
-    for state in set(list(counts.keys()) + states):
+    for state in list(states) + extra:
         rows = list_records(db, key, project_id, state=state, limit=max(1, min(per_state, 500)))
         columns[state] = [{"id": r["id"], "ref": r["ref"], "title": r["title"],
                            "assignee": r.get("assignee"), "party_owner": r.get("party_owner")}
                           for r in rows]
-    return {"states": states or list(columns.keys()),
+    return {"states": (list(states) + extra) or list(columns.keys()),
+            "declared_states": list(states), "extra_states": extra,
             "columns": columns, "counts": counts,
-            "transitions": mod.get("workflow", {}).get("transitions", [])}
+            "transitions": mod.get("workflow", {}).get("transitions", []),
+            "workflow_overridden": bool(mod.get("workflow_overridden")),
+            "per_state_cap": max(1, min(per_state, 500)),
+            "counts_basis":
+                "`counts` is the TRUE per-state total from a SQL GROUP BY; `columns[state]` is at "
+                f"most {max(1, min(per_state, 500))} cards. A column deeper than the cap has "
+                "count > len(cards), so a head rendering the card count prints a page length. "
+                "`transitions` is the project's EFFECTIVE workflow, not the shipped one -- "
+                "`workflow_overridden` says when those differ."}
 
 
 def search_all(db: Session, project_id: str, q: str, limit: int = 50) -> list[dict]:
@@ -1127,10 +1164,22 @@ def _due_field_name(mod: dict) -> str | None:
 
 
 def _terminal_states(mod: dict) -> set[str]:
-    """States with no outgoing transition — a record there is done (closed/void/executed/…)."""
-    wf = mod.get("workflow", {})
-    froms = {t["from"] for t in wf.get("transitions", [])}
-    return {s for s in wf.get("states", []) if s not in froms}
+    """States with no outgoing transition — a record there is done (closed/void/executed/…).
+
+    DELEGATES to `workflow_config.terminal_states`, the one definition. DASH-TERMINAL found this
+    computation written out FOUR times: here (correct, and feeding `due_feed`), inline in
+    `workflow_config.validate` as `shipped_dead` (correct), in `submittals.terminal_states`
+    (correct), and NOT AT ALL in `dashboard.build`, which hardcoded
+    `{"closed", "answered", "verified", "done"}` for all 139 modules and was wrong in both
+    directions. *The correct derivation was already in this very file, and the dashboard's own
+    overdue KPI did not use it* — so the portal showed an `overdue` KPI from `dashboard.build`
+    beside an overdue QUEUE from `due_feed` below, computed two different ways.
+
+    Also fixes a latent `KeyError`: the old body read `t["from"]` with no guard, so a transition
+    list carrying an entry without a `from` raised rather than being skipped.
+    """
+    from . import workflow_config
+    return set(workflow_config.terminal_states(mod))
 
 
 def due_feed(db: Session, project_id: str, soon_days: int = 7) -> dict:

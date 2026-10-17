@@ -175,23 +175,62 @@ def _lod(db: Session, pid: str, name: str) -> Report:
 
 
 def _naming(db: Session, pid: str, name: str) -> Report:
-    """Naming-convention compliance across the CDE containers + drawing register."""
+    """Naming-convention compliance across the CDE containers + drawing register.
+
+    NAMING-UNREAD. This PDF carried the screen's defect and is the worse place for it, because it
+    leaves the building: a percentage over the whole register counted every container whose
+    ``container_id`` had not been recorded yet as a naming failure, and the violations table listed
+    three human titles — *Ground floor plan*, *Structural calcs*, *Fire strategy* — beside the one
+    genuinely misnamed file, with the identical issue string. 20.0% on a register that is 50%
+    compliant, in a document somebody forwards to an auditor.
+
+    The ``(all compliant)`` fallback was the quieter half: an empty violations list over a register
+    where NOTHING is named printed *"(all compliant)"*, which is a clean bill over an audit that
+    ruled on nothing. It now only fires where something was actually ruled on.
+    """
     from .. import naming
     a = naming.audit(db, pid)
     conv = a["conventions"]
     cc, ss = a["containers"], a["sheets"]
+
+    def _pc(b: dict) -> str:
+        """`compliant / named`, with the register size and the unnamed count beside it — never a
+        bare percentage whose denominator the reader cannot see."""
+        if not b["total"]:
+            return "— (none registered)"
+        if not b["named"]:
+            return f"— ({b['total']} registered, none with a recorded name)"
+        pct = "—" if b["compliance_pct"] is None else f"{b['compliance_pct']}%"
+        gap = f", {b['unnamed_count']} awaiting a name" if b["unnamed_count"] else ""
+        return f"{pct} of {b['named']} named{gap}"
+
+    def _viol(b: dict, label: str) -> list[list[str]]:
+        rows = [[v["ref"], v["name"], "; ".join(v["issues"])] for v in b["violations"]]
+        if rows:
+            return rows
+        # "(all compliant)" is a claim, and it is false where nothing could be ruled on.
+        return [["", f"(no {label} carries a recorded name — nothing to rule on)", ""]] \
+            if b["total"] and not b["named"] else [["", "(all compliant)", ""]]
+
     r = Report("Naming Convention Compliance", name)
     r.kpi("Container documents", cc["total"])
-    r.kpi("Container compliance", f"{cc['compliance_pct']}%" if cc["compliance_pct"] is not None else "—")
+    r.kpi("Container compliance", _pc(cc))
     r.kpi("Drawing sheets", ss["total"])
-    r.kpi("Sheet-ID compliance", f"{ss['compliance_pct']}%" if ss["compliance_pct"] is not None else "—")
+    r.kpi("Sheet-ID compliance", _pc(ss))
     r.table("Conventions", ["Kind", "Pattern", "Example / note"],
             [["Container / document", conv["container"]["pattern"], conv["container"]["note"]],
              ["Drawing sheet", conv["sheet"]["pattern"], conv["sheet"]["note"]]])
-    r.table("Container naming violations", ["Name", "Issues"],
-            [[v["name"], "; ".join(v["issues"])] for v in cc["violations"]] or [["(all compliant)", ""]])
-    r.table("Sheet-ID violations", ["Sheet", "Issues"],
-            [[v["name"], "; ".join(v["issues"])] for v in ss["violations"]] or [["(all compliant)", ""]])
+    r.table("Container naming violations", ["Ref", "Name as recorded", "Issues"],
+            _viol(cc, "container"))
+    r.table("Sheet-ID violations", ["Ref", "Sheet", "Issues"], _viol(ss, "drawing"))
+    # The rows outside every percentage above, and the only table that says what to DO with them.
+    # Omitted rather than printed empty: a heading with one "(none)" row reads as a finding.
+    if cc["unnamed"]:
+        r.table("Containers awaiting a recorded Container ID", ["Ref", "Title"],
+                [[u["ref"], u["title"]] for u in cc["unnamed"]])
+    if ss["unnamed"]:
+        r.table("Drawings awaiting a recorded number", ["Ref", "Title"],
+                [[u["ref"], u["title"]] for u in ss["unnamed"]])
     return r
 
 

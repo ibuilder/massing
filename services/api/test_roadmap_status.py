@@ -49,14 +49,37 @@ def check(label: str, ok: bool, detail: str = "") -> None:
         FAILED.append(label)
 
 
+#: The markers a heading may carry before its bold code. **The first four were the whole list, and
+#: it was blind to five live headings** — `⛔`, `❌` and a `~~struck~~` code made the bullet regex
+#: fail to match at all, so `marked_open` returned False and the loop below filed the item under
+#: *"closed, and its gate agrees"*. **Fail-open, in the file whose entire subject is a marker that
+#: stopped being true**: a registered item marked ⛔ would have reported PASS with its gate never
+#: consulted. Measured on 2026-10-13 while closing WS-BTN-DEAD: 163 headings with the wide list
+#: against 158 with the narrow one — QUALITY-ROOM, R22-PHOTO-CV, R23-PICKING, R43-CRUD-FRAGMENTS
+#: and SRI. `test_gap_records.py` paid for exactly this (*"a population smaller than it looks
+#: reports a clean tree in exactly the same words as a clean tree"*) and its repair was not the
+#: wider list — *"a hand-widened list is a list somebody stopped widening"* — but the parity check
+#: below it, which found `❌` after `⛔` and `~~` had been added by hand from the same measurement.
+MARKERS = ("✅", "◧", "🟡", "⭐", "⛔", "❌")
+
+#: What a heading's bold span looks like when it is an item CODE rather than prose. Load-bearing for
+#: the parity check only: without it the loose derivation also matches `**done**`, `**settled**` and
+#: `**HTML-escapes**` from mid-prose bullets, and the two sides disagree by three for a reason that
+#: has nothing to do with markers.
+_CODE_SHAPE = re.compile(r"^[A-Z][A-Z0-9]*(?:[-.][A-Z0-9]+)*$")
+
+
 def marked_open(code: str) -> bool:
     """Whether `code` still heads a bullet the roadmap counts as open.
 
     Mirrors `roadmapLanes.test.ts`: a bullet carrying ✅ is shipped-but-not-yet-archived and is not
     work anyone can pick up. Matched on the item's own heading line, not on every mention — the codes
     are referenced all over the file in prose and in the lane table.
+
+    A `~~struck~~` code counts as a heading too: struck means withdrawn, which is a status, and a
+    status this cannot see is a status it reports as absent.
     """
-    pat = re.compile(rf"^\s*[-*] (?:(?:✅|◧|🟡|⭐)️? )*\*\*{re.escape(code)}\b", re.M)
+    pat = re.compile(rf"^\s*[-*] (?:(?:{'|'.join(MARKERS)})️? )*\*\*(?:~~)?{re.escape(code)}\b", re.M)
     return any("✅" not in m.group(0) for m in pat.finditer(ROADMAP))
 
 
@@ -79,6 +102,44 @@ DONE_WHEN = {
             "test_vendor_reachable reports 0 unreached vendored modules"),
     "R37-TRIAGE": (lambda: _gate_says("test_dead_code_population.py", "0 unreferenced"),
                    "test_dead_code_population reports 0 unreferenced public functions"),
+    #: Registered by the pull request that CLOSED it, which is the thing `test_gap_records` exists
+    #: because nothing forces: *a registry reports on what it contains, and its silence is
+    #: indistinguishable from a clean bill.* The needle deliberately avoids the path and operation
+    #: counts in the same verdict line — those move on every route added, and a needle that decays
+    #: with normal work is one somebody loosens rather than reads.
+    "SCHEMA-UNGENERATED": (
+        lambda: _gate_says("test_schema_types_agree.py", "all declared, 0 declared-but-gone"),
+        "test_schema_types_agree reports every served (path, method) declared in schema.d.ts"),
+    #: Same discipline, same day the item closed. The needle is "0 unreachable" and NOT the route or
+    #: hook counts beside it: both move the moment somebody adds a public write route or a control,
+    #: which is the normal work this gate exists to watch.
+    "PORTAL-TXN-DARK": (
+        lambda: _gate_says("test_portal_public_reach.py", "0 unreachable"),
+        "test_portal_public_reach reports every public /shared/{token} write route reachable from "
+        "the page it serves"),
+    #: The needle is "all named in OPEN_STANDARDS", not "0 unwritable" — three standards are still
+    #: unwritable and the item is closed for the one it was about. *A predicate that demands the
+    #: whole sweep be finished cannot mark the slice that shipped*, and writing one that reads "3
+    #: unwritable" would go stale the day one of them is wired, in the direction that says the item
+    #: regressed.
+    "CLAUSE-DARK": (
+        lambda: _gate_says("test_stored_standard_writable.py", "all named in OPEN_STANDARDS"),
+        "test_stored_standard_writable reports every unwritable project standard accounted for, and "
+        "clause_playbook is no longer among them"),
+    #: Same gate, same needle, different item — and deliberately not a count. Both items are about
+    #: one standard each leaving that gate's open list; a predicate reading "2 unwritable" would mark
+    #: BOTH as regressed the day `macros` is wired.
+    "VIEWTPL-DARK": (
+        lambda: _gate_says("test_stored_standard_writable.py", "all named in OPEN_STANDARDS"),
+        "test_stored_standard_writable reports every unwritable project standard accounted for, and "
+        "view_templates is no longer among them"),
+    #: The needle is "(all named)" and not a count, for the third time and the same reason: the item
+    #: closed for ONE engine, `drawing_qa` is still dark, and a predicate reading "2 dark" would mark
+    #: this item regressed the day somebody wires it.
+    "PROVENANCE-DARK": (
+        lambda: _gate_says("test_verdict_reachable.py", "(all named)"),
+        "test_verdict_reachable reports every unreadable verdict accounted for, and "
+        "provenance_report's conclusion is reachable"),
 }
 
 #: Genuinely open, with a measurement that should say so. The negative control: without it, a bug
@@ -156,6 +217,52 @@ check("SELF-TEST: ...and NO to a bare prose mention — the codes appear all ove
 check("SELF-TEST: ...and YES against the REAL roadmap for a code known to be open, so the three "
       "synthetic arms above cannot be passing on a shape the live file has drifted away from",
       marked_open("SCALE-SEAM"), "SCALE-SEAM heads an open bullet")
+check("SELF-TEST: ...and YES to a ⛔ bullet and to a ~~struck~~ code — the two shapes the narrow "
+      "marker list could not match at all, which made `marked_open` answer NO and the loop file "
+      "them as closed with their gate never run",
+      _marked_open_on("- ⛔ **SYNTH-CODE — refused** *(Lane G)*\n")
+      and _marked_open_on("- 🟡 **~~SYNTH-CODE~~ — withdrawn** *(Lane G)*\n"),
+      "fail-OPEN, not fail-closed: the narrow list's miss was indistinguishable from a clean bill")
+
+
+def _headings(markers_first: bool, text: str | None = None) -> set[str]:
+    """Item codes heading a bullet, derived two ways — STRICT by marker list, LOOSE by shape.
+
+    The LOOSE arm accepts any run of non-word tokens before the bold span, so it cannot be narrowed
+    by a marker nobody added to `MARKERS`. If the two disagree, the marker list has stopped
+    describing the file — which is the only way this gate's population can shrink silently.
+    """
+    lead = rf"(?:(?:{'|'.join(MARKERS)})️? )*" if markers_first else r"(?:[^\w\s*]\S*\s+)*"
+    pat = re.compile(rf"^\s*[-*] {lead}\*\*(?:~~)?([A-Za-z][\w.-]*)", re.M)
+    return {m.group(1) for m in pat.finditer(text if text is not None else ROADMAP)
+            if _CODE_SHAPE.match(m.group(1))}
+
+
+#: **The parity check below was not a check, and mutation is the only reason that is known.** Its
+#: first draft derived the LOOSE arm from `MARKERS` too, so routing both arms through the same
+#: alternation left the counts equal at 123 and the gate GREEN with the narrow list restored — the
+#: defect `test_schema_types_agree.py` names in as many words: *a parity check between two
+#: derivations that share a failure mode is not a check*. The guard is this fixture, not a sentence:
+#: a marker nobody has ever added must be found by the loose arm and MISSED by the strict one, which
+#: is false the instant the loose arm starts reading the marker list.
+_SYNTH_UNKNOWN_MARKER = "- 🔶 **SYNTH-CODE — a marker nobody has added** *(Lane G)*\n"
+
+check("SELF-TEST: the two parity derivations are INDEPENDENT — an unknown marker is found by shape "
+      "and missed by the marker list, so the check below cannot pass by sharing a failure mode",
+      _headings(False, _SYNTH_UNKNOWN_MARKER) == {"SYNTH-CODE"}
+      and _headings(True, _SYNTH_UNKNOWN_MARKER) == set(),
+      f"loose={sorted(_headings(False, _SYNTH_UNKNOWN_MARKER))}, "
+      f"strict={sorted(_headings(True, _SYNTH_UNKNOWN_MARKER))}")
+
+_strict, _loose = _headings(True), _headings(False)
+check("PARITY: the marker list still reaches every heading a shape-based derivation finds — a "
+      "hand-widened list is a list somebody stopped widening",
+      _strict == _loose,
+      f"{len(_strict)} by marker vs {len(_loose)} by shape; "
+      f"loose-only={sorted(_loose - _strict)}, strict-only={sorted(_strict - _loose)}")
+check("PARITY precondition: both derivations found a real population, so agreeing on nothing is "
+      "not how the check above passes",
+      len(_strict) > 100, f"{len(_strict)} item headings")
 
 for code, (done, what) in DONE_WHEN.items():
     if not marked_open(code):
@@ -168,8 +275,12 @@ for code, (still_open, what) in OPEN_WHEN.items():
     check(f"{code} is open and its measurement still says so", still_open(),
           f"{what} (negative control: proves a False predicate is not how this passes)")
 
-print(("ROADMAP-STATUS OK — every item with a measurement agrees with its marker. "
-       "The four found by hand on 2026-08-29 (R46, R37-TRIAGE, R37-TESTED-UNWIRED, QTO-TRADE) are "
-       "corrected; the two that HAVE a gate are now held by it.")
+# The counts are DERIVED, not written. This line said "the two that HAVE a gate" and was wrong the
+# moment a third registered itself — the narrative-copy-of-a-number drift CLAUDE.md names for
+# `viewer/app.ts`, reproduced inside the gate whose whole subject is markers that stopped being true.
+print((f"ROADMAP-STATUS OK — every item with a measurement agrees with its marker. "
+       f"The four found by hand on 2026-08-29 (R46, R37-TRIAGE, R37-TESTED-UNWIRED, QTO-TRADE) are "
+       f"corrected; {len(DONE_WHEN)} closed item(s) and {len(OPEN_WHEN)} open one(s) are held by a "
+       f"gate here — {', '.join(sorted(DONE_WHEN))} closed, {', '.join(sorted(OPEN_WHEN))} open.")
       if not FAILED else f"roadmap_status: {len(FAILED)} FAILED — {FAILED}")
 sys.exit(1 if FAILED else 0)

@@ -277,10 +277,31 @@ def model_ev(db: Session, pid: str, data_date: str | None = None) -> dict[str, A
     total = len(_INDEX.get(pid, {}))
     rows = list(db.execute(select(ElementVerification.status, ElementVerification.guid)
                            .where(ElementVerification.project_id == pid)).all())
-    installed = len({g for st, g in rows if st in ("installed", "verified")})
+    by_status: dict[str, set[str]] = {}
+    for st, g in rows:
+        by_status.setdefault(str(st or "pending"), set()).add(str(g))
+    installed_set = by_status.get("installed", set()) | by_status.get("verified", set())
+    deviated_set = by_status.get("deviation", set()) - installed_set
+    installed = len(installed_set)
     tracked = len({g for _, g in rows})
+    # EVM-COVERAGE — WHAT THE PERCENTAGE IS *OF*, stated instead of swapped silently.
+    # `denom` falls back from the model's element count to the surveyed count, which changes the
+    # quantity this field measures by orders of magnitude under one name: 8 installed out of 10
+    # surveyed reads 80% with no index loaded and 0.2% with a 4,000-element index. `basis` names it.
+    basis = "model elements" if total else ("surveyed elements" if tracked else "nothing")
     denom = total or tracked or 1
     model_pct = round(100 * installed / denom, 1)
+    # DETERMINED vs merely TRACKED. A `pending` record is a queued inspection, not evidence; a
+    # `deviation` IS evidence (of something not installed as designed). So the share of the
+    # denominator whose install status is actually known is the coverage this verdict rests on —
+    # and it is NOT `tracked / total`, because `pending` inflates that.
+    determined = len(installed_set | deviated_set)
+    # ROUNDED COVERAGE IS NOT THE AUTHORITY, and this is the defect above one layer down: 1 of 4,000
+    # determined rounds to 0.0%, which is the same string an UNTOUCHED job prints. So the counts are
+    # reported beside it and the note quotes the counts rather than only the percentage — a consumer
+    # that renders `coverage_pct` alone cannot distinguish "nobody looked" from "somebody looked
+    # once", and those are different facts about the same building.
+    coverage_pct = round(100 * determined / denom, 1)
 
     snap = snapshot(db, pid, data_date)
     bac = snap["totals"]["bac"]
@@ -291,21 +312,51 @@ def model_ev(db: Session, pid: str, data_date: str | None = None) -> dict[str, A
     # flag below cannot turn on it. It is moved for one convention, not because it was wrong.
     ev_model = money.retainage(bac, model_pct)
     divergence = money.q2(ev_sched - ev_model)                 # + = schedule ahead of physical install
-    # Only compare against the model once field verification exists — with zero verified elements the
-    # model EV is 0 by definition, and flagging "front-loaded" then would falsely accuse an un-surveyed job.
+    # THE CEILING ON PHYSICAL PROGRESS, which is what a front-load accusation has to clear.
+    #
+    # `front_loaded_flag` says reported progress is running ahead of the building — in a report with
+    # a PDF button, about a contractor. It was `tracked > 0 and divergence > 5% of BAC`, so the
+    # guard below (written for exactly this failure) had a floor of ONE RECORD: survey 1 element of
+    # 4,000 and `model_pct` is at most 0.025%, `divergence` is nearly the whole EV, and the flag
+    # fires on SURVEY COVERAGE rather than on over-reporting. *A guard whose threshold is one covers
+    # only the single case that was already harmless.*
+    #
+    # The repair is a BOUND rather than a bigger threshold, because any percentage would be invented:
+    # the most the model could possibly support is everything except the elements known to deviate,
+    # so if the schedule EV sits under THAT, the gap is explained by what nobody has looked at yet
+    # and there is no accusation to make. At full coverage `pct_max == model_pct` and the flag is
+    # unchanged — the bound only ever withholds a claim the evidence cannot carry.
+    pct_max = round(100 * max(0, denom - len(deviated_set)) / denom, 1)
+    ev_model_max = money.retainage(bac, pct_max)
+    unexplained = money.q2(ev_sched - ev_model_max)
+    # `has_field_data` is kept as "any record at all" because consumers read it; it is no longer what
+    # gates the flag. It answers "is this an un-surveyed job?", which is a different question from
+    # "is the coverage enough to accuse anybody?".
     has_field_data = tracked > 0
-    flag = bool(has_field_data and bac and divergence > 0.05 * bac)
+    flag = bool(has_field_data and bac and unexplained > 0.05 * bac)
     return {
         "total_elements": total, "installed_elements": installed, "tracked_elements": tracked,
-        "model_percent_complete": model_pct, "has_field_data": has_field_data,
-        "bac": bac, "ev_model": ev_model, "ev_schedule": ev_sched, "divergence": divergence,
+        "determined_elements": determined, "deviated_elements": len(deviated_set),
+        "coverage_pct": coverage_pct, "basis": basis,
+        "model_percent_complete": model_pct, "model_percent_complete_max": pct_max,
+        "has_field_data": has_field_data,
+        "bac": bac, "ev_model": ev_model, "ev_model_max": ev_model_max, "ev_schedule": ev_sched,
+        "divergence": divergence, "divergence_unexplained": unexplained,
         "front_loaded_flag": flag,
         "note": "Model EV = installed % (field-verified elements) × BAC — the units-complete method from "
                 "the model. If schedule EV exceeds model EV materially, reported progress is running "
-                "ahead of physical installation (often a front-loaded SOV)."
+                "ahead of physical installation (often a front-loaded SOV). `model_percent_complete` is "
+                f"a share of {basis}; `coverage_pct` is how much of that denominator has a DETERMINED "
+                "install status (a `pending` inspection is not evidence). `ev_model_max` is the ceiling "
+                "if every undetermined element turned out installed, and `front_loaded_flag` fires only "
+                "when the schedule EV clears THAT — so thin survey coverage cannot produce the "
+                "accusation."
                 + ("" if total else " No property index loaded yet.")
                 + ("" if has_field_data else " No field verification recorded yet — model EV is not "
-                   "yet a check on reported progress."),
+                   "yet a check on reported progress.")
+                + ("" if coverage_pct >= 100 else
+                   f" Only {determined} of {denom} {basis} have a determined install status "
+                   f"({coverage_pct}%), so physical progress is between {model_pct}% and {pct_max}%."),
     }
 
 

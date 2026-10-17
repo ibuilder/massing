@@ -188,6 +188,7 @@ def discipline_summary(model: ifcopenshell.file, settings=None) -> dict[str, Any
     return {
         "rebar": {"count": len(rebar_els), "weight_kg": round(rebar_kg, 1),
                   "tonnes": round(rebar_kg / 1000.0, 3),
+                  # COVERAGE: count
                   "estimated": not any(_quantities(e).get("weight") for e in rebar_els) and bool(rebar_els)},
         "mep": {"duct_m": round(duct_m, 1), "pipe_m": round(pipe_m, 1), "cable_m": round(cable_m, 1),
                 "counts": {"duct": _count("IfcDuctSegment"), "pipe": _count("IfcPipeSegment"),

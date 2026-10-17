@@ -2,6 +2,7 @@ import type { ApiClient } from "../../api/client";
 import type { LayerManager } from "../../tools/layers";
 import { escapeHtml } from "../../ui/feedback";
 import { kvTable, resultNote, showResult } from "../../ui/result";
+import { COVERAGE_CSS, coverageNote, modifiedPageNote, propertyClause } from "./versionDiffRead";
 
 /**
  * R39-DECOMP-VIEWER ⑬ — **model federation and version compare**, out of `app.ts`.
@@ -117,19 +118,40 @@ export function buildFederationSection(d: FederationDeps): void {
             });
           })();
           ctl.append(overlay, cost, reset); out.appendChild(ctl);
+          // VERSION-VALUES: what this comparison could NOT read, before anything it did. Three
+          // distinct causes with three different fixes, and nothing at all when the detail is
+          // complete — a "coverage: full" line on every healthy diff trains the reader to skip it.
+          const cov = coverageNote(diff);
+          if (cov) {
+            const c = document.createElement("div"); c.className = "meta";
+            c.style.cssText = `margin:4px 0;color:${COVERAGE_CSS[cov.tone]}`;
+            c.textContent = cov.text;
+            out.appendChild(c);
+          }
           if (diff.modified_count) {
             out.appendChild(resultNote("Modified elements (click to select in 3D):", ""));
-            out.appendChild(kvTable(diff.modified.slice(0, 40).map((m) => {
-              // name the exact properties/quantities that changed (VERSION-COMPARE per-property), if available
-              const props = (m.changed_properties || []).slice(0, 6)
-                .map((p) => `${p.property}${p.status !== "changed" ? ` (${p.status})` : ""}`).join(", ");
-              const extra = (m.changed_properties && m.changed_properties.length > 6) ? "…" : "";
+            const page = diff.modified.slice(0, 40);
+            out.appendChild(kvTable(page.map((m) => {
+              // THE BEFORE AND AFTER, not just the key. `versions.diff` has stored a bounded value
+              // snapshot for this since VERSION-COMPARE and the line here printed the property name
+              // alone, because `from`/`to` were undeclared on the client type — so the whole
+              // feature was unreachable from the only screen that compares two versions.
+              const props = propertyClause(m.changed_properties);
               return {
                 k: `${(m.ifc_class || "").replace("Ifc", "")} · ${m.name || m.guid.slice(0, 8)}`,
-                v: m.changes.join(", ") + (props ? ` — ${props}${extra}` : ""),
+                v: m.changes.join(", ") + (props ? ` — ${props}` : ""),
                 onClick: () => d.selectByGuid(m.guid, false),
               };
             })));
+            // The table is 40 rows and `modified_count` can be thousands. The headline above does
+            // carry the total, but a table that silently stops is the TRUNC-COUNTED shape, so the
+            // page says both numbers where the rows end.
+            const trunc = modifiedPageNote(page.length, diff.modified_count);
+            if (trunc) {
+              const t = document.createElement("div"); t.className = "meta";
+              t.style.cssText = "margin-top:2px"; t.textContent = trunc;
+              out.appendChild(t);
+            }
           }
         };
         cmp.onclick = () => void render();

@@ -151,6 +151,35 @@ with TestClient(app) as c:
     chk = design_standards.check(SessionLocal(), pid, idx)
     assert chk["model_scored"] is True and chk["elements"] == 3, chk
     assert chk["prohibited_hits"] == 1, chk
+
+    # DESIGN-STD-DARK — `coverage` says what the counts do not, and each field disambiguates a zero
+    # that a screen would otherwise render as a clean audit. Asserted here because the engine owns
+    # the cap and the totals; `apps/web/src/portal/panels/designStandards.test.ts` asserts the card
+    # renders them.
+    cov = chk["coverage"]
+    assert cov["prohibited_declared"] == 1 and cov["approved_declared"] == 1, cov
+    assert cov["flagged"] == chk["prohibited_hits"] + chk["unapproved"], cov
+    assert cov["truncated"] is False and cov["listed"] == len(chk["violations"]), cov
+    assert cov["cap"] == design_standards.VIOLATION_CAP, cov
+    # the no-model branch carries it too, and says WHY rather than reporting two bare zeros
+    cov0 = chk0["coverage"]
+    assert cov0["flagged"] == 0 and "no model is loaded" in cov0["reason"], cov0
+
+    # THE CAP, on a model that actually exceeds it — and this case is the only one that can tell
+    # the two candidate formulas apart. On the three-element index above,
+    # `prohibited_hits + unapproved` and `len(violations)` are both 2, so an assertion written
+    # against that fixture passes whichever the engine used: a mutation replacing the sum with the
+    # list length was NOT caught until this block existed. *Two formulas that agree on the fixture
+    # are one formula as far as the test is concerned.*
+    big = {f"u{i}": {"type_name": "Concrete", "ifc_class": "IfcSlab"} for i in range(250)}
+    chk_big = design_standards.check(SessionLocal(), pid, big)
+    cap = design_standards.VIOLATION_CAP
+    assert chk_big["unapproved"] == 250, chk_big["unapproved"]
+    assert len(chk_big["violations"]) == cap, len(chk_big["violations"])
+    covb = chk_big["coverage"]
+    assert covb["flagged"] == 250, covb            # the COUNT, not the page
+    assert covb["listed"] == cap and covb["truncated"] is True, covb
+    assert covb["flagged"] != covb["listed"], covb  # the whole point of the two fields
     assert chk["unapproved"] == 1, chk                       # concrete matched no approved keyword
     issues = " ".join(v["issue"] for v in chk["violations"])
     assert "prohibited" in issues and "approved" in issues, chk["violations"]

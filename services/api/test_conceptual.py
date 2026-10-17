@@ -29,6 +29,36 @@ assert r_ny["region_index"] == 1.35 and r_ny["escalation_factor"] > 1, r_ny
 assert "default" in ce.estimate({"building_type": "spaceship", "gfa_sf": 1000})["building_type"]
 assert "error" in ce.estimate({"building_type": "office"})
 
+# --- ESTIMATE-BASIS: the midpoint escalation, which no screen could reach -----------------------
+# Track M runs on EVERY call, and the branch that matters — escalation to the midpoint of
+# construction, the basis a development budget is actually carried at — only fires when
+# `start_year` is given. Nothing in the web app passed it, and `market` was undeclared on the
+# client type, so the number was neither computed nor nameable. *An undeclared key can mean
+# "nobody reads it"; it can also mean "nobody asked for it".*
+base = ce.estimate({"building_type": "office", "gfa_sf": 120000, "region": "us_average",
+                    "stories": 20})
+mid = ce.estimate({"building_type": "office", "gfa_sf": 120000, "region": "us_average",
+                   "stories": 20, "start_year": 2027, "duration_months": 24})
+# ① the no-start-year branch carries the market CONTEXT and no escalation claim — the three keys
+#    are absent rather than null, which is what the reading branches on.
+for k in ("region", "labour_usd_hr", "sector_temperature", "sector_note"):
+    assert k in base["market"], (k, sorted(base["market"]))
+for k in ("escalation_basis", "midpoint_escalation_factor", "total_at_construction_midpoint"):
+    assert k not in base["market"], (k, sorted(base["market"]))
+# ② with it, the escalated total is MATERIALLY higher, and the basis says why in words
+m = mid["market"]
+assert m["total_at_construction_midpoint"] > mid["total_cost"], (m, mid["total_cost"])
+_delta = (m["total_at_construction_midpoint"] - mid["total_cost"]) / mid["total_cost"]
+assert _delta > 0.05, f"midpoint escalation is only {_delta:.1%} — the card's number would be fine"
+assert "24-month" in m["escalation_basis"] and "2027" in m["escalation_basis"], m["escalation_basis"]
+assert m["midpoint_escalation_factor"] > 1, m
+# ③ the BASIS keys a reader needs to reconcile the number at all
+assert mid["year"] and mid["region"] == "us_average", (mid["year"], mid["region"])
+assert mid["height_factor"] > 1, mid["height_factor"]      # 20 storeys is past the 12-storey premium
+assert mid["soft_cost_pct"] == 25.0, mid["soft_cost_pct"]
+# ④ and the Class 5 caveat, which the card renders beside a -15/+20% band that reads far tighter
+assert "Class 5" in mid["note"], mid["note"]
+
 # --- IFC classify ---
 els = [
     {"guid": "g1", "name": "Basic Wall: Exterior", "ifc_class": "IfcBuildingElementProxy"},  # generic -> wall (high)
@@ -56,5 +86,8 @@ with TestClient(app) as c:
     assert cc.status_code == 200 and cc.json()["count"] == 3, cc.text[:160]
 
 print("CONCEPTUAL OK - parametric $/SF estimate (multifamily base; NY+2028 escalated higher; unknown "
-      "type->office; no-GFA->error; $/unit + $/key); IFC classify: proxy->Wall/Slab (high), beam-as-"
+      "type->office; no-GFA->error; $/unit + $/key); ESTIMATE-BASIS pins the midpoint escalation "
+      "(>5% above today's money on a 2027/24-month build, with the basis in words) and its absence "
+      "without a start year, plus the basis keys year/region/height_factor/soft_cost_pct and the "
+      "Class 5 caveat; IFC classify: proxy->Wall/Slab (high), beam-as-"
       "column->Beam (medium), correct window skipped; endpoints 200")

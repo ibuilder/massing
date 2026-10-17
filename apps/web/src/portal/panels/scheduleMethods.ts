@@ -21,6 +21,17 @@
  */
 import { usd } from "../../ui/charts";
 import { escapeHtml as esc } from "../../ui/feedback";
+import { type Tone, TONE_CSS, capRows, capVerdict, coverageNote as levelCoverageNote,
+         levelIssueRows, uncappedNote, unavailableExtras } from "./levelRead";
+import { bufferDroppedNotes, bufferNote, bufferRequestNote, bufferUnmetNote, bufferUnmetRows,
+  clearanceVerdict, flowIssueRows, flowUnavailableExtras, handoverRows, overlapNote,
+         populationNote } from "./flowlineRead";
+import {
+  addedByClassRows, addedByLevelRows, captureHeadline, captureTone, dateRangeNote, derivationNote,
+  progressNote, reworkAnswerable, reworkRows, undatedNote, unmatchedNote,
+} from "./captureDiffRead";
+import { cycleRows, dataDateNote, HEALTH_CSS, issuePageNote, issueRows, scopeLine }
+  from "./scheduleHealthRead";
 import type { PanelContext } from "../panelContext";
 import { programmeBars } from "./programmeGantt";
 
@@ -95,6 +106,36 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
       { label: "failed", value: `${r.failed}` },
       { label: "skipped", value: `${r.skipped}`, hint: "excluded from the score" },
     ] : []);
+    // SCHEDHEALTH-PARITY. `render` returns early on a refusal having printed the reason alone, so
+    // everything below is appended AFTER it — and the three things appended are exactly what the
+    // refusals were carrying and nothing read: the network this is about, the data date every date
+    // check is relative to, and the loop members. *The refusal was the useful half and the reason
+    // was the part that got rendered.*
+    const line = (text: string, css?: string) => {
+      const d = document.createElement("div"); d.className = "meta";
+      d.style.cssText = `margin-top:2px${css ? `;color:${css}` : ""}`;
+      d.textContent = text;                        // textContent: activity refs are user data
+      hOut.appendChild(d);
+    };
+    const scope = scopeLine(r);
+    if (scope) line(scope);
+    const dd = dataDateNote(r);
+    if (dd) line(dd.text, HEALTH_CSS[dd.tone]);
+    const loop = cycleRows(r);
+    if (loop.length) {
+      // The activities that form the loop, which is the only actionable thing in this refusal.
+      line(`Loop: ${loop.join(" → ")} → ${loop[0]}`, HEALTH_CSS.warn);
+    }
+    const issues = issueRows(r);
+    if (issues.length) {
+      line("Network issues the engine reported rather than dropping:");
+      for (const i of issues) {
+        line(`${i.severity} · ${i.message}${i.where ? ` (${i.where})` : ""} — ${i.action}`,
+             HEALTH_CSS[i.tone]);
+      }
+      const page = issuePageNote(issues.length, (r.issues ?? []).length);
+      if (page) line(page);
+    }
     if (r.available) {
       const fails = r.checks.filter((c) => c.status === "fail");
       if (fails.length) {
@@ -115,8 +156,30 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
     "Where each crew is, and whether anyone is in anyone's way. CPM cannot express crew continuity: "
     + "its earliest-start pass is exactly what fragments a gang into work-a-floor-then-wait.");
   const fOut = document.createElement("div");
+  // FLOW-BUFFER — the control that was missing, not the reading. `schedule_locations.flowline`
+  // never set `LinearTask.buffer_days`, so every line ran as tight as it could go, `gap_days` was
+  // 0 on every pair, and the engine's `LOB.OVERLAP` branch was dead from the product. One number
+  // is all it took: *the reading side was already written and asserted, waiting on a producer
+  // nobody could drive.*
+  const fBar = document.createElement("div");
+  fBar.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px";
+  const fBuf = document.createElement("input");
+  fBuf.type = "number"; fBuf.step = "1"; fBuf.min = "-90"; fBuf.max = "90"; fBuf.value = "0";
+  fBuf.style.width = "80px";
+  fBuf.title = "Working days of clearance between every handover. Negative is deliberate overlap, "
+    + "which the engine reports as LOB.OVERLAP — a plan, not an error.";
+  const fLbl = document.createElement("span");
+  fLbl.className = "meta";
+  fLbl.textContent = "buffer days between handovers (negative = overlap)";
+  fBar.append(fBuf, fLbl);
+  fc.appendChild(fBar);
   fc.appendChild(runner(fOut, "▶ Compute flowline", async () => {
-    const r = await api.scheduleFlowline(pid);
+    // 0 is sent as "no request" rather than as a buffer of zero: they produce the same diagram, and
+    // the difference matters only to the caveat — `bufferNote` says "nobody asked" for one and
+    // "the request produced no spacing" for the other, and the first is the honest reading of an
+    // untouched input.
+    const want = Number(fBuf.value) || 0;
+    const r = await api.scheduleFlowline(pid, want ? { flatDays: want } : undefined);
     const cost = Object.entries(r.continuity_cost_days ?? {});
     const worst = cost.sort((a, b) => b[1] - a[1])[0];
     render(fOut, r, r.available ? [
@@ -126,8 +189,135 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
       { label: "continuity cost", value: worst ? `${worst[1]}d` : "0d",
         hint: worst ? `worst: ${worst[0]}` : "no crew was pushed" },
     ] : []);
+
+    // FLOW-CLEAR. The subtitle above says this card is for "whether anyone is in anyone's way" and
+    // those four tiles answer none of it. `interference_count` is deliberately NOT a tile: it
+    // counts adjacent trade PAIRS, not collisions, so a schedule with ample clearance reports
+    // `1` — the per-handover records carry the answer and `populationNote` says what the count is.
+    const fline = (html: string, tone: Tone = "") => {
+      const d = document.createElement("div");
+      d.className = "meta";
+      d.style.cssText = "margin-top:4px;line-height:1.45";
+      if (tone) d.style.color = TONE_CSS[tone];
+      d.innerHTML = html;
+      fOut.appendChild(d);
+    };
+
+    if (!r.available) {
+      const extra = flowUnavailableExtras(r);
+      if (extra) fline(esc(extra));
+      return;
+    }
+
+    const v = clearanceVerdict(r);
+    if (v) {
+      const el = document.createElement("div");
+      el.style.cssText = `font-weight:600;margin-top:6px;color:${TONE_CSS[v.tone]}`;
+      el.textContent = v.text;
+      fOut.appendChild(el);
+    }
+
+    for (const h of handoverRows(r)) {
+      fline(`${esc(h.pair)} — closest at <strong>${esc(h.at)}</strong>, ${esc(h.clearance)} clear `
+            + `· ${esc(h.trend)}`, h.tone);
+    }
+
+    const pop = populationNote(r);
+    if (pop) fline(esc(pop));
+    const buf = bufferNote(r);
+    if (buf) fline(esc(buf), "warn");
+
+    // FLOW-BUFFER. The REQUEST, then the requests that could not be met, then the ones that were
+    // dropped — three separate things, because a planner who asked for five days of overlap and
+    // got two is owed a different sentence from one whose trade name was a typo.
+    const req = bufferRequestNote(r);
+    if (req) fline(esc(req));
+    const over = overlapNote(r);
+    if (over) fline(esc(over), "warn");
+    const unmet = bufferUnmetNote(r);
+    if (unmet) fline(esc(unmet), "warn");
+    for (const u of bufferUnmetRows(r)) fline(`${esc(u.k)} — ${esc(u.v)}`, "warn");
+    for (const d of bufferDroppedNotes(r)) fline(esc(d), "warn");
+
+    for (const i of flowIssueRows(r).slice(0, 8)) {
+      fline(`<code>${esc(i.code)}</code> ${esc(i.text)}`, i.tone);
+    }
   }));
   fc.appendChild(fOut); wrap.appendChild(fc);
+
+  // ── Capture diff ─────────────────────────────────────────────────────────────────────────────
+  //
+  // CAPTURE-SESSION. The route had no caller because the roadmap recorded that nothing in this
+  // product persists a capture — true of a stored capture ROW, and not of the SET: every
+  // `field_verification` record carries a required `guid` and an `observed_date`, so "what was
+  // observed installed as of D" is a filter. *"There is no stored X" and "X is not available" are
+  // different claims.* Two date pickers, therefore, rather than two capture pickers.
+  const cd = card("Site capture diff — what went in between two dates",
+    "Derived from Field Verification: every element observed on or before each date. CUMULATIVE, so "
+    + "it cannot raise a rework flag — an element observed once and never re-observed still counts.");
+  const cdOut = document.createElement("div");
+  const cdBar = document.createElement("div");
+  cdBar.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px";
+  const mkDate = (title: string) => {
+    const i = document.createElement("input");
+    i.type = "date"; i.title = title; i.style.width = "148px";
+    return i;
+  };
+  const cdT1 = mkDate("The earlier capture date — elements observed on or before it");
+  const cdT2 = mkDate("The later capture date");
+  const cdLbl = document.createElement("span");
+  cdLbl.className = "meta"; cdLbl.textContent = "→";
+  cdBar.append(cdT1, cdLbl, cdT2);
+  cd.appendChild(cdBar);
+  cd.appendChild(runner(cdOut, "▶ Diff captures", async () => {
+    if (!cdT1.value || !cdT2.value) {
+      cdOut.textContent = "Pick both dates — a diff needs two moments to be between.";
+      return;
+    }
+    const r = await api.progressCaptureDiff(pid, {
+      derive: "field_verification", t1: cdT1.value, t2: cdT2.value,
+    });
+    render(cdOut, { available: true }, [
+      { label: "newly installed", value: `${r.newly_installed}` },
+      { label: "window", value: r.days == null ? "—" : `${r.days}d` },
+      { label: "rate", value: r.elements_per_day == null ? "—" : `${r.elements_per_day}/day`,
+        hint: "elements per day across the window" },
+      { label: "% complete", value: `${(r.pct_complete_t2 * 100).toFixed(1)}%`,
+        hint: "over the whole design element set" },
+    ]);
+    const cline = (text: string, tone: Tone = "") => {
+      const d = document.createElement("div");
+      d.className = "meta";
+      d.style.cssText = "margin-top:4px;line-height:1.45";
+      if (tone) d.style.color = TONE_CSS[tone];
+      d.textContent = text;                 // every line here is composed from server numbers
+      cdOut.appendChild(d);
+    };
+    const head = document.createElement("div");
+    head.style.cssText = `font-weight:600;margin-top:6px;color:${TONE_CSS[captureTone(r)]}`;
+    head.textContent = captureHeadline(r);
+    cdOut.appendChild(head);
+    cline(progressNote(r));
+    const dv = derivationNote(r);
+    if (dv) cline(dv);
+    const dr = dateRangeNote(r);
+    if (dr) cline(dr, "warn");
+    const un = undatedNote(r);
+    if (un) cline(un, "warn");
+    const um = unmatchedNote(r);
+    if (um) cline(um, "warn");
+    for (const row of addedByClassRows(r)) cline(`${row.k} — ${row.v}`);
+    for (const row of addedByLevelRows(r)) cline(`${row.k} — ${row.v}`);
+    // The rework half is drawn only when the SOURCE can answer it. An empty table here would read
+    // as "no rework found", which is the opposite of "this source cannot tell you".
+    if (reworkAnswerable(r)) {
+      cline(r.disappeared
+        ? `${r.disappeared} element(s) present at the first capture and absent at the second:`
+        : "Nothing disappeared between the two captures.");
+      for (const row of reworkRows(r)) cline(`${row.k} — ${row.v}`, "crit");
+    }
+  }));
+  cd.appendChild(cdOut); wrap.appendChild(cd);
 
   // ── Takt ─────────────────────────────────────────────────────────────────────────────────────
   const tc = card("Takt train — a fixed rhythm",
@@ -632,6 +822,55 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
         hint: r.horizon === "within_float" ? "the horizon would not allow a fix" : "" },
       { label: "finish moves", value: `${r.finish_moved_days}d` },
     ] : []);
+
+    // LEVEL-UNREAD. Those three tiles are motion, not outcome: measured at a cap of 8, a peak of
+    // 26 before and 26 after produced `moves 0 · unresolved 5 · finish +0d`, and two of the three
+    // read the same as a schedule that was already inside its caps.
+    const line = (html: string, tone: Tone = "") => {
+      const d = document.createElement("div");
+      d.className = "meta";
+      d.style.cssText = "margin-top:4px;line-height:1.45";
+      if (tone) d.style.color = TONE_CSS[tone];
+      d.innerHTML = html;
+      lOut.appendChild(d);
+    };
+
+    if (!r.available) {
+      // The refusal's own diagnostic — the trades that DO appear, which is what makes "check the
+      // trade spelling" actionable. `render` already printed the reason, so only the extras go here.
+      const extra = unavailableExtras(r);
+      if (extra) line(esc(extra));
+      return;
+    }
+
+    const verdict = capVerdict(r);
+    if (verdict) {
+      const v = document.createElement("div");
+      v.style.cssText = `font-weight:600;margin-top:6px;color:${TONE_CSS[verdict.tone]}`;
+      // textContent: the verdict names a trade the user typed into the caps input above.
+      v.textContent = verdict.text;
+      lOut.appendChild(v);
+    }
+
+    for (const row of capRows(r)) {
+      line(`${esc(row.trade)}: peak ${esc(row.before)} → <strong>${esc(row.after)}</strong> `
+           + `against a cap of ${esc(row.cap)}`, row.tone);
+    }
+
+    const un = uncappedNote(r);
+    if (un) line(esc(un), "warn");
+
+    const cov = levelCoverageNote(r);
+    if (cov) line(esc(cov.text), cov.tone);
+
+    // The IssueLog. `massingplan/core/issues.py` emits one per coercion, drop or fallback so that
+    // somebody looks — a dropped predecessor among them — and this is the first screen that does.
+    const issues = levelIssueRows(r);
+    for (const i of issues.slice(0, 8)) {
+      line(`<code>${esc(i.code)}</code> ${esc(i.text)}`
+           + (i.where ? ` <span class="meta">(${esc(i.where)})</span>` : ""), i.tone);
+    }
+    if (issues.length > 8) line(`… and ${issues.length - 8} more issue(s).`, "warn");
   }));
   lc.append(lRow, lOut); wrap.appendChild(lc);
 

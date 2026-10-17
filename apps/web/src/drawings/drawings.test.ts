@@ -29,6 +29,7 @@ interface FakeOpts {
 
 function mount(opts: FakeOpts = {}) {
   const calls: string[] = [];
+  let streamStatus: ((s: string, why?: string) => void) | null = null;
   const host = document.createElement("div");
   document.body.appendChild(host);
 
@@ -64,9 +65,17 @@ function mount(opts: FakeOpts = {}) {
       }
       return (id.endsWith("#pdf") ? opts.takeoff : opts.pins) ?? [];
     },
-    markupStream: (_pid: string, _cb: () => void) => {
+    // THE THIRD ARGUMENT IS CAPTURED, not ignored. The old stub dropped it, which is exactly how a
+    // subscriber that passes no `onStatus` goes unnoticed: the fake accepts either shape.
+    markupStream: (_pid: string, _cb: () => void,
+                   onStatus?: (s: string, why?: string) => void) => {
       calls.push("stream");
-      return { get connected() { return true; }, close() { calls.push("stream:close"); } };
+      streamStatus = onStatus ?? null;
+      return {
+        get connected() { return true; },
+        close() { calls.push("stream:close"); },
+        retry() { calls.push("stream:retry"); },
+      };
     },
     url: (p: string) => p,
     authHeaders: () => ({}),
@@ -77,7 +86,7 @@ function mount(opts: FakeOpts = {}) {
     projectId: () => "p1",
     setStatus: (m: string) => calls.push(`status:${m}`),
   } as never);
-  return { ui, host, calls, api };
+  return { ui, host, calls, api, status: () => streamStatus };
 }
 
 /** Let the open()/show() promise chains settle. */
@@ -264,5 +273,220 @@ describe("the markup toggle", () => {
     const again = [...host.querySelectorAll("button")].find((b) => b.textContent?.includes("Markup"));
     again!.click();
     expect(viewport.classList.contains("marking")).toBe(false);
+  });
+});
+
+describe("live co-markup says so when it stops — R24-FIELD-MODE ⑦", () => {
+  // This subscriber passed no `onStatus`, so `HttpCore.liveStream`'s refusal classification was
+  // disabled for it: a stream the server will never serve this client again retried for ever and
+  // the pins simply stopped updating. Nothing looked wrong, which is the whole problem — two people
+  // mark up the same sheet believing they can see each other's work. *A stale drawing is
+  // indistinguishable from a quiet one, and only one of them is safe.*
+  it("THE DEFECT: it asks to be told at all", async () => {
+    const { ui, status } = mount();
+    await ui.open();
+    await settle();
+    expect(status(), "a subscriber that passes no onStatus cannot be told it was refused")
+      .not.toBeNull();
+  });
+
+  it("a refusal is shown in the toolbar, with the server's reason as visible text", async () => {
+    const { ui, host, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("refused", "you were removed from this project");
+    const note = host.querySelector("#dwg-live-refused");
+    expect(note, "the notice mounts").toBeTruthy();
+    expect(note!.textContent).toContain("you were removed from this project");
+    // The consequence, not the transport — "the SSE stream closed" is not actionable.
+    expect(note!.textContent).toContain("markups will not appear");
+    // No hover-only reason: this is read on a tablet in the field.
+    expect(note!.querySelector("[title]"), "nothing hides the reason behind a tooltip").toBeNull();
+  });
+
+  it("the retry control is a real button whose visible label is its accessible name", async () => {
+    const { ui, host, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("refused", "gone");
+    const b = host.querySelector<HTMLButtonElement>("#dwg-live-refused button")!;
+    expect(b.tagName).toBe("BUTTON");
+    expect(b.type).toBe("button");
+    expect(b.textContent).toBe("Try again");
+    expect(b.getAttribute("aria-label"), "no second name to drift from the first").toBeNull();
+    expect(b.getAttribute("title")).toBeNull();
+  });
+
+  it("...and clicking it actually resumes the stream", async () => {
+    // The lesson slice ⑤'s review paid for: its first escape hatch cleared the mark and
+    // re-rendered without sending, and the test did not notice because the test did the sending.
+    const { ui, host, calls, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("refused", "gone");
+    host.querySelector<HTMLButtonElement>("#dwg-live-refused button")!.click();
+    expect(calls, "retry() reaches the stream handle").toContain("stream:retry");
+    expect(host.querySelector("#dwg-live-refused"), "and the notice clears").toBeNull();
+  });
+
+  it("an EMPTY reason still shows a refusal — empty is not absent", async () => {
+    const { ui, host, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("refused", "");
+    const note = host.querySelector("#dwg-live-refused");
+    expect(note, "a refusal with no stated reason is still a refusal").toBeTruthy();
+    expect(note!.textContent).toContain("refused by the server");
+    expect(note!.textContent, "and never a dangling dash").not.toMatch(/—\s*\./);
+  });
+
+  it("a transient reconnect is NOT shown — a retry the user can see is not the problem", async () => {
+    const { ui, host, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("reconnecting");
+    expect(host.querySelector("#dwg-live-refused")).toBeNull();
+  });
+
+  it("a recovered stream clears a notice that was up", async () => {
+    const { ui, host, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("refused", "gone");
+    expect(host.querySelector("#dwg-live-refused")).toBeTruthy();
+    status()!("connected");
+    expect(host.querySelector("#dwg-live-refused"), "it must not outlive the refusal").toBeNull();
+  });
+
+  it("two refusals in a row leave ONE notice, not two", async () => {
+    const { ui, host, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("refused", "gone");
+    status()!("refused", "still gone");
+    expect(host.querySelectorAll("#dwg-live-refused").length).toBe(1);
+    expect(host.querySelector("#dwg-live-refused")!.textContent).toContain("still gone");
+  });
+});
+
+describe("the refusal notice is STATE, not a one-shot paint — round 6", () => {
+  // Review of slice ⑦ found this branch's own defect reintroduced inside the fix for it. The notice
+  // lives in `#dwg-toolbar`, and `buildToolbar()` opens with `bar.innerHTML = ""` — which runs on
+  // EVERY sheet selection. The Paper space button rewrites the same bar outright. So the first
+  // click after a refusal erased the only thing saying live markup had stopped, and the screen went
+  // back to looking healthy while the stream was still refused.
+  const twoSheets = {
+    storeys: [
+      { name: "L1", elevation: 0, guid: "g1" },
+      { name: "L2", elevation: 3000, guid: "g2" },
+    ],
+  };
+
+  it("THE DEFECT: selecting another sheet must not erase an active refusal", async () => {
+    const { ui, host, status } = mount(twoSheets);
+    await ui.open();
+    await settle();
+    status()!("refused", "you were removed from this project");
+    expect(host.querySelector("#dwg-live-refused"), "it is up").toBeTruthy();
+
+    const items = host.querySelectorAll<HTMLButtonElement>(".dwg-item");
+    expect(items.length, "two sheets, so a second one to click").toBeGreaterThan(1);
+    items[1]!.click();                       // rebuilds the toolbar via buildToolbar()
+    await settle();
+
+    const note = host.querySelector("#dwg-live-refused");
+    expect(note, "the stream is still refused, so the notice must still be there").toBeTruthy();
+    expect(note!.textContent, "with its reason intact")
+      .toContain("you were removed from this project");
+    expect(note!.querySelector("button"), "and still answerable").toBeTruthy();
+  });
+
+  it("...and the Paper space button's toolbar rewrite must not erase it either", async () => {
+    const { ui, host, status } = mount(twoSheets);
+    await ui.open();
+    await settle();
+    status()!("refused", "gone");
+    const paper = [...host.querySelectorAll<HTMLButtonElement>("button")]
+      .find((b) => /Paper space/i.test(b.textContent ?? ""))!;
+    paper.click();
+    await settle();
+    expect(host.querySelector("#dwg-live-refused"),
+           "a second wipe, same consequence").toBeTruthy();
+  });
+
+  it("a rebuild does not DUPLICATE the notice either", async () => {
+    const { ui, host, status } = mount(twoSheets);
+    await ui.open();
+    await settle();
+    status()!("refused", "gone");
+    const items = host.querySelectorAll<HTMLButtonElement>(".dwg-item");
+    items[1]!.click();
+    await settle();
+    items[0]!.click();
+    await settle();
+    expect(host.querySelectorAll("#dwg-live-refused").length).toBe(1);
+  });
+
+  it("retry clears the STATE, so a later rebuild does not resurrect the notice", async () => {
+    // Storing the refusal is what makes a rebuild repaint it — which means forgetting to clear the
+    // store on retry would bring back a notice the user had dismissed by acting on it.
+    const { ui, host, calls, status } = mount(twoSheets);
+    await ui.open();
+    await settle();
+    status()!("refused", "gone");
+    host.querySelector<HTMLButtonElement>("#dwg-live-refused button")!.click();
+    expect(calls).toContain("stream:retry");
+    const items = host.querySelectorAll<HTMLButtonElement>(".dwg-item");
+    items[1]!.click();
+    await settle();
+    expect(host.querySelector("#dwg-live-refused"),
+           "the refusal was answered; a redraw must not undo that").toBeNull();
+  });
+
+  it("recovery clears the state too", async () => {
+    const { ui, host, status } = mount(twoSheets);
+    await ui.open();
+    await settle();
+    status()!("refused", "gone");
+    status()!("connected");
+    const items = host.querySelectorAll<HTMLButtonElement>(".dwg-item");
+    items[1]!.click();
+    await settle();
+    expect(host.querySelector("#dwg-live-refused")).toBeNull();
+  });
+
+  it("the ✎ Markup toggle rebuilds the toolbar too, and must not erase it", async () => {
+    // Review named FOUR callers of `buildToolbar()`: `show()`, this toggle, ⧉ Compare, and the
+    // `aec:model-published` listener (which goes through `show()`). The repaint sits at the END of
+    // `buildToolbar`, so one test of the mechanism covers all four — but this toggle calls it
+    // INLINE rather than through `show()`, and that the call graph funnels here is a fact I
+    // established with grep. *A grep is a source-level check*, so one of the four is pinned
+    // behaviourally: if somebody later makes this toggle rewrite the bar directly, this reds.
+    const { ui, host, status } = mount(twoSheets);
+    await ui.open();
+    await settle();
+    status()!("refused", "removed from project");
+    [...host.querySelectorAll<HTMLButtonElement>("button")]
+      .find((b) => /Markup$/i.test((b.textContent ?? "").trim()))!.click();
+    await settle();
+    const note = host.querySelector("#dwg-live-refused");
+    expect(note, "toggling markup must not hide a live refusal").toBeTruthy();
+    expect(note!.textContent).toContain("removed from project");
+  });
+
+  it("a refusal with an EMPTY reason survives a rebuild as well", async () => {
+    // `liveRefused` is `string | null` precisely so "" ("refused, no reason given") is not confused
+    // with null ("not refused") — a boolean or a bare string would lose the distinction and this
+    // notice would vanish on the next redraw.
+    const { ui, host, status } = mount(twoSheets);
+    await ui.open();
+    await settle();
+    status()!("refused", "");
+    const items = host.querySelectorAll<HTMLButtonElement>(".dwg-item");
+    items[1]!.click();
+    await settle();
+    const note = host.querySelector("#dwg-live-refused");
+    expect(note).toBeTruthy();
+    expect(note!.textContent).toContain("refused by the server");
   });
 });

@@ -2,6 +2,7 @@ import { lineChart, money as cmoney, scatterQuadrant, usd } from "../../ui/chart
 import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
+import { modelEvReading, modelEvRows } from "./modelEvReading";
 
 /**
  * Earned Value Management dashboard (E4+E5) — surfaces the EVM engine: the indices dashboard
@@ -139,16 +140,33 @@ export async function renderEvm(ctx: PanelContext) {
   }
 
   // --- model-based EV (physically installed elements) ---
-  if (mev && mev.total_elements > 0) {
-    const mc = el("div", "dash-card"); mc.style.cssText = `margin-bottom:8px${mev.front_loaded_flag ? ";border-left:3px solid var(--status-warn)" : ""}`;
+  //
+  // EVM-COVERAGE. This card used to read `has_field_data`, a boolean that is true the moment ONE
+  // element of the model has been surveyed, and then printed either the front-loading accusation or
+  // a clean "tracks physical installation". Neither sentence was available to say that the physical
+  // figure came from 2% of the building. `modelEvReading` answers coverage BEFORE the verdict, and
+  // the band it reports is the engine's own ceiling rather than a second derivation here.
+  //
+  // The `total_elements > 0` gate is gone too: it hid the one state where the number means
+  // something ELSE (no index loaded, so the denominator is the surveyed set), leaving a user with
+  // field data and no model looking at no card and no reason. `modelEvReading` names that state.
+  if (mev) {
+    const r = modelEvReading(mev);
+    const edge: Record<string, string> = { bad: "var(--status-crit)", warn: "var(--status-warn)",
+                                           ok: "var(--status-good)" };
+    const mc = el("div", "dash-card");
+    mc.style.cssText = "margin-bottom:8px"
+      + (r.tone && edge[r.tone] ? `;border-left:3px solid ${edge[r.tone]}` : "");
     mc.innerHTML = `<b>Model-based EV</b> <span class="meta">(units-complete from installed model elements)</span>`
-      + `<div class="meta" style="margin-top:2px">${mev.installed_elements} of ${mev.total_elements} elements installed = `
-      + `<b>${mev.model_percent_complete}%</b> · EV(model) <b>${usd(mev.ev_model)}</b> vs EV(schedule) ${usd(mev.ev_schedule)}</div>`
-      + (mev.has_field_data === false
-        ? `<div class="meta">No field verification recorded yet — verify installed elements (Field ▸ Verification) to turn model EV into an independent check on reported progress.</div>`
-        : mev.front_loaded_flag
-          ? `<div class="meta" style="color:var(--status-warn)">⚠ Reported progress is running ahead of physical installation (divergence ${usd(mev.divergence)}) — possible front-loaded SOV.</div>`
-          : `<div class="meta">Schedule EV tracks physical installation (divergence ${usd(mev.divergence)}).</div>`);
+      + `<div class="meta" style="margin-top:2px${r.tone === "bad" ? ";color:var(--status-crit)" : ""}">`
+      + `${r.kind === "front_loaded" ? "⚠ " : ""}<b>${esc(r.headline)}</b></div>`
+      + `<div class="meta" style="margin-top:2px">${esc(r.detail)}</div>`;
+    const tbl = el("table", "portal-table") as HTMLTableElement;
+    tbl.style.cssText = "width:100%;font-size:11px;margin-top:6px";
+    tbl.innerHTML = "<tbody>" + modelEvRows(mev).map((x) =>
+      `<tr><th scope="row" style="text-align:left;font-weight:400">${esc(x.k)}</th>`
+      + `<td style="text-align:right">${esc(x.v)}</td></tr>`).join("") + "</tbody>";
+    mc.append(tbl);
     body.append(mc);
   }
 

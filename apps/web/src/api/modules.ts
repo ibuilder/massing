@@ -13,8 +13,8 @@
  *  moving a method is invisible to it, losing one fails it by number.
  */
 import type {
-  ModuleBoard, ModuleDef, ModuleFilterOp, ModuleRecord, RecordAttachmentMeta, RelatedRecords,
-  SavedViewDef,
+  ExpiryCoverage, ModuleBoard, ModuleDef, ModuleFilterOp, ModuleRecord, RecordAttachmentMeta, RelatedRecords,
+  SavedViewDef, WorkflowTransition,
 } from "./types";
 
 import type { Cached } from "./recordCache";
@@ -119,7 +119,11 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
   complianceExpiring(pid: string, withinDays = 30) {
     return this.json<{ within_days: number; count: number;
       expired: { module: string; ref: string; name: string; expires: string; days_left: number }[];
-      expiring: { module: string; ref: string; name: string; expires: string; days_left: number }[]; }>(
+      expiring: { module: string; ref: string; name: string; expires: string; days_left: number }[];
+      /** EXPIRY-UNDATED: `count` is a window over the records that HAD a readable date. This says
+       *  how many did not, so the banner's tick is earned rather than default. */
+      coverage: ExpiryCoverage;
+    }>(
       `/projects/${pid}/compliance/expiring?within_days=${withinDays}`);
   }
   addEnumOption(pid: string, key: string, field: string, value: string) {
@@ -277,6 +281,41 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
   modulesGraph(workspace?: string) {
     const qs = workspace ? `?workspace=${encodeURIComponent(workspace)}` : "";
     return this.json<ModuleGraph>(`/modules/graph${qs}`);
+  }
+  /** WFE-3 — this project's effective workflow for a module: the shipped transitions or its own
+   *  override, with `shipped_transitions` to diff against and `record_counts` showing where records
+   *  actually sit. The route's own docstring says the counts are there *"because that is what
+   *  constrains any change you make"*.
+   *
+   *  WORKFLOW-DARK: all three routes of this surface had no client method, so the whole capability
+   *  was server-only — including the refusal below, which is the part that protects records. */
+  projectWorkflow(pid: string, key: string) {
+    return this.json<{
+      module: string; overridden: boolean; states: string[]; initial: string | null;
+      transitions: WorkflowTransition[]; shipped_transitions: WorkflowTransition[];
+      record_counts: Record<string, number>;
+    }>(`/projects/${pid}/workflow/${encodeURIComponent(key)}`);
+  }
+  /** Replace this project's workflow for a module (admin, audited).
+   *
+   *  **422 when the override would strand live records** — a state holding records with no
+   *  transition out. `workflow_config` refuses rather than warning, because *"a stranded record
+   *  looks identical to a record nobody has got to yet, so it goes unnoticed for as long as anyone
+   *  is willing to wait"*. The message names the states and the counts, which is why a caller must
+   *  show it verbatim rather than reporting "save failed". */
+  saveProjectWorkflow(pid: string, key: string, transitions: WorkflowTransition[]) {
+    return this.json<{
+      module: string; saved: number; transitions: WorkflowTransition[];
+      reachable: string[]; unreachable: string[];
+      unreachable_with_records: Record<string, number>;
+      dead_ends: string[]; record_counts: Record<string, number>;
+    }>(`/projects/${pid}/workflow/${encodeURIComponent(key)}`,
+      { method: "PUT", body: JSON.stringify({ transitions }) });
+  }
+  /** Drop the override — back to the shipped workflow (admin, audited). */
+  resetProjectWorkflow(pid: string, key: string) {
+    return this.json<{ module: string; removed: boolean; overridden: boolean }>(
+      `/projects/${pid}/workflow/${encodeURIComponent(key)}`, { method: "DELETE" });
   }
   /** Printable register PDF (RFI log, submittal log) from the same module engine. */
   moduleLogPdfUrl(pid: string, key: string) {

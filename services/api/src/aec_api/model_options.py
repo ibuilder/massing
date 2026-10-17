@@ -130,9 +130,25 @@ def diff_option(pid: str, slug: str, source_ifc: str) -> dict[str, Any]:
             b = sum(1 for v in opt_els.values() if v == cls)
             if a != b:
                 classes[cls] = {"current": a, "option": b, "delta": a - b}
+        # NEGATED-VERDICT, judged the OTHER way from `detail_refs.navigable` and
+        # `fin_ingest.fully_reconciled`, and the distinction is the reason rather than the shape.
+        # Those two returned a clean verdict for a question that was never answered. Here the
+        # question — *do these two models differ at the IfcElement GUID-set level?* — IS answered for
+        # two element-less models: no, they do not. Flipping `identical` to False would be a false
+        # alarm in the opposite direction.
+        #
+        # What was missing is the POPULATION, so a reader could tell a match over 4,000 elements
+        # from a match over none (a pair of space-and-storey-only models has zero `IfcElement`).
+        # *The fix for a vacuous truth is not always to make it false; sometimes it is to say what it
+        # is true of.*
         return {"option": _slug(slug), "added_in_current": added[:100], "added_count": len(added),
                 "removed_in_current": removed[:100], "removed_count": len(removed),
                 "class_deltas": classes,
+                "current_element_count": len(cur_els), "option_element_count": len(opt_els),
+                # EMPTY-IS-CLEAN: two models with no `IfcElement` genuinely do not differ at the
+                # GUID-set level this diff is about, so flipping the flag would report a difference
+                # that does not exist. The basis a reader needs is the population, and it is the two
+                # counts on the line above — `services/api/test_negated_verdict.py` holds the split.
                 "identical": not added and not removed and not classes}
     finally:
         Path(opt_path).unlink(missing_ok=True)

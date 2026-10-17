@@ -305,27 +305,60 @@ describe("R24-CHARTS-GRAMMAR ② — one currency format for the whole app", () 
       .toBe("−$4.25");
   });
 
+  // The two rules, defined ONCE so the scan and the self-tests below cannot drift apart. They are
+  // non-global on purpose: `.test()` on a /g regex advances `lastIndex` and answers differently on
+  // the second call, which is a trap a self-test is exactly the wrong place to step in.
+  //
+  // `NAMED` is the original list of names and it works: it refused `const money = …` in
+  // `portal/panels/conceptualBasis.ts` on the commit that added it. But `proforma/modelSyncCard.ts`
+  // had shipped the IDENTICAL function as `fmt()` and this check never saw it. *A ban keyed on the
+  // names somebody thought of is a ban on those names, and the next instance will be called
+  // something else.*
+  //
+  // `SHAPED` derives the population from the BODY: a declaration that concatenates a LITERAL `$`
+  // onto a `toLocaleString`, which is what all eighteen local copies were. The literal-dollar test
+  // is the load-bearing part — `` `${n.toLocaleString()}` `` contains a `$` as template syntax, and
+  // a first draft that matched it reported ten false positives (`area`, `m`, `cents`, a date
+  // formatter) before this distinction was drawn. *A shape rule that cannot tell its own
+  // delimiters from its subject matches the language, not the code.*
+  const NAMED = /(?:const|let|function)\s+(usd|cmoney|money2?|dollars)\s*[=(]/;
+  const SHAPED =
+    /(?:const|let|function)\s+(\w+)\s*[=(][^;}]{0,200}?(?:\$\$\{|["'`]\$["'`]\s*\+)[^;}]{0,160}?toLocaleString/;
+  const all = (rx: RegExp) => new RegExp(rx.source, "g");
+
   it("no file declares its own currency formatter — `usd` is imported, not rewritten", () => {
-    // Matches a DECLARATION, not a call: `const usd = ` / `const cmoney = ` / `const money = `.
-    // Comments are stripped first, so this rule cannot flag the prose above that explains it — the
-    // failure mode this repo has hit five separate times.
-    const DECL = /(?:const|let|function)\s+(usd|cmoney|money2?|dollars)\s*[=(]/g;
     const hits: string[] = [];
     for (const f of files) {
       if (f.endsWith("charts.ts")) continue;             // the one place allowed to define them
       const code = readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-      for (const m of code.matchAll(DECL)) hits.push(`${f.replace(SRC_DIR, "src")}: ${m[0]}`);
+      for (const m of code.matchAll(all(NAMED))) hits.push(`${f.replace(SRC_DIR, "src")}: ${m[0]}`);
+      for (const m of code.matchAll(all(SHAPED))) hits.push(`${f.replace(SRC_DIR, "src")}: ${m[1]} (shape)`);
     }
-    expect(hits, "import { usd } from ui/charts — eighteen local copies disagreed about how a "
-      + "negative renders, and ten of them put the $ on the wrong side of the minus").toEqual([]);
+    expect([...new Set(hits)], "import { usd } from ui/charts — eighteen local copies disagreed "
+      + "about how a negative renders, and ten of them put the $ on the wrong side of the minus")
+      .toEqual([]);
   });
 
   it("...and the scan can actually say no", () => {
     // Vacuity twin: the regex must catch the exact declaration that was removed from ten files.
-    const DECL = /(?:const|let|function)\s+(usd|cmoney|money2?|dollars)\s*[=(]/;
-    expect(DECL.test('  const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;')).toBe(true);
-    expect(DECL.test('  const usd = (n: number) => cmoney(n);')).toBe(true);
-    expect(DECL.test("  out.textContent = usd(total);")).toBe(false);   // a CALL is fine
+    expect(NAMED.test('  const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;')).toBe(true);
+    expect(NAMED.test('  const usd = (n: number) => cmoney(n);')).toBe(true);
+    expect(NAMED.test("  out.textContent = usd(total);")).toBe(false);   // a CALL is fine
+  });
+
+  it("...and the SHAPED rule catches the one the name list missed", () => {
+    // `modelSyncCard.ts` shipped this verbatim, under a name no list would have guessed.
+    expect(SHAPED.test('function fmt(n: number): string {\n  return `$${Math.round(n).toLocaleString()}`;'))
+      .toBe(true);
+    expect(SHAPED.test('const pretty = (n: number) => `$${n.toLocaleString()}`;')).toBe(true);
+    expect(SHAPED.test('const pretty = (n: number) => "$" + n.toLocaleString();')).toBe(true);
+    // ...and NOT on the things that legitimately reach toLocaleString without minting a currency
+    // formatter. Each of these four was a real false positive of the first draft.
+    expect(SHAPED.test("  cell.textContent = n.toLocaleString();")).toBe(false);
+    expect(SHAPED.test("  const rows = `${count.toLocaleString()} rows`;")).toBe(false);
+    expect(SHAPED.test("  const area = `${Math.round(a).toLocaleString()} m²`;")).toBe(false);
+    expect(SHAPED.test("  const when = `${d.toLocaleString()}`;")).toBe(false);
+    expect(SHAPED.test("  const label = usd(total);")).toBe(false);
   });
 
   describe("usdCents", () => {

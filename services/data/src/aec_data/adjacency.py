@@ -165,6 +165,7 @@ def evaluate(model, program: dict | None = None) -> dict[str, Any]:
         rooms = [s for s in spaces if _tl(s["type"]) == t]
         bad = [s for s in rooms if not _exterior(s)]
         daylight_results.append({"type": t, "spaces": len(rooms), "exterior": len(rooms) - len(bad),
+                                 # COVERAGE: spaces
                                  "satisfied": bool(rooms) and not bad})
         daylight_violations.extend({"rule": f"{t} needs daylight/exterior", "guid": s["guid"],
                                     "name": s["name"], "type": s["type"]} for s in bad)
@@ -179,6 +180,7 @@ def evaluate(model, program: dict | None = None) -> dict[str, Any]:
         bad = [s for i, s in rooms
                if not any(_tl(spaces[j]["type"]) in wet_types for j in neighbors[i])]
         wet_results.append({"type": t, "spaces": len(rooms), "on_wet_wall": len(rooms) - len(bad),
+                            # COVERAGE: spaces
                             "satisfied": bool(rooms) and not bad})
         wet_violations.extend({"rule": f"{t} needs a shared wet wall", "guid": s["guid"],
                                "name": s["name"], "type": s["type"]} for s in bad)
@@ -221,7 +223,15 @@ def evaluate(model, program: dict | None = None) -> dict[str, Any]:
             "required_total": len(required), "required_satisfied": req_ok,
             "required_pct": round(req_ok / len(required), 3) if required else None,
             "required_results": req_results,
-            "forbidden_violations": forb_violations, "forbidden_ok": not forb_violations and bool(forbidden),
+            # `forbidden_total` is NEW, and it is a real gap the coverage gate found rather than a
+            # naming fix: `forbidden_ok` is guarded on `forbidden` — the pairs the PROGRAM declares
+            # — and no sibling reported how many that was, so a consumer could not tell "no
+            # forbidden adjacencies were declared" from "every forbidden adjacency is respected".
+            # `required_total` is the other population and would have been the wrong one to read.
+            "forbidden_total": len(forbidden),
+            "forbidden_violations": forb_violations,
+            # COVERAGE: forbidden_total
+            "forbidden_ok": not forb_violations and bool(forbidden),
             "daylight_results": daylight_results, "daylight_violations": daylight_violations,
             "wet_wall_results": wet_results, "wet_wall_violations": wet_violations,
         },

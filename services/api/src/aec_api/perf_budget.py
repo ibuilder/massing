@@ -167,6 +167,12 @@ def report(p95: float | None = None, observations: int = 0,
     return {
         "budgets": rows,
         "measured_count": len(measured), "unmeasured_count": len(unmeasured),
+        # NO-SPA-CONSUMER: served by `GET /metrics/budget` behind the metrics bearer key
+        # (`main._guard_metrics`), so the reader is a monitoring scrape and no client method will
+        # ever own this verdict. Declared because it cannot be derived: whether a response reaches a
+        # browser or a scrape is a fact about the product, not about the syntax, and
+        # `test_verdict_coverage.unowned_verdicts` was counting this alongside two capabilities
+        # nobody had built — one number for two unrelated facts.
         "within_budget": bool(measured) and all(r["within"] is True for r in measured),
         "note": ("all three stated budgets are measured: one server-side, two by client beacon. The "
                  "client figures come from a per-process histogram and describe the sessions that "

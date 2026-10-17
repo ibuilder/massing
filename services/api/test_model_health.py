@@ -91,6 +91,39 @@ with TestClient(app) as tc:
     assert r.status_code == 200, r.text[:200]
     b = r.json()
     assert "overall_score" in b and "lenses" in b and "band" in b and len(b["lenses"]) == 5, b
+
+    # ---- HEALTH-WEIGHT-COVER ----------------------------------------------------------
+    # The weights must sum to 1.0, or `weight_scored` is not a share of anything.
+    assert abs(sum(model_health._WEIGHTS.values()) - 1.0) < 1e-9, model_health._WEIGHTS
+    # every lens declares its weight, and the five keys are exactly the weighted ones
+    assert {ln["key"] for ln in b["lenses"]} == set(model_health._WEIGHTS), b["lenses"]
+    for ln in b["lenses"]:
+        assert ln["weight"] == model_health._WEIGHTS[ln["key"]], ln
+    # `weight_scored` is the sum over the lenses that scored -- not a count, and not 1.0 unless
+    # every lens scored. Asserted against the lens list rather than against a literal, so the
+    # relationship holds whatever this fixture happens to be able to score.
+    want = sum(ln["weight"] for ln in b["lenses"] if ln["score"] is not None)
+    assert abs(b["weight_scored"] - want) < 1e-9, (b["weight_scored"], want)
+    assert b["weight_basis"] and b["note"], b
+
+    # The defect, computed straight from the weights: two scored lenses carry 30% of the composite
+    # or 50% of it depending on WHICH two, while `scored_lenses` says 2 both times. A count cannot
+    # express this, which is why the response now carries both.
+    W = model_health._WEIGHTS
+    light = W["verified"] + W["readiness"]
+    heavy = W["hygiene"] + W["information"]
+    assert abs(light - 0.30) < 1e-9 and abs(heavy - 0.50) < 1e-9, (light, heavy)
+    assert light != heavy, (light, heavy)
+    # and the bound on the claim: ANY three lenses clear half the composite, so the two numbers
+    # can only disagree about soundness at two lenses or fewer. Measured, not assumed.
+    import itertools
+    assert min(sum(W[k] for k in c) for c in itertools.combinations(W, 3)) >= 0.5, W
+
+    # `note` names all FIVE lenses. The client docstring and the screen caption both named four --
+    # written before `readiness` landed and never updated -- while this sentence was served and
+    # declared by nothing. This test file already knew there were five; only the copies drifted.
+    for word in ("hygiene", "ISO 19650", "clash", "verified-as-built", "code/permit readiness"):
+        assert word in b["note"], (word, b["note"])
     # the pre-flight issuance gate endpoint returns a verdict + checklist
     rp = tc.get(f"/projects/{pid}/preflight")
     assert rp.status_code == 200, rp.text[:200]
@@ -100,4 +133,8 @@ with TestClient(app) as tc:
 print("MODEL-HEALTH OK - composite scorecard unifies 5 lenses (integrity/hygiene, ISO 19650 KPIs, clash "
       "coordination, verified-as-built, code/permit readiness); a clean model scores hygiene 100/good; lenses with no inputs "
       "degrade to 'na' and are excluded from the weighted mean; works with or without a parsed model; "
-      "HTTP GET /models/health returns the scorecard. One launcher for every model-quality check.")
+      "HTTP GET /models/health returns the scorecard. One launcher for every model-quality check. "
+      "HEALTH-WEIGHT-COVER: the weights sum to 1.0, every lens declares its own, and "
+      "`weight_scored` is the SHARE the composite covers rather than the count -- two lenses are "
+      "30% or 50% of it depending on which two, and any three clear half, which bounds where the "
+      "count and the share can disagree.")

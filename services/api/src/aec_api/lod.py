@@ -84,6 +84,8 @@ def matrix(db: Session, pid: str) -> dict[str, Any]:
 # "examples ... intended to be customized by the user". The platform provides the structure; the
 # project authors the content.
 _TARGET_SPECIFICITY = ("ifc_class", "uniformat", "discipline")
+#: The rank a STAGE-WIDE rule sorts at — least specific, so any scoped rule beats it.
+_STAGE_WIDE_RANK = len(_TARGET_SPECIFICITY)
 
 
 def target_for(e: dict, targets: list[dict], phase: str) -> dict | None:
@@ -97,9 +99,31 @@ def target_for(e: dict, targets: list[dict], phase: str) -> dict | None:
     code = classification.discipline_of_ifc_class(e.get("ifc_class") or "")
     disc = (classification.discipline_name(code) if code else "").strip().lower()
     best: dict | None = None
-    best_rank = len(_TARGET_SPECIFICITY)
+    # One past the stage-wide rank, so a stage-wide rule can win against "nothing matched yet".
+    best_rank = _STAGE_WIDE_RANK + 1
     for t in targets:
         if (t.get("phase") or "").strip() != phase:
+            continue
+        # LOD-TARGET-INERT. A row with a phase, a band and NOTHING to narrow it by is a stage-wide
+        # rule — exactly the shape of `_DEFAULT_MATRIX`, whose own `note` promises that "with no
+        # targets registered the RIBA/AIA stage defaults apply". They did not: this function
+        # required one of the three scoping keys to be non-empty and matched, so every default row
+        # returned None for every element and `compliance` came back `{}` while `using_default` said
+        # True. Measured on a 3-element index: `{}`, with the note claiming otherwise.
+        #
+        # **`element_category` DISQUALIFIES a row from being stage-wide, and that is the load-bearing
+        # half.** It is free text with nothing on an element to match it against (the register's own
+        # test says so), and it is the register's only REQUIRED field — so the obvious authoring,
+        # `{element_category: "Exterior Walls", phase: "CD", target_lod: "LOD 350"}`, matches nothing
+        # today. Widening it to stage-wide would be worse than ignoring it: the author scoped that
+        # rule to exterior walls, and applying LOD 350 to every duct at CD manufactures findings
+        # nobody asked for. *A rule the engine cannot resolve is reported, not widened* — `assess`
+        # publishes it in `targets_matching_nothing`.
+        if not any(str(t.get(k) or "").strip() for k in _TARGET_SPECIFICITY):
+            if str(t.get("element_category") or "").strip():
+                continue
+            if _STAGE_WIDE_RANK < best_rank:
+                best, best_rank = t, _STAGE_WIDE_RANK
             continue
         for rank, key in enumerate(_TARGET_SPECIFICITY):
             want = str(t.get(key) or "").strip().lower()
@@ -374,13 +398,27 @@ def assess(db: Session, pid: str, idx: dict[str, dict] | None) -> dict[str, Any]
     # LOD-ELEMENT-TABLE: achieved vs TARGET, per authored stage. Computed here rather than in a
     # second pass so the element loop stays single — and reported per stage because a project asks
     # "are we there for CD?", not "are we there in general".
-    phases = sorted({(t.get("phase") or "").strip() for t in m["targets"] if (t.get("phase") or "").strip()})
+    #
+    # LOD-TARGET-INERT: the stages come from the matrix ACTUALLY IN FORCE. They used to come from
+    # `m["targets"]` alone, so a project with no authored targets got `compliance: {}` while
+    # `using_default` said True and `default` carried the five RIBA/AIA stages the note promises
+    # apply. `test_lod.py`'s own comment beside its compliance assertion said "the stage defaults DO
+    # carry phases, so there is no reason to accept an empty one here" — a claim about this function
+    # that this function did not honour, sitting beside an assertion whose fixture authors a real
+    # target and therefore never exercised it.
+    in_force = m["targets"] or m["default"]
+    phases = sorted({(t.get("phase") or "").strip() for t in in_force if (t.get("phase") or "").strip()})
     compliance = {}
+    #: Authored rows that matched no element at any stage — see `target_for`'s note. Identity is
+    #: safe here because `in_force` rows are the same dicts `target_for` returns within this call.
+    matched_rows: set[int] = set()
     for ph in phases:
         met = short = untargeted = 0
         worst: dict[str, int] = {}
         for e in idx.values():
-            t = target_for(e, m["targets"], ph)
+            t = target_for(e, in_force, ph)
+            if t is not None:
+                matched_rows.add(id(t))
             if not t:
                 untargeted += 1
                 continue
@@ -392,8 +430,15 @@ def assess(db: Session, pid: str, idx: dict[str, dict] | None) -> dict[str, Any]
                 met += 1
             else:
                 short += 1
+                # LOD-TARGET-INERT: a STAGE-WIDE row carries none of the four label fields, so the
+                # old fallback made every default-matrix shortfall read as `(unlabelled rule)` —
+                # which describes the row's data rather than what it is. Named for what it IS, so
+                # `short_by_rule` stays the actionable column it was built to be.
                 label = (t.get("element_category") or t.get("ifc_class")
-                         or t.get("uniformat") or t.get("discipline") or "(unlabelled rule)")
+                         or t.get("uniformat") or t.get("discipline")
+                         or (f"stage default ({t.get('target_lod') or 'no band'})"
+                             if not any(str(t.get(k) or "").strip() for k in _TARGET_SPECIFICITY)
+                             else "(unlabelled rule)"))
                 worst[label] = worst.get(label, 0) + 1
         scored = met + short
         compliance[ph] = {
@@ -424,6 +469,27 @@ def assess(db: Session, pid: str, idx: dict[str, dict] | None) -> dict[str, Any]
         "information_score_max": len(LOIN_FACETS),
         "by_discipline": by_discipline, "targets": m["targets"], "default": m["default"],
         "using_default": m["using_default"],
+        # LOD-TARGET-INERT. Authored rows that matched NO element at any stage, so a reader can tell
+        # "nobody wrote a rule for this" from "the rule you wrote cannot be resolved". Measured
+        # before this: `{element_category: "Exterior Walls", phase: "Construction Docs",
+        # target_lod: "LOD 350"}` — the register's required field plus a stage plus a band — was
+        # accepted, listed in `targets`, flipped `using_default` to False, and produced
+        # `no_target: 3` of 3 with `short_by_rule: {}`. The screen's own header explains `No target`
+        # as "the elements no rule addresses", which reads as *you have not written rules yet* to
+        # the one person who just did.
+        #
+        # Reported only for AUTHORED rows: a default row that matched nothing means the model is
+        # empty, which `elements` already says. `why` names the three keys matching actually uses,
+        # because the register requires the one it does not.
+        "targets_matching_nothing": [
+            {"element_category": t.get("element_category", ""), "phase": t.get("phase", ""),
+             "target_lod": t.get("target_lod", ""),
+             "why": ("names no ifc_class, uniformat or discipline — matching uses those three, and "
+                     "`element_category` is a free-text label"
+                     if not any(str(t.get(k) or "").strip() for k in _TARGET_SPECIFICITY)
+                     else "its ifc_class / uniformat / discipline matched no element in this model")}
+            for t in m["targets"] if id(t) not in matched_rows
+        ],
         "note": "Achieved LOD is the MINIMUM across the five ISO 7817-1 aspects (detail, "
                 "dimensionality, location, appearance, parametric behavior) — a band requires ALL "
                 "of them, so this is never an average and never a facet count. "

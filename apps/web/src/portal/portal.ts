@@ -9,6 +9,8 @@ import type { PanelContext } from "./panelContext";
 import { type RegisterFilter, RegisterUI } from "./register/register";
 import { densityToggleRow } from "./densityToggle";
 import { readDensity, readFavs, readRecents, readRoomOpen, setRoomOpen, toggleFav } from "./prefs";
+import { expiryReading } from "./expiryNote";
+import { ppcLine } from "./ppcNote";
 import { safetyClassLine, safetyHeadline } from "./safetyCard";
 import { renderAnalyseHome } from "../shell/analyseHome";
 import { ALL_DESTS, type Dest, destButtonActive, destsForRail, destTitle, stagesFor } from "../shell/destinations";
@@ -1008,7 +1010,7 @@ export class PortalUI {
       cols.append(main, side); root.appendChild(cols);
 
       // MAIN — Ball in your court (the most actionable list)
-      main.appendChild(Object.assign(el("div", "section-title"), { textContent: "Ball in your court" }));
+      main.appendChild(Object.assign(el("div", "section-title"), { textContent: d.action_item_count > 20 ? `Ball in your court — showing 20 of ${d.action_item_count}` : "Ball in your court" }));
       if (d.action_items.length) {
         for (const a of d.action_items.slice(0, 20)) {
           const row = el("button", "portal-mod") as HTMLButtonElement;
@@ -1099,22 +1101,18 @@ export class PortalUI {
       }).catch(() => {});
       const lean = el("div", "meta"); lean.style.margin = "2px 0"; health.appendChild(lean);
       void this.host.api.leanPpc(pid).then((l) => {
-        if (!l.commitments) return;
-        const top = l.top_variance_reasons[0];
-        const color = l.rating === "good" ? "var(--status-good)" : l.rating === "fair" ? "var(--status-warn)" : "var(--status-crit)";
-        lean.innerHTML = `Lean PPC: <b style="color:${color}">${(l.ppc * 100).toFixed(0)}%</b> `
-          + `(${l.completed}/${l.commitments} commitments${l.missed ? ` · ${l.missed} missed` : ""})`
-          + (top ? ` · top reason: ${top.reason}` : "");
+        const r = ppcLine(l);       // PPC-UNASSESSED: null ppc is "not yet measurable", not a red 0%
+        if (!r) return;             // nothing promised — no line, which is the engine's own rule
+        lean.innerHTML = `Lean PPC: <b style="color:${r.css}">${esc(r.value)}</b> ${esc(r.detail)}`;
       }).catch(() => {});
       // compliance: COI / permit expiries — don't let insurance or permits lapse silently
       const comp = el("div", "meta"); comp.style.margin = "2px 0"; health.appendChild(comp);
       void this.host.api.complianceExpiring(pid, 30).then((cc) => {
-        if (!cc.count) { comp.textContent = "Compliance: no COI/permit expiries ✓"; return; }
-        const color = cc.expired.length ? "var(--status-crit)" : "var(--status-warn)";
-        comp.innerHTML = `Compliance: <b style="color:${color}">${cc.expired.length} expired · ${cc.expiring.length} expiring</b> (COI/permit) `;
-        const a = document.createElement("a"); a.href = "#"; a.className = "ref-link"; a.textContent = "review";
+        const read = expiryReading("Compliance", cc);   // EXPIRY-UNDATED: the tick is EARNED — a zero count over records with no readable date is not a pass
+        if (!cc.count) { comp.innerHTML = read.earned ? esc(read.text) : `<b style="color:${read.css}">${esc(read.text)}</b>`; return; }
+        comp.innerHTML = `<b style="color:${read.css}">${esc(read.text)}</b> (COI/permit) `;
+        const a = document.createElement("a"); a.href = "#"; a.className = "ref-link"; a.textContent = "review"; comp.appendChild(a);
         a.onclick = (e) => { e.preventDefault(); const m = this.mods.find((x) => x.key === (cc.expired[0] ?? cc.expiring[0])?.module); if (m) void this.openModule(m); };
-        comp.appendChild(a);
       }).catch(() => {});
 
       // SIDE — charts (status mix + busiest sections)

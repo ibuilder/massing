@@ -12,6 +12,7 @@ for _f in ("./test_cde.db",):
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from aec_api import cde  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
 
@@ -58,6 +59,51 @@ with TestClient(app) as c:
     assert any(o["type"] == "BEP" for o in cas["orphans"]), cas["orphans"]   # non-OIR, no upstream link
     assert any(m["type"] == "PIR" and m["parent_type"] == "EIR" for m in cas["misdirected"]), cas["misdirected"]
     assert oir["id"] in cas["children"] and eir["id"] in cas["children"][oir["id"]], cas["children"]
+
+    # --- CASCADE-DARK: a ROOT is not a coverage failure ------------------------------------------
+    # `coverage_pct` was `linked / total`, and this engine's own comment calls OIRs "legitimately
+    # unlinked" two lines before putting them in that denominator — so the number had a permanent
+    # ceiling below 100 on every well-formed cascade, and a project holding one OIR and nothing else
+    # read 0.0% beside ZERO orphans. `expected` is the population that must trace up.
+    assert cas["expected"] == 3, cas["expected"]            # 4 records, 1 of them the OIR root
+    assert cas["linked"] == 2 and cas["coverage_pct"] == 66.7, cas["coverage_pct"]
+    assert cas["linked"] <= cas["expected"], "linked must never exceed its own denominator"
+
+    # --- "never linked" is not "linked to something that is GONE" --------------------------------
+    # `derives_from` is a reference field and the parent can be deleted under it. Both used to land
+    # in one undifferentiated `orphans` list, so a requirement somebody HAD linked rendered
+    # character-for-character like one nobody had touched. Two repairs, so two lists.
+    ghost = _create(c, pid, "info_requirement", {"title": "Interim PIR",
+        "req_type": "PIR - Project Information Requirements", "derives_from": oir["id"]})
+    child = _create(c, pid, "info_requirement", {"title": "Commissioning handover EIR",
+        "req_type": "EIR - Exchange Information Requirements", "derives_from": ghost["id"]})
+    assert c.delete(f"/projects/{pid}/modules/info_requirement/{ghost['id']}").status_code == 200
+    cas2 = c.get(f"/projects/{pid}/info-requirements/cascade").json()
+    assert cas2["dangling_count"] == 1, cas2["dangling"]
+    dang = cas2["dangling"][0]
+    assert dang["id"] == child["id"] and dang["missing_parent"] == ghost["id"], dang
+    assert all(o["id"] != child["id"] for o in cas2["orphans"]), \
+        "a broken reference is not an unlinked requirement"
+    assert cas2["orphan_count"] == len(cas2["orphans"]) >= 1, cas2["orphan_count"]
+    # The distinguishing fact was ALREADY in the response, in a key no client declared: `nodes`
+    # carries the stored `derives_from` whether or not it resolves.
+    by_id = {n["id"]: n for n in cas2["nodes"]}
+    assert by_id[child["id"]]["derives_from"] == ghost["id"], by_id[child["id"]]
+    assert ghost["id"] not in by_id, "the parent really is gone"
+    # The tree the card is named after: every node and every edge, bounded and the bound declared.
+    assert cas2["nodes_truncated"] is False and cas2["max_nodes"] == cde.MAX_CASCADE_NODES == 2000
+    assert len(cas2["nodes"]) == cas2["total"], (len(cas2["nodes"]), cas2["total"])
+    assert all(kids == sorted(kids) for kids in cas2["children"].values()), "edges sort, so the tree is deterministic"
+
+    # A register holding nothing BELOW the top tier has no coverage question, and `None` says so
+    # where `0.0` reads as a failure.
+    pid2 = c.post("/projects", json={"name": "cascade-root-only"}).json()["id"]
+    _create(c, pid2, "info_requirement", {"title": "Only OIR",
+        "req_type": "OIR - Organizational Information Requirements"})
+    solo = c.get(f"/projects/{pid2}/info-requirements/cascade").json()
+    assert solo["total"] == 1 and solo["expected"] == 0, solo
+    assert solo["coverage_pct"] is None, "0.0% over nothing expected is a failure claim about a root"
+    assert solo["orphans"] == [] and solo["dangling"] == [] and len(solo["roots"]) == 1, solo
 
     # --- delivery plan (MIDP/TIDP): requirements against programme dates + LOIN coverage -----------
     today = date.today()
@@ -126,4 +172,11 @@ with TestClient(app) as c:
     assert ea["acceptable"] is False, ea
 
 print("CDE OK - EIR+BEP issued (AIR missing -> core incomplete); container WIP->Shared->Published "
-      "gated on suitability then revision; rollup 1 published / 1 wip, discipline 50% across the board")
+      "gated on suitability then revision; rollup 1 published / 1 wip, discipline 50% across the "
+      "board. CASCADE-DARK: coverage_pct is over `expected` (the requirements that must trace up) "
+      "and not `total`, so a root no longer counts against it - 66.7% here, None on a register "
+      "holding only an OIR where the shipped number said 0.0% beside zero orphans; a `derives_from` "
+      "pointing at a DELETED record is `dangling` with the broken id named rather than an `orphan`, "
+      "because re-pointing a reference and making a first link are different repairs; and `nodes` + "
+      "`children` are the tree the flow-down card is named after, bounded at 2,000 with the bound "
+      "declared")

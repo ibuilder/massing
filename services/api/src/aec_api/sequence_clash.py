@@ -21,6 +21,14 @@ from typing import Any
 
 MAX_ACTIVITIES = 20_000          # bound the pairwise sweep on a mega-schedule
 
+# `support_unscheduled` is one entry per directed pair the schedule could not reach, and its
+# population is the MODEL's relation graph (every licensed structural join plus every RelAggregates
+# parent-before-part), not the schedule. Element-level schedule binding is sparse on every real
+# project, so on a whole-building model that list is the large one and it had no bound at all. The
+# COUNT is taken before the slice and stays exact: a cap that rescales its own denominator is the
+# defect `apps/web/src/api/responseUndeclared.test.ts`'s TRUNC-COUNTED siblings exist to refuse.
+MAX_UNSCHEDULED_REPORTED = 200
+
 # How much simultaneous presence is a problem depends on the work, so the caller sets it; this is the
 # default. Trades genuinely do share space — the question is whether they can share THIS space.
 DEFAULT_MIN_OVERLAP_DAYS = 1
@@ -37,6 +45,17 @@ _NOT_UNSTATED = ("Install-before-support IS checked against directed pairs the I
                  "authoring order, not a load path, and inferring support from geometry would invent "
                  "one. The binding EXISTS (`element_guids`); a pair whose element has no dated "
                  "activity is counted in `support_unscheduled`, not silently treated as clean.")
+
+_CLEAN_SCOPE = ("`clean` is over the activities this schedule made readable (see `skipped`) and the "
+                "support pairs it could DATE (see `support_unscheduled`). An unreachable support "
+                "pair does not bar `clean` and an unreadable activity does, and the asymmetry is "
+                "deliberate: `skipped` is a row of the schedule the caller asked about, so a clean "
+                "verdict over it would be false, while an unscheduled pair is a relation in the "
+                "MODEL that the schedule simply does not reach — folding those in would make "
+                "`clean` permanently false on every project, which reports nothing. So the "
+                "coverage travels beside the verdict instead: `support_pairs` minus "
+                "`support_unscheduled_count` is how much of the support question was actually "
+                "asked, and a caller printing `clean` without it is claiming an answer to the rest.")
 
 
 def _as_date(v: Any) -> date | None:
@@ -241,17 +260,40 @@ def analyze(activities: list[dict], min_overlap_days: int = DEFAULT_MIN_OVERLAP_
         "support_pairs": len(pairs),
         "support_findings": support_findings,
         "support_finding_count": len(support_findings),
-        "support_unscheduled": support_unscheduled,
+        "support_unscheduled": support_unscheduled[:MAX_UNSCHEDULED_REPORTED],
         "support_unscheduled_count": len(support_unscheduled),
+        "support_unscheduled_truncated": len(support_unscheduled) > MAX_UNSCHEDULED_REPORTED,
+        # How much of the support question was ASKED. Published rather than left as arithmetic over
+        # two other keys, because the consumer that has to qualify `clean` is the one place this
+        # number is load-bearing and `services/api/test_verdict_coverage.py` links a verdict to its
+        # reader by the key the reader names.
+        "support_evaluated": len(pairs) - len(support_unscheduled),
         # The claim is bounded by what was readable — see `skipped`. `usable` is required, so an empty
         # or entirely unreadable schedule reports NOT clean rather than vacuously perfect; same rule
         # the clash matrix follows, where a matrix that tested nothing is not "coordinated".
+        #
+        # COVERAGE: support_unscheduled_count
+        #
+        # DECLARED because `test_verdict_coverage`'s vocabulary is anchored at the START of the field
+        # name (`^(untested|unmapped|…|skipped|not_run|…)\w*$`), so it matched `skipped`/`skipped_count`
+        # and never `support_unscheduled_count` — this verdict's coverage read as the schedule half
+        # alone. *A coverage field whose name is qualified by its subject is invisible to a vocabulary
+        # anchored at the front of the name*, and widening the vocabulary is the move that file's own
+        # header argues against, which is exactly why the declaration exists.
+        #
+        # **And the declaration does NOT make that gate catch SEQ-UNSCHED — measured, not assumed.**
+        # Its consumer rule asks whether the reader NAMES a coverage key anywhere in the file, and
+        # the shipped panel named this very field, three lines under the verdict, in a body note the
+        # headline and the tone never consulted. So the declaration completes the gate's picture of
+        # what this verdict's coverage IS; it does not close the hole, and recording it as the fix
+        # would retire the item while the class stayed live.
         "clean": bool(usable) and not findings and not skipped and not support_findings,
         "note": ("Same-trade overlap is not a finding — one trade sequencing its own crews through a "
                  "zone is planning. Activities without a location or dates are skipped and counted, "
                  "never silently dropped: a clean result over a half-unreadable schedule would "
                  "overstate what was checked."),
         "not_covered": _NOT_UNSTATED if support_checked else _NOT_FED,
+        "clean_scope": _CLEAN_SCOPE,
         # Reported so the gap is measurable rather than asserted: how many activities could be checked
         # today if the support relationship existed. Zero here means the binding is unpopulated on this
         # project, which is a different problem from the engine being unable to use it.

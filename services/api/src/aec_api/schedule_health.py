@@ -71,8 +71,18 @@ def health(
     except ScheduleCycleError as exc:
         # Not a failing grade. A cyclic network has no computed dates at all, so every check that
         # reads one would be scoring absent data.
+        #
+        # SCHEDHEALTH-PARITY: the counts and the data date are passed through, and they were not
+        # before. The engine HAS `len(tasks)`, `len(links)` and `dd` in hand at this point — a
+        # planner told "the logic contains a loop" and nothing else cannot see that the loop is in a
+        # 340-activity, 512-relationship network as of a stated date, which is the context that
+        # decides whether to fix it or rebuild it. *Refusing to grade is not a reason to withhold
+        # what was measured before the refusal.*
         return _unavailable(
             "the logic contains a loop, so no dates could be computed and no check can be run",
+            activity_count=len(tasks),
+            relationship_count=len(links),
+            data_date=dd.isoformat(),
             cycle=list(exc.cycle),
             issues=[i.to_dict() for i in issues],
         )
@@ -95,13 +105,24 @@ def health(
     }
 
 
-def _unavailable(reason: str, **extra: Any) -> dict[str, Any]:
+def _unavailable(reason: str, *, activity_count: int = 0, relationship_count: int = 0,
+                 data_date: str | None = None, **extra: Any) -> dict[str, Any]:
     """The shape a caller gets when there is nothing to grade.
 
     Every key the assessed shape carries is present and empty, so a caller reading `checks` or
     `failed` does not need to special-case this — but `grade` and `score` are **`None`, not `"F"` and
     `0`**. A zero that means "we did not measure" is indistinguishable from a zero that means "this
     is terrible", and only one of those should make somebody's afternoon worse.
+
+    **SCHEDHEALTH-PARITY, 2026-10-14: the paragraph above was FALSE for three keys.**
+    `activity_count`, `relationship_count` and `data_date` are in the assessed shape and were in
+    neither refusal, so a caller written against the sentence — *"does not need to special-case
+    this"* — would read `undefined` for all three on the two branches it was written to cover. They
+    are explicit parameters now rather than left to `**extra`, because a keyword a caller may forget
+    is exactly how the gap arose: the cyclic branch had the real values in hand and passed neither.
+    `services/api/test_schedule_health.py` asserts the three shapes' key sets are EQUAL, not that
+    one contains the other — the ROWKEY-SUPERSET lesson, which is in this tree because a test named
+    for an equality asserted a containment and the key added last was the one missing.
     """
     return {
         "available": False,
@@ -114,5 +135,10 @@ def _unavailable(reason: str, **extra: Any) -> dict[str, Any]:
         "failed": 0,
         "checks": [],
         "issues": [],
+        # 0 / 0 / None is honest for the no-activities branch and is the TRUE measurement there;
+        # the cyclic branch overrides all three with what it counted.
+        "activity_count": activity_count,
+        "relationship_count": relationship_count,
+        "data_date": data_date,
         **extra,
     }

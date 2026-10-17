@@ -7,9 +7,29 @@ import { provenanceLine } from "./provenanceLine";
 import { drawPackageLines } from "./drawPackage";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
+import { basisNote, disciplineRows, SYNC_CSS, syncFailure, vintageNote } from "./modelSyncCard";
+import { areaRows, occupancyLine, occupancyText } from "./rentRollBasis";
+import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from "./residualLandCard";
+import { renderAdmissibilityCard } from "./admissibilityCard";
+import { renderAuthorityCard } from "./authorityCard";
+import { renderCompTierCard } from "./compTierCard";
+import { renderCovenantCard } from "./covenantCard";
+import { renderDecisionGateCard } from "./decisionGateCard";
+import { renderHoldSellCard } from "./holdSellCard";
+import { renderRentRollQuality } from "./rentRollQuality";
+import {
+  governanceReading, IMMUTABLE_STATES, renderGovernanceCard, type ReviewAction, type ReviewStatus,
+} from "./scenarioGovernance";
+import { renderSupplyCard } from "./supplyCard";
+import { renderT12Card } from "./t12Card";
 import { renderTestFitTab } from "./testfitTab";
 import { downloadPostedPdf, camStatementPath } from "../api/downloadPdf";
 import { toast } from "../ui/feedback";
+import { degenerate, drawScope, histogram, probReading, undefinedNote } from "./mcRead";
+import { type Tone, TONE_CSS, basisLine, investorRows, returnsLine, splitNote, uncalledNote } from "./waterfallRead";
+import {
+  TONE_CSS as CAP_TONE, commitColumnTotal, commitHeadline, ownershipRows, workflowNote,
+} from "./capTableRead";
 
 /**
  * Real-estate development finance (Proforma) view — edit the key deal drivers, solve live,
@@ -68,6 +88,7 @@ export class ProformaUI {
   private overviewEl?: HTMLElement;       // the Overview tab's container (re-rendered on each solve)
   private memoryEl?: HTMLElement;         // R35 deal-memory strip — repainted on every hard-cost edit
   private basisEl?: HTMLElement;          // PF-INCOME-BASIS — income provenance, repainted with the rent
+  private opsEpoch = 0;                   // OPS-REENTRY — which Operations render owns the host
 
   constructor(private root: HTMLElement, private api: ApiClient,
               private setStatus: (m: string) => void,
@@ -148,14 +169,49 @@ export class ProformaUI {
     const self = this as unknown as { root: HTMLElement };
     const into = (el: HTMLElement, fn: () => void) => { const r = self.root; self.root = el; try { fn(); } finally { self.root = r; } };
     this.overviewEl = sections.over; this.renderOverview();
-    if (sections.feas) into(sections.feas, () => { this.renderMassing(); this.renderTestFit(); this.renderProperty(); });
-    if (sections.cap) into(sections.cap, () => { this.renderBudget(); this.renderSourcesUses(); this.renderSpecialty(); });
+    if (sections.feas) into(sections.feas, () => {
+      this.renderMassing(); this.renderTestFit(); this.renderResidualLand(); this.renderProperty();
+      // Beside the residual: what you can pay for the dirt is an argument about absorption, and
+      // absorption is an argument about who else is delivering into the same window.
+      renderSupplyCard(this.root, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
+    });
+    if (sections.cap) into(sections.cap, () => {
+      this.renderBudget(); this.renderSourcesUses(); this.renderSpecialty();
+      // Beside the facility it is about: renderSourcesUses prints the loan amount and its fees.
+      renderCovenantCard(this.root, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
+    });
     const uwSec = sections.uw;
     if (uwSec) into(uwSec, () => {
       uwSec.appendChild(form);
       const out = document.createElement("div"); out.id = "pf-out"; uwSec.appendChild(out);
       const sens = document.createElement("div"); sens.id = "pf-sens"; uwSec.appendChild(sens);
       const mc = document.createElement("div"); mc.id = "pf-mc"; uwSec.appendChild(mc);
+      // COMPTIER-DARK, BEFORE the gates: the comps band is an INPUT to a value conclusion, and the
+      // two cards below it are gates over conclusions. Reading order is inputs, then gates.
+      renderCompTierCard(uwSec, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
+      // The authority table is the gate on whether any figure on this tab should be trusted, so it
+      // sits with the underwriting rather than beside one of the things it governs.
+      renderAuthorityCard(uwSec, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
+      // PROVENANCE-DARK: immediately before the decision gate, because the gate's FIRST check is
+      // `sourced` — citation coverage against a floor — and this is the three-leg provenance verdict
+      // that answers the same family of question at the deal level. Reading them in this order is
+      // the order an IC reads them: can the record be cited, then is the package ready.
+      renderAdmissibilityCard(uwSec, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
+      // Last on the tab, because it is the gate over everything above it: the readiness check reads
+      // the evidence the other cards produce rather than the conclusions they draw.
+      renderDecisionGateCard(uwSec, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
       this.renderDraws();
     });
     if (sections.deliver) into(sections.deliver, () => { this.renderDeliverables(); this.renderModelLink(); });
@@ -509,19 +565,54 @@ export class ProformaUI {
   private async renderOperations(host: HTMLElement) {
     const pid = this.projectId();
     if (!pid) { host.innerHTML = `<div class="meta">Open or save a project to track operations.</div>`; return; }
+    // THE OPERATIONS TAB RE-RENDERS ON EVERY CLICK, INTO THE SAME HOST. `showTab("ops")` calls this
+    // again each time the tab is selected, so clicking away and back leaves two renders in flight
+    // against one element and the SLOWER one wins the DOM — the panel can end up painted from the
+    // older request. An epoch makes the stale render stand down at every point it would otherwise
+    // write: the panel, the status bar, the error line, the lease card.
+    //
+    // This is also the THIRD thing that invalidates a pending quality paint, and the only one the
+    // per-closure generation token cannot see: a new render builds a NEW closure with its own
+    // `qualityGen`, so the old closure's guard still answers yes about its own last generation.
+    // *A guard scoped to one invocation cannot see the invocation that replaced it.*
+    const epoch = ++this.opsEpoch;
+    const live = () => epoch === this.opsEpoch;
     host.innerHTML = `<div class="meta">Computing rent roll…</div>`;
     try {
       const rr = await this.api.rentRoll(pid);
+      if (!live()) return;
       host.innerHTML = "";
-      if (rr.lease_count === 0) { host.innerHTML = `<div class="meta">No active leases yet — add them under Construction ▸ Operations ▸ Leases.</div>`; return; }
+      // AN EMPTY ROLL NO LONGER TAKES THE T-12 CARD WITH IT. This was an early `return`, so a
+      // project with no leases could not reach the seller's-T-12 card at all — and that card needs
+      // no lease: it normalises a PASTED statement. In an acquisition the T-12 arrives before any
+      // lease exists in this system, so the card was unreachable in precisely the case it is for.
+      // *An early return written for one card silenced every card below it.*
+      const empty = rr.lease_count === 0;
+      if (empty) {
+        host.insertAdjacentHTML("beforeend",
+          `<div class="meta">No active leases yet — add them under `
+          + `Construction ▸ Operations ▸ Leases. The seller's T-12 below does not need them.</div>`);
+      }
+      // RENTROLL-BASIS. `${rr.occupancy_pct}%` printed 100% on any project whose rentable area is
+      // unset, because the engine's denominator falls back to the leased area. The three areas are
+      // now rows of their own, so the denominator is on screen instead of implied, and the
+      // percentage is withheld rather than invented when there was never a denominator.
       const rc = document.createElement("div"); rc.className = "fin-card";
+      const occBasis = occupancyLine(rr);
       rc.innerHTML = `<div class="section-title">Rent roll (operating)</div>`
         + `<table class="fin-table">`
-        + `<tr><td>Occupancy</td><td class="num">${rr.occupancy_pct}%</td></tr>`
+        // Escaped although every one of these is a number or a fixed English label today. The
+        // innerHTML ratchet's own lesson is that "a false positive is only cheap when the
+        // suggested fix is safe" — here it IS safe (none of these holds assembled markup), so
+        // escaping beats a BASELINE entry, which would freeze a judgement about what
+        // `rentRollBasis` happens to return this week.
+        + `<tr><td>Occupancy</td><td class="num">${escapeHtml(occupancyText(rr))}</td></tr>`
+        + areaRows(rr).map((a) => `<tr><td>${escapeHtml(a.label)}</td><td class="num">${escapeHtml(a.value)}</td></tr>`).join("")
         + `<tr><td>Leases</td><td class="num">${rr.lease_count}</td></tr>`
         + `<tr><td>Base rent / yr</td><td class="num">${money(rr.base_rent_annual)}</td></tr>`
         + `<tr><td>In-place income</td><td class="num">${money(rr.in_place_gross_income)}</td></tr>`
-        + `<tr class="fin-total"><td>WALT</td><td class="num">${rr.walt_years} yrs</td></tr></table>`;
+        + `<tr class="fin-total"><td>WALT</td><td class="num">${rr.walt_years} yrs</td></tr></table>`
+        + (occBasis ? `<div class="meta" style="color:var(--status-warn);margin-top:6px">${escapeHtml(occBasis)}</div>` : "");
       const rb = document.createElement("div"); rb.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px";
       const rl = document.createElement("a"); rl.className = "file-btn"; rl.textContent = "⬇ Rent roll (PDF)"; rl.href = this.api.reportUrl(pid, "rent_roll", "pdf"); rl.target = "_blank"; rl.rel = "noopener";
       const rx = document.createElement("a"); rx.className = "file-btn"; rx.textContent = "⬇ Excel"; rx.href = this.api.reportUrl(pid, "rent_roll", "xlsx"); rx.target = "_blank"; rx.rel = "noopener";
@@ -531,15 +622,73 @@ export class ProformaUI {
         try { const v = await this.api.appraisalFromRentRoll(pid); this.setStatus(`Income approach (in-place): ${money(v.income.value)}`); }
         catch (e) { this.setStatus("Couldn't value from rent roll: " + (e as Error).message); }
       };
-      rb.append(rl, rx, rrv); rc.appendChild(rb); host.appendChild(rc);
-      await this.renderLeaseManagement(host, pid);
-    } catch (e) { host.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+      rb.append(rl, rx, rrv); rc.appendChild(rb);
+      if (!empty) host.appendChild(rc);
+      // The card above is FACE rent. These qualify it: what the roll is worth after concessions,
+      // which diligence checks could actually run against it, and the seller's own T-12 tied out.
+      // All three engines shipped with R20 and had no caller — see rentRollQuality.ts / t12Card.ts.
+      const quality = document.createElement("div"); host.appendChild(quality);
+
+      // ONE PAINT PATH, GENERATION-GUARDED, for every reason the quality cards are redrawn.
+      //
+      // `renderRentRollQuality` appends its cards only after three requests settle, so the first
+      // version cleared the host synchronously and fired it again on a second click: both runs
+      // appended into the same cleared node, giving two NER cards and two scrub cards from
+      // different runs under one heading. Staging into a detached node and committing only the
+      // newest generation fixes that and removes the empty-panel flash while the requests fly.
+      //
+      // **And a generation that advances only on a new SCRUB is not enough**, which review caught:
+      // a scrub still in flight from one T-12 would land under a NEWLY normalised one, captioned
+      // *"run against the normalised T-12 above"* — a figure attributed to a statement it was never
+      // computed from, which is the one thing this pair of cards exists to prevent. Every
+      // normalisation advances it too, and repaints the baseline without income, because a scrub
+      // run against the previous statement is not a scrub of the one now on screen.
+      let qualityGen = 0;
+      const paintQuality = (income?: Record<string, number>) => {
+        const gen = ++qualityGen;
+        const fresh = () => live() && gen === qualityGen;
+        const staged = document.createElement("div");
+        // The engine's own status write sits OUTSIDE the `.then()` below — `renderRentRollQuality`
+        // calls `setStatus` when both engines reject — so the guard has to be handed to it rather
+        // than applied after it. A superseded run whose two calls both fail would otherwise print
+        // "rent-roll quality unavailable" over cards a newer run had just rendered successfully.
+        // *Guarding the DOM commit is not guarding the report*, and passing a guarded `setStatus`
+        // covers every status write the engine may ever add rather than the one it makes today.
+        const setStatus = (m: string) => { if (fresh()) this.setStatus(m); };
+        return renderRentRollQuality(staged, pid, { api: this.api, setStatus }, income)
+          .then(() => { if (fresh()) quality.replaceChildren(...staged.childNodes); });
+      };
+
+      if (!empty) await paintQuality();
+      if (!live()) return;
+      renderT12Card(host, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+        // Re-render the two quality cards against the normalised T-12: the scrub's coverage is the
+        // thing that moves, and it has to be visibly the same cards rather than a second opinion
+        // appearing further down the page.
+        scrubWithIncome: (income) => { void paintQuality(income); },
+        onNormaliseStart: () => { if (!empty) void paintQuality(); },
+      });
+      // AND THIS ONE IS GENUINELY LEASE-DEPENDENT — measured, because the T-12 card above was not
+      // and the same gate was wrong for it. `leasemgmt.lease_management` reads exactly one register,
+      // `lease`, and feeds all three of its sections from that list: the renewal pipeline, the
+      // escalation schedule and the CAM reconciliation. At zero leases every figure it can return
+      // is structurally zero, so the gate is right here. *A gate that was wrong for one card is not
+      // thereby wrong for its neighbour; both are questions about where the inputs come from.*
+      if (!empty) await this.renderLeaseManagement(host, pid, live);
+    } catch (e) {
+      // A stale render's failure must not wipe a live panel: the error line is a write like any
+      // other. `rentRoll` rejecting for the render the user has already navigated away from would
+      // otherwise replace the one they are looking at with that message.
+      if (live()) host.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`;
+    }
   }
 
   /** Lease-management card (under Operations): renewal pipeline, escalation steps, CAM recovery. */
-  private async renderLeaseManagement(host: HTMLElement, pid: string) {
+  private async renderLeaseManagement(host: HTMLElement, pid: string, live: () => boolean) {
     try {
       const lm = await this.api.leaseManagement(pid);
+      if (!live()) return;
       const card = document.createElement("div"); card.className = "fin-card"; card.style.marginTop = "10px";
       const ex = lm.renewals.expiring;
       const esc = lm.escalations;
@@ -709,6 +858,23 @@ export class ProformaUI {
         note.textContent = rec.note; cout.appendChild(note);
       }
     } catch (e) { cout.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+
+    // --- hold versus sell -----------------------------------------------------------------------
+    // HOLDSELL-UNMEASURED. This tab is hold-phase stewardship, and the disposition question belongs
+    // at its end rather than with the underwriting: by the time it is asked, the reserve study and
+    // the capital plan above are the capex a hold has to fund. `holdSell` was callerless.
+    renderHoldSellCard(host, {
+      api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      // Prefilled from the LIVE deal, so an asset manager is not retyping the underwriting — the
+      // exit cap and the selling cost are assumptions already on the form, and the NOI is what the
+      // solve produced. A missing value is left blank rather than defaulted to zero: a zero NOI is
+      // the one input the engine refuses on, and inventing it would turn a blank form into a refusal.
+      prefill: () => ({
+        noi: this.lastResult?.operations?.stabilized_noi_annual ?? null,
+        cap: this.a.exit.exit_cap ?? null,
+        sellingCostPct: this.a.exit.selling_cost_pct ?? null,
+      }),
+    });
   }
 
   /** Investors tab: cap table, capital calls / distributions, per-investor statement. */
@@ -734,15 +900,27 @@ export class ProformaUI {
       }
       if (ct.investor_count === 0) { host.insertAdjacentHTML("beforeend", `<div class="meta">No investors yet — add them under Construction ▸ Capital ▸ Investors.</div>`); return; }
       const cc = document.createElement("div"); cc.className = "fin-card";
-      const rows = ct.rows.map((r: any) => `<tr><td>${escapeHtml(String(r.investor ?? ""))}</td>`
-        + `<td class="num">${money(r.commitment)}</td><td class="num">${r.ownership_pct}%</td>`
+      // CAPTABLE-PIPELINE. The rows were `Record<string, unknown>` and cast to `any` here, so the
+      // per-row `counts_toward_ownership` and `status` the engine deliberately carries were never
+      // read — and the Commit column summed to $16,000,000 under a Total row of $6,000,000, the
+      // $10,000,000 difference being the undeclared `pipeline_commitment`. Measured on a live
+      // server. `apps/web/src/proforma/capTableRead.ts` holds the readings.
+      const head = commitHeadline(ct, money);
+      const wfNote = workflowNote(ct);
+      const colTotal = commitColumnTotal(ct, money);
+      const rows = ownershipRows(ct).map((r) => `<tr><td>${escapeHtml(r.investor)}</td>`
+        + `<td style="color:${CAP_TONE[r.tone]}">${escapeHtml(r.state)}</td>`
+        + `<td class="num">${money(r.commitment)}</td><td class="num">${escapeHtml(r.pct)}</td>`
         + `<td class="num">${money(r.unreturned)}</td>`
-        + `<td><a class="file-btn" style="padding:1px 6px;font-size:11px" target="_blank" rel="noopener" href="${this.api.investorStatementUrl(pid, String(r.id))}">⬇</a>`
-        + ` <button class="file-btn" style="padding:1px 6px;font-size:11px" data-share="${r.id}" title="Mint a no-login link to this investor's statement">🔗</button></td></tr>`).join("");
+        + `<td><a class="file-btn" style="padding:1px 6px;font-size:11px" target="_blank" rel="noopener" href="${this.api.investorStatementUrl(pid, r.id)}">⬇</a>`
+        + ` <button class="file-btn" style="padding:1px 6px;font-size:11px" data-share="${escapeHtml(r.id)}" title="Mint a no-login link to this investor's statement">🔗</button></td></tr>`).join("");
       cc.innerHTML = `<div class="section-title">Investor cap table</div>`
-        + `<table class="fin-table"><tr><th style="text-align:left">Investor</th><th>Commit</th><th>Own %</th><th>Unreturned</th><th>Stmt</th></tr>`
-        + rows + `<tr class="fin-total"><td>Total</td><td class="num">${money(ct.total_commitment)}</td><td></td>`
-        + `<td class="num">${money(ct.total_unreturned)}</td><td></td></tr></table>`;
+        + `<div class="meta" style="color:${CAP_TONE[head.tone]}">${escapeHtml(head.text)}</div>`
+        + (wfNote ? `<div class="meta">${escapeHtml(wfNote)}</div>` : "")
+        + `<table class="fin-table"><tr><th style="text-align:left">Investor</th><th style="text-align:left">State</th><th>Commit</th><th>Own %</th><th>Unreturned</th><th>Stmt</th></tr>`
+        + rows + `<tr class="fin-total"><td>Committed</td><td></td><td class="num">${money(ct.total_commitment)}</td><td></td>`
+        + `<td class="num">${money(ct.total_unreturned)}</td><td></td></tr></table>`
+        + (colTotal ? `<div class="meta">${escapeHtml(colTotal)}</div>` : "");
       const tools = document.createElement("div"); tools.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px";
       const amt = document.createElement("input"); amt.type = "number"; amt.placeholder = "Amount"; amt.setAttribute("aria-label", "Capital call / distribution amount"); amt.style.cssText = "width:120px;padding:4px";
       const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "6px";
@@ -834,10 +1012,23 @@ export class ProformaUI {
       try {
         const w = await this.api.waterfallScenario(pid, { exit_amount: n, contribution_date: c0, exit_date: exit });
         if (w.note) { out.innerHTML = `<span class="meta">${escapeHtml(w.note)}</span>`; return; }
-        const pct = (v: number | null) => v == null ? "—" : `${(v * 100).toFixed(1)}%`;
-        out.innerHTML = `<b>LP ${money(w.lp_distributions)}</b> (IRR ${pct(w.lp_irr)}, ${w.lp_equity_multiple}x) · `
-          + `<b>GP ${money(w.gp_distributions)}</b> (${w.gp_equity_multiple}x) · pref ${pct(w.pref_rate)} ${escapeHtml(w.style)}<br>`
-          + (w.per_investor as any[]).map((p) => `${escapeHtml(String(p.investor))}: ${money(p.distribution)}`).join(" · ");
+        // WF-BASIS. This printed the distributions, both IRRs, both multiples, the pref and the
+        // style — and not the capital base all five rest on. The engine falls back from contributed
+        // to COMMITTED capital silently, so a deal nobody has funded produced the identical screen
+        // to one fully funded: LP $18,302,056 at IRR 17.99% either way, measured.
+        const basis = basisLine(w);
+        const uncalled = uncalledNote(w);
+        const split = splitNote(w);
+        const line = (html: string, tone: Tone = "") =>
+          `<div class="meta" style="margin-top:3px${tone ? `;color:${TONE_CSS[tone]}` : ""}">${html}</div>`;
+        out.innerHTML = `<b>${escapeHtml(returnsLine(w))}</b>`
+          + (basis ? line(escapeHtml(basis.text), basis.tone) : "")
+          + (uncalled ? line(escapeHtml(uncalled), "crit") : "")
+          + (split ? line(escapeHtml(split), "warn") : "")
+          + investorRows(w).map((r) => line(
+              `${escapeHtml(r.investor)}: <b>${escapeHtml(r.distribution)}</b>`
+              + ` <span class="meta">(${escapeHtml(r.commitment)} committed, `
+              + `${escapeHtml(r.contributed)} in — ${escapeHtml(r.shares)})</span>`, r.tone)).join("");
       } catch (e) { out.textContent = (e as Error).message; }
       finally { go.disabled = false; }
     };
@@ -880,6 +1071,26 @@ export class ProformaUI {
   private renderTestFit() {
     // extracted to testfitTab.ts along the LCOM4 seam; delegation keeps the into() root-swap
     renderTestFitTab(this.root, { api: this.api, setStatus: this.setStatus });
+  }
+
+  /** Residual land value — the inverse of this whole tab: the most you can pay for the site and
+   *  still clear a target return. `ApiClient.residualLand()` and the engine behind it shipped with
+   *  FIN-CALC and had no caller until this card. */
+  private renderResidualLand() {
+    renderResidualLandCard(this.root, {
+      api: this.api,
+      assumptions: () => this.a,
+      // Both halves go through the land-basis helpers, which address the basis the way
+      // `proforma/residual.py` defines it rather than the way the driver form's "Land $" field is
+      // bound — see their docstrings in residualLandCard.ts.
+      currentLand: () => landBasis((this.a as { cost_lines?: LandLine[] }).cost_lines ?? []),
+      applyLandValue: (v) => {
+        if (!applyLandBasis((this.a as { cost_lines: LandLine[] }).cost_lines ?? [], v)) return;
+        this.render();
+        void this.solve();
+      },
+      setStatus: this.setStatus,
+    });
   }
 
   /** Property & tax assumptions: parcel/areas/purchase/taxes; taxes → OPEX, price → acquisition. */
@@ -1064,12 +1275,34 @@ export class ProformaUI {
             });
             const b = r.metrics.blended_irr, s = r.metrics.specialty_irr;
             if (!b || !s) { pnlOut.innerHTML = `<div class="meta">no risk-sim result</div>`; return; }
-            const prob = b.prob_at_least == null ? "—" : `${Math.round(b.prob_at_least * 100)}%`;
+            // MC-UNDEFINED. `r.iterations` is the draws REQUESTED — worse than the main card's
+            // `solved`, because the specialty engine publishes no solved count at all. The
+            // percentiles describe `b.n`, and the difference is the draws where the blended deal
+            // never returned capital: the worst scenarios, left out of the band that was captioned
+            // with their number.
+            const dead = degenerate(b, r.iterations, "blended IRR");
+            if (dead) {
+              pnlOut.innerHTML =
+                `<div class="meta" style="color:var(--status-crit)">${escapeHtml(dead)}</div>`
+                + `<div class="meta">risk discount 20–60%, greens $/lb σ=1 · seed ${r.seed}</div>`;
+              return;
+            }
+            const prob = probReading(b);
+            const bScope = drawScope(b, r.iterations), sScope = drawScope(s, r.iterations);
+            const bNote = undefinedNote(b, "blended IRR"), sNote = undefinedNote(s, "specialty IRR");
             pnlOut.innerHTML =
-              `<div>Blended IRR across ${r.iterations} draws (risk discount 20–60%, greens $/lb σ=1):</div>`
-              + `<div style="margin-top:2px">P5 <b>${pct(b.p5)}</b> · P50 <b>${pct(b.p50)}</b> · P95 <b>${pct(b.p95)}</b>`
-              + ` · P[≥15%] <b>${prob}</b></div>`
-              + `<div class="meta" style="margin-top:2px">specialty-only IRR: P5 ${pct(s.p5)} · P50 ${pct(s.p50)} · P95 ${pct(s.p95)}</div>`;
+              `<div>Blended IRR across ${escapeHtml(bScope.text)} (risk discount 20–60%, greens $/lb σ=1):</div>`
+              + `<div style="margin-top:2px">P5 <b>${pct(b.p5 ?? null)}</b> · P50 <b>${pct(b.p50 ?? null)}</b> · P95 <b>${pct(b.p95 ?? null)}</b>`
+              + ` · P[≥15%] <b>${escapeHtml(prob.headline)}</b></div>`
+              + (bNote ? `<div class="meta" style="margin-top:2px;color:var(--status-warn)">${escapeHtml(bNote)}</div>` : "")
+              + (prob.gap ? `<div class="meta">P[≥15%] is ${escapeHtml(prob.gap)}</div>` : "")
+              + `<div class="meta" style="margin-top:2px">specialty-only IRR over ${escapeHtml(sScope.text)}: `
+              + `P5 ${pct(s.p5 ?? null)} · P50 ${pct(s.p50 ?? null)} · P95 ${pct(s.p95 ?? null)}</div>`
+              + (sNote ? `<div class="meta" style="color:var(--status-warn)">${escapeHtml(sNote)}</div>` : "")
+              // The seed, so two readers comparing a P50 can tell whether they ran the same stream.
+              // It is a fixed default (42) today, which makes the run reproducible — and a reader
+              // who cannot see it has no way to know that.
+              + `<div class="meta">seed ${r.seed} · ${r.variables.length} variable(s) sampled</div>`;
           } catch (e) { pnlOut.innerHTML = `<div class="meta" style="color:var(--status-crit)">${escapeHtml((e as Error).message)}</div>`; }
         };
         bodyEl.appendChild(risk);
@@ -1218,6 +1451,59 @@ export class ProformaUI {
       }).catch(() => { recon.style.display = "none"; });   // no GMP / endpoint absent → hide quietly
     };
     refreshRecon();
+
+    // MODELSYNC-DARK — the other side of the same question, and the one this product is actually
+    // about. `sync-gmp` ties the underwriting to the GC's number; this ties it to the MODEL:
+    // IFC quantities × unit rates through the project's pinned cost vintage, instead of a flat
+    // GFA×$/sf assumption. Its route docstring calls it "the model↔proforma disconnect" and it had
+    // no caller anywhere in the app, frozen as uncalled since 2026-08-20 while its sibling has had
+    // a button since it shipped.
+    //
+    // Always offered, never gated on "is there a model": the route answers 409 with a sentence that
+    // says which refusal it is, and `syncFailure` keeps the two apart — a disabled button would
+    // have to guess at the same condition from a different screen's data.
+    const msync = document.createElement("div");
+    msync.style.cssText = "margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-radius:6px";
+    host.insertBefore(msync, body);
+    msync.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">`
+      + `<span class="meta">🧮 Hard cost from the <b>model takeoff</b> — IFC quantities × unit rates `
+      + `at the project's cost vintage, rather than a GFA×$/sf assumption.</span>`
+      + `<button class="tool-btn" id="pf-sync-model">⤵ Set hard cost = model takeoff</button></div>`
+      + `<div id="pf-sync-model-out"></div>`;
+    const msOut = msync.querySelector<HTMLElement>("#pf-sync-model-out")!;
+    const msBtn = msync.querySelector<HTMLButtonElement>("#pf-sync-model")!;
+    msBtn.onclick = async () => {
+      msBtn.disabled = true; msBtn.textContent = "taking off the model…";
+      msOut.innerHTML = `<div class="meta">reading the IFC and pricing it — this can take a while on a large model.</div>`;
+      try {
+        const r = await this.api.syncBudgetFromModel(pid);
+        // WHAT THE NUMBER MEANS, before the number. On the benchmark branch `by_discipline` is the
+        // element pricing and does NOT decompose the committed cost, and nothing but `basis` says so.
+        const bn = basisNote(r);
+        const rows = disciplineRows(r);
+        msOut.innerHTML = `<div style="margin-top:4px"><b>${money(r.hard_cost)}</b> committed as the construction hard cost.</div>`
+          + `<div class="meta" style="margin-top:2px;color:${escapeHtml(SYNC_CSS[bn.tone])}">${escapeHtml(bn.text)}</div>`
+          + `<div class="meta" style="margin-top:2px">${escapeHtml(vintageNote(r))}</div>`
+          + (rows.length
+            ? `<table class="portal-table" style="width:100%;font-size:11px;margin-top:4px">`
+              + `<thead><tr><th scope="col" style="text-align:left">Discipline</th><th scope="col">Element pricing</th></tr></thead><tbody>`
+              + rows.map((d) => `<tr><td>${escapeHtml(d.discipline)}</td>`
+                + `<td style="text-align:right">${money(d.amount)}</td></tr>`).join("")
+              + `</tbody></table>`
+            : "");
+        // close the loop the same way the GMP button does, so the synced cost reaches Sources &
+        // Uses and the returns rather than stopping at the line-item budget.
+        const cl = await this.api.devBudgetCostLines(pid);
+        (this.a as { cost_lines: unknown[] }).cost_lines = cl.cost_lines.map((c) => ({ ...c, start_month: 0, end_month: 0 }));
+        this.setStatus(`hard cost synced from the model takeoff → applied to proforma (${money(cl.summary.grand_total)} uses)`);
+        this.render(); void this.solve();
+      } catch (e) {
+        const f = syncFailure((e as Error).message);
+        msOut.innerHTML = `<div class="meta" style="margin-top:4px;color:${escapeHtml(SYNC_CSS.warn)}">${escapeHtml(f.text)}</div>`;
+        msBtn.disabled = false;
+        msBtn.textContent = f.retryable ? "⟳ Re-run against the current model" : "⤵ Set hard cost = model takeoff";
+      }
+    };
 
     // R35-DEAL-MEMORY — the firm's OWN realised $/SF, beside the hard cost being entered.
     //
@@ -1671,20 +1957,39 @@ export class ProformaUI {
       });
     } catch { this.renderMonteCarloPrompt(); return; }
     const m = mc.metrics["returns.equity_irr"];
-    if (!m || !m.n) { this.renderMonteCarloPrompt(); return; }
-    const hmax = Math.max(...m.histogram.counts, 1);
-    const bars = m.histogram.counts.map((c, i) => {
-      const lo = m.histogram.edges[i] ?? 0;
-      return `<span class="pf-bar" title="${(lo * 100).toFixed(1)}%: ${c}" style="height:${Math.round((c / hmax) * 48) + 1}px"></span>`;
+    if (!m) { this.renderMonteCarloPrompt(); return; }
+    // MC-UNDEFINED. `!m.n` used to send the reader back to the prompt, which reads as "the sim did
+    // not run" — and `n === 0` with a non-zero `undefined` means it ran and **every** scenario
+    // failed to return capital. That is the strongest finding this card can carry, and it was the
+    // one case it refused to render.
+    const dead = degenerate(m, mc.solved, "equity IRR");
+    if (dead) {
+      host.innerHTML =
+        `<div class="section-title">Monte Carlo — Equity IRR</div>`
+        + `<div class="meta" style="color:var(--status-crit)">${escapeHtml(dead)}</div>`
+        + `<div class="meta">downside-tilted: exit cap and hard cost skew worse than base; rent ±6%.</div>`;
+      return;
+    }
+    const hist = histogram(m);
+    const bars = !hist ? "" : hist.counts.map((c, i) => {
+      const lo = hist.edges[i] ?? 0;
+      return `<span class="pf-bar" title="${(lo * 100).toFixed(1)}%: ${c}" style="height:${Math.round((c / Math.max(...hist.counts, 1)) * 48) + 1}px"></span>`;
     }).join("");
-    const prob = Math.round((m.prob_at_least ?? 0) * 100);
+    const prob = probReading(m);
+    // The title names the draws the PERCENTILES describe, not the draws attempted. `mc.solved` is
+    // the attempted figure here (the engine publishes it); the percentiles cover `m.n`.
+    const scope = drawScope(m, mc.solved);
+    const undef = undefinedNote(m, "equity IRR");
     host.innerHTML =
-      `<div class="section-title">Monte Carlo — Equity IRR (${mc.solved} draws: exit cap × hard cost × rent)</div>` +
+      `<div class="section-title">Monte Carlo — Equity IRR (${escapeHtml(scope.text)}: exit cap × hard cost × rent)</div>` +
       `<div class="kpi-grid">` +
-      [["P10", pct(m.p10)], ["P50 (median)", pct(m.p50)], ["P90", pct(m.p90)], [`P(IRR ≥ ${target * 100}%)`, `${prob}%`]]
+      [["P10", pct(m.p10 ?? null)], ["P50 (median)", pct(m.p50 ?? null)], ["P90", pct(m.p90 ?? null)],
+       [`P(IRR ≥ ${target * 100}%)`, prob.headline]]
         .map(([l, v]) => `<div class="kpi"><div class="kpi-v">${escapeHtml(v)}</div><div class="kpi-l">${escapeHtml(l)}</div></div>`).join("") +
       `</div>` +
       `<div class="pf-hist" title="equity IRR distribution (P10 → P90)">${bars}</div>` +
+      (undef ? `<div class="meta" style="color:var(--status-warn)">${escapeHtml(undef)}</div>` : "") +
+      (prob.gap ? `<div class="meta">P(IRR ≥ ${target * 100}%) is ${escapeHtml(prob.gap)}</div>` : "") +
       `<div class="meta">downside-tilted: exit cap and hard cost skew worse than base; rent ±6%.</div>`;
   }
 
@@ -1736,6 +2041,86 @@ export class ProformaUI {
       `<table class="sens-table">${head}${rows}</table>` + torn;
   }
 
+  /**
+   * Load the project's scenarios and drive the FIN-GOV review workflow (FIN-GOV-DARK).
+   *
+   * **Every action re-fetches rather than patching the row in place.** A review action can change
+   * what the OTHER rows may do — publishing one is the moment "not committed" becomes "committed",
+   * and `multiple_published` is a warning about the set, not about a row — so a local mutation
+   * would leave the summary line describing the state before the click. The list is small and the
+   * fetch is one request.
+   *
+   * A failure is REPORTED, never swallowed into an empty card: the 409 from an edit or an illegal
+   * transition is the server explaining the governance rule, and it is the most useful sentence this
+   * screen can show. An unreachable list leaves the previous render standing with the reason beside
+   * it, because a card that empties itself on a network blip reads as "this project has no
+   * scenarios".
+   */
+  private async renderScenarioGovernance(host: HTMLElement, pid: string): Promise<void> {
+    let rows;
+    try {
+      rows = await this.api.listScenarios(pid);
+    } catch (e) {
+      // Replace, never append. `again()` re-enters this function with the SAME host after every
+      // action, so an appending error path stacks one message per failed retry — and the second
+      // copy reads as a second fault. The previous render is not kept here either: this branch runs
+      // only when the list could not be read at all, so leaving stale rows under a fresh error
+      // would show a record that may no longer be true beside the news that it could not be read.
+      host.innerHTML = "";
+      const why = document.createElement("div");
+      why.className = "meta";
+      why.style.color = "var(--status-warn)";
+      why.textContent = `could not load the scenario record: ${(e as Error).message}`;
+      host.appendChild(why);
+      return;
+    }
+    const reading = governanceReading(rows.map((r) => ({
+      id: r.id, name: r.name,
+      review_status: (r.review_status || "draft") as ReviewStatus,
+      returns: r.returns ?? null,
+    })));
+    const again = () => void this.renderScenarioGovernance(host, pid);
+    renderGovernanceCard(host, reading, {
+      review: (sid: string, action: ReviewAction) => void (async () => {
+        try {
+          const out = await this.api.reviewScenario(sid, action);
+          this.setStatus(`scenario is now ${out.review_status}`
+            + (IMMUTABLE_STATES.includes(out.review_status as ReviewStatus)
+              ? " — its assumptions are immutable in place; use Revise to iterate" : ""));
+        } catch (e) { this.setStatus(`${action} refused: ${(e as Error).message}`); }
+        again();
+      })(),
+      clone: (sid: string, name: string) => void (async () => {
+        try {
+          const c = await this.api.cloneScenario(sid, name);
+          // `resolved` is the server saying it computed this revision's result rather than copying
+          // the parent's. Reported because a revision showing returns it never solved was the
+          // defect half of FIN-GOV-DARK, and a silent fix teaches nobody which number they have.
+          const irr = c.returns?.equity_irr;
+          this.setStatus(`revised as “${c.name}” (draft)`
+            + (c.resolved
+              ? ` — re-solved: ${irr != null ? `${(irr * 100).toFixed(1)}% equity IRR` : "no returns"}`
+              : " — not solved; open it and save to solve"));
+        } catch (e) { this.setStatus(`revise failed: ${(e as Error).message}`); }
+        again();
+      })(),
+      updateFromCurrent: (sid: string, name: string) => void (async () => {
+        try {
+          const out = await this.api.updateScenario(sid, name, pid, this.a);
+          // `changed_assumptions` is the route's own diff, and an EMPTY list is a distinct outcome:
+          // the save succeeded and nothing differed. Reporting both as "saved" would tell somebody
+          // their edit landed when the panel was already showing exactly what was stored.
+          this.setStatus(out.changed_assumptions.length
+            ? `“${name}” updated and re-solved — changed: ${out.changed_assumptions.join(", ")}`
+            : `“${name}” already matched the solve on screen — nothing changed`);
+        } catch (e) { this.setStatus(`update refused: ${(e as Error).message}`); }
+        again();
+      })(),
+      askName: (suggested: string) =>
+        askText("Revise scenario", { label: "Name this revision:", value: suggested }),
+    });
+  }
+
   /** Developer command center (Overview tab) — the executive landing, mirroring the GC dashboard:
    *  an "on returns & on cost" health band + KPI cards + capital-stack drawdown + Sources & Uses +
    *  underwriting guardrails. Re-rendered on every solve. */
@@ -1773,6 +2158,15 @@ export class ProformaUI {
     tools.append(save, Object.assign(document.createElement("span"), { className: "meta",
       textContent: pid ? "Saved scenarios roll into the Portfolio's developer returns." : "Open a project to save scenarios." }));
     host.appendChild(tools);
+
+    // FIN-GOV-DARK — the review workflow, which shipped on the server and was reachable from
+    // nowhere. Placed directly under the save button because this is where a scenario is BORN: the
+    // thing a developer does after saving one is submit it, and the thing they do to a committed one
+    // is revise it. See `scenarioGovernance.ts` for why the three dark routes are one defect.
+    const gov = document.createElement("div");
+    gov.id = "pf-scenario-gov";
+    host.appendChild(gov);
+    if (pid) void this.renderScenarioGovernance(gov, pid);
 
     // KPI cards
     const kpis = document.createElement("div"); kpis.className = "dash-cols"; kpis.style.marginBottom = "10px";
