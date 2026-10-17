@@ -338,7 +338,19 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // is every one registered, and the card read the first and never the second — `4/4 assemblies
   // compliant (100.0%)` over a 40-row register, measured; and with `checked` at 0 the card took an
   // empty-state branch reading **"no envelope assemblies registered"** over forty of them.
-  "GET /projects/{}/estimate/resource-based": ["source"],
+  // **CLOSED 2026-10-17 under ESTIMATE-ZEROQTY, and `source` was the least of it.** The route
+  // returned `element_count` and the client had DECLARED it since the method was written — so this
+  // gate was silent on it, correctly, and the card rendered the total, the L/M/E split and a trade
+  // table with no denominator anywhere. *A declared key is not a read one*, which is blind spot (a)
+  // in this file's own `KNOWN_GAPS` header. The live defect was worse than an unstated population:
+  // `_class_quantity` returns `agg.get(dim, 0.0)`, so a class that MAPPED to an assembly and whose
+  // takeoff carried nothing in that assembly's billing dimension was priced at **zero** and
+  // appended to `lines` as a successfully-priced line — and `unmapped`, the card's only footnote,
+  // cannot name it, because the class is not unmapped. Measured: 80 `IfcSlab` with no volume beside
+  // 20 `IfcWall` with area gave `$14,916`, `unmapped: []`, `element_count: 100` — byte-identical on
+  // every rendered figure to the 20 walls alone. `no_quantity`, `priced_elements`,
+  // `unpriced_elements` and `coverage_note` are the response now; see
+  // `portal/panels/estimateCoverage.ts`.
   // **CLOSED 2026-10-14 under DRAFT-BASELINE, and the top-level key was the smaller half.**
   // `error` is the module-not-installed refusal, which arrives beside an empty `scenarios` and is
   // otherwise indistinguishable from a bare register. The live defect was NESTED and therefore

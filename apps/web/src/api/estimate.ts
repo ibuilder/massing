@@ -21,6 +21,66 @@ import type { Takeoff2dScopeOpts, TakeoffScope } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** ESTIMATE-ZEROQTY — the resource-based estimate, and the three ways a class misses the total.
+ *
+ *  `lines` used to mean *the engine tried*, not *the engine priced*. `_class_quantity` reads the
+ *  takeoff dimension the assembly bills in and returns `0.0` when it is absent, so a class that
+ *  MAPPED but carried no quantity in that dimension was appended to `lines` as a $0 line — and
+ *  `unmapped`, the only footnote the card had, cannot catch it, because the class is not unmapped.
+ *  Measured on the engine: 80 `IfcSlab` with no volume beside 20 `IfcWall` with area gave
+ *  `IfcSlab | 80 | 0.00 m3 | $0.00`, `unmapped: []`, and a `$14,916` total over 20 of 100
+ *  elements. `no_quantity` is that class now, named with the dimension it needed, because the
+ *  remedy differs — an unmapped class wants a mapping, this one wants a takeoff.
+ *
+ *  And `element_count` was declared here from the beginning and rendered by nothing, so the card
+ *  printed the total and the L/M/E split with no denominator at all. `priced_elements` /
+ *  `unpriced_elements` state it and `coverage_note` is the engine's sentence about it. See
+ *  `portal/panels/estimateCoverage.ts`. */
+export interface ResourceEstimateLine {
+  ifc_class: string;
+  assembly: string;
+  assembly_name: string;
+  count: number;
+  unit: string;
+  quantity: number;
+  total: number;
+  unit_cost: number;
+  labor_hours: number;
+  by_kind: { labor: number; material: number; equipment: number };
+}
+
+/** A class that MAPPED to an assembly and could not be priced: the takeoff carries nothing in
+ *  `needs`, the assembly's billing dimension. Previously a $0 row inside `lines`. */
+export interface ResourceEstimateNoQuantity {
+  ifc_class: string;
+  count: number;
+  assembly: string;
+  /** The assembly's billing unit — `m2`, `m3`, `m`, `kg`, `ea`. What the takeoff is missing. */
+  needs: string;
+}
+
+export interface ResourceEstimate {
+  total: number;
+  /** Every element in the takeoff — the denominator `total` is over a SUBSET of. */
+  element_count: number;
+  /** Elements inside `total`. */
+  priced_elements: number;
+  /** `element_count - priced_elements`: unmapped plus unquantified. */
+  unpriced_elements: number;
+  labor_hours: number;
+  by_kind: { labor: number; material: number; equipment: number };
+  by_trade: { resource: string; name: string; hours: number; cost: number }[];
+  /** PRICED lines only. */
+  lines: ResourceEstimateLine[];
+  /** No assembly mapped to the class at all. */
+  unmapped: { ifc_class: string; count: number }[];
+  /** Mapped and unquantifiable — a different remedy from `unmapped`. */
+  no_quantity: ResourceEstimateNoQuantity[];
+  /** The engine's sentence about which elements `total` covers. */
+  coverage_note: string;
+  source: string;
+}
+
 export function withEstimate<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Estimate extends Base {
   /** R34-SHEET-SCALE: `scale_units_per_px` on a **region** overrides the call-wide `scaleUnitsPerPx`, so
@@ -243,13 +303,7 @@ export function withEstimate<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /** Resource-based (assembly) estimate — each class priced by building the cost up from labor +
    *  material + equipment, returning the L/M/E split + total crew-hours (not just a blended $/unit). */
   estimateResourceBased(pid: string) {
-    type Line = { ifc_class: string; assembly: string; assembly_name: string; count: number; unit: string;
-      quantity: number; total: number; unit_cost: number; labor_hours: number; by_kind: { labor: number; material: number; equipment: number } };
-    return this.json<{ total: number; element_count: number; labor_hours: number;
-      by_kind: { labor: number; material: number; equipment: number };
-      by_trade: { resource: string; name: string; hours: number; cost: number }[];
-      lines: Line[]; unmapped: { ifc_class: string; count: number }[] }>(
-      `/projects/${pid}/estimate/resource-based`);
+    return this.json<ResourceEstimate>(`/projects/${pid}/estimate/resource-based`);
   }
   /** GAEB DA XML 3.2 Bill of Quantities (X83), coded to din276 / nrm1 / masterformat. */
   gaebX83Url(pid: string, system = "din276") {

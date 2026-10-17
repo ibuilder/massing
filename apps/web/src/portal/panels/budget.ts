@@ -6,6 +6,7 @@ import type { LienWaiverKind } from "../../api/cost";
 import type { PanelContext } from "../panelContext";
 import { basisNote, factorClaim, summary, trustNote } from "./costCalibration";
 import { renderCostBrief } from "./costBrief";
+import { estimateCoverageLine, estimateHeadline, estimateSuspect, noQuantityLine, unmappedLine } from "./estimateCoverage";
 import { pricedEstimateButton } from "./pricedEstimate";
 import { payAppReviewModal } from "./payAppReviewPanel";
 import { rfqConfirm, rfqGate, rfqSummary, saveConfirm, saveGate, saveSummary, type SavedPackage } from "./buyoutKeep";
@@ -136,10 +137,16 @@ export async function renderBudget(ctx: PanelContext) {
     try {
       const e = await ctx.host.api.estimateResourceBased(pid);
       const trades = e.by_trade.slice(0, 12).map((t) => `<tr><td>${esc(t.name)}</td><td style="text-align:right">${Math.round(t.hours).toLocaleString()} h</td><td style="text-align:right">${usd(t.cost)}</td></tr>`);
-      fillEst(`<div style="font-weight:600;margin-bottom:4px">Resource-based — <b>${usd(e.total)}</b> · ${Math.round(e.labor_hours).toLocaleString()} crew-hours</div>`
+      // ESTIMATE-ZEROQTY — the total gets its denominator, and the two reasons an element is
+      // outside it are rendered separately because they have different remedies. The old card
+      // showed only `unmapped`, which cannot name a class that mapped and was priced at $0.
+      const nq = noQuantityLine(e), um = unmappedLine(e);
+      fillEst(`<div style="font-weight:600;margin-bottom:4px">${esc(estimateHeadline(e))} · ${Math.round(e.labor_hours).toLocaleString()} crew-hours</div>`
         + `<div class="meta">Labor ${usd(e.by_kind.labor)} · Material ${usd(e.by_kind.material)} · Equipment ${usd(e.by_kind.equipment)}</div>`
+        + `<div class="meta"${estimateSuspect(e) ? ` style="color:var(--status-warn)"` : ""}>${esc(estimateCoverageLine(e))}</div>`
         + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Trade</th><th style="text-align:right">Hours</th><th style="text-align:right">Cost</th></tr></thead><tbody>${rows(trades)}</tbody></table></div>`
-        + (e.unmapped.length ? `<div class="meta" style="margin-top:4px">Unmapped: ${e.unmapped.map((u) => `${esc(u.ifc_class.replace("Ifc", ""))}×${u.count}`).join(", ")}</div>` : ""));
+        + (nq ? `<div class="meta" style="margin-top:4px;color:var(--status-warn)">${esc(nq)}</div>` : "")
+        + (um ? `<div class="meta" style="margin-top:4px">${esc(um)}</div>` : ""));
     } catch (err) { fillEst(`<div class="meta">Resource estimate unavailable: ${(err as Error).message}</div>`); }
   };
   const bandBtn = document.createElement("button"); bandBtn.className = "tool-btn"; bandBtn.textContent = "📊 Range (low/likely/high)";

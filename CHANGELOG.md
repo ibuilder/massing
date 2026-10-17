@@ -6,6 +6,41 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### ESTIMATE-ZEROQTY — a mapped class with no takeoff quantity was a $0 priced line, and the estimate showed no denominator
+
+`assemblies.estimate_resource_based` maps each IFC class to an assembly and prices it from the
+takeoff dimension that assembly bills in. `_class_quantity` reads that dimension with
+`agg.get(dim, 0.0)` — so a class that **mapped** and whose takeoff carried nothing in that
+dimension was priced at **zero** and appended to `lines` as a successfully-priced line. `unmapped`,
+the card's only footnote, cannot name it: the class is not unmapped. Measured on the engine, 80
+`IfcSlab` carrying no volume beside 20 `IfcWall` carrying area:
+
+| | old | corrected |
+|---|---|---|
+| `total` | 14,916 | 14,916 |
+| the slab line | `IfcSlab \| 80 \| 0.00 m3 \| $0.00` | not in `lines` |
+| `unmapped` | `[]` | `[]` |
+| `no_quantity` | — | `IfcSlab × 80, needs m3` |
+| population | `element_count: 100`, rendered nowhere | **20 of 100 element(s) priced** |
+
+**The total was right and its population was unstated.** The same 20 walls alone return the same
+`total`, the same L/M/E split, the same crew-hours and the same empty `unmapped` — so the card
+rendered a $14,916 estimate over a fifth of the building identically to one over all of it. `lines`
+means PRICED now; `no_quantity` carries the mapped-but-unquantifiable classes with the dimension
+each one needs, because the remedy differs — an unmapped class wants a mapping, these want a
+takeoff. `priced_elements` / `unpriced_elements` state the population and `coverage_note` is the
+engine's sentence about it.
+
+`element_count` had been declared on the client since the method was written and read by nothing,
+which is why no key-level audit could see this: *a declared key is not a read one.* The card now
+renders the denominator in its headline, the engine's note (in warning colour when the total covers
+less than the takeoff), and the two causes as separate footnotes.
+`apps/web/src/portal/panels/estimateCoverage.ts` + test, and a block in
+`services/api/test_assemblies.py`; nine mutations proved red across both halves. Closes the
+`GET /projects/{}/estimate/resource-based` entry in `apps/web/src/api/responseUndeclared.test.ts`,
+and the inline response type became the named `ResourceEstimate`, lowering the
+`apps/web/src/api/deadFieldTyped.test.ts` ceiling to 5,754 keys / 540 sites.
+
 ### ITB-DOUBLE — the bid-coverage screen counted bids twice, read an unknown denominator as 0%, and dropped bids that matched no package
 
 Five defects in `itb.summarize`, **every one of them flattering the coverage** on the screen that
