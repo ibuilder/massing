@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "eslint": "10.10.0",
-    "happy-dom": "^20.11.6",
+    "happy-dom": "^21.0.4",
     "vite": "8.2.2"
   }
 }
