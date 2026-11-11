@@ -339,6 +339,10 @@ setup, the first-project walkthrough and the test commands are all in
 **Running it in production?** [Deployment](docs/deploy.md) → [go-live checklist](docs/PRODUCTION_CHECKLIST.md)
 → [operator runbook](docs/operations.md).
 
+## One-click deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/Massing/)
+
 ## Documentation
 
 **[📚 docs/](docs/README.md)** is the index. The paths people usually want:
