@@ -490,7 +490,7 @@ never contingent on the npm question.
 
 **What an agent working in `apps/web/src/viewer` should know.** **Seventy-nine** commits have touched that
 directory since extraction began on 2026-08-06, and `apps/web/src/viewer/app.ts` has gone from 5,064 lines to
-**2,442** — largely R39-DECOMP-VIEWER, which is the same decomposition the extraction plan asks for and is being
+**2,364** — largely R39-DECOMP-VIEWER, which is the same decomposition the extraction plan asks for and is being
 done here first. That is good and it is also divergence: every one of those commits is a change the swap will
 have to reconcile. So:
 
