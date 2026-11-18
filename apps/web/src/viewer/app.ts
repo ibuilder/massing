@@ -52,9 +52,9 @@ import { flattenContentCatalog, type FamilyDef } from "./draft/draftCatalog";
 import { GridOverlay } from "./draft/gridOverlay";
 import { LogisticsOverlay } from "./draft/logisticsOverlay";
 import { DraftProxyLayer } from "./draft/draftProxy";
-import { TransformGizmo } from "./draft/transformGizmo";
-import { PushPullGizmo, stretchTransform } from "./draft/pushPull";
+import { stretchTransform } from "./draft/pushPull";
 import { CanvasModeSwitch } from "./canvasMode";
+import { installEditGizmos } from "./editGizmos";
 import { SpecPane } from "./specPane";
 import { PlanPane } from "./planPane";
 import { type PlanBounds, validatePlacement } from "./placeValid";
@@ -189,10 +189,15 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   let spatialAnchor: string | null = null;
   let spatialScope: SpatialScope = "item";
   let spatialElements: SpatialElement[] = [];
-  let editInPlace = false;            // P5: show the move gizmo on the selected element
-  let gizmo: TransformGizmo | null = null;
-  let pushPullOn = false;             // R38-PUSHPULL: drag the top handle to deepen the extrusion
-  let ppGizmo: PushPullGizmo | null = null;
+  // R39-DECOMP-VIEWER — the edit-in-place authoring gizmos (P5 move + R38 push/pull) own their own
+  // two flags and two lazy instances in `editGizmos.ts`; nothing outside them reads that state. The
+  // toolbar toggles, the selection hook and the click-vs-drag guard all go through this handle.
+  const gizmos = installEditGizmos({
+    viewer, loader, projectId, getSnap: () => ctx.getSettings().snap, setStatus, notify,
+    authorAndReload, selectByGuid,
+    selectedGuid: () => selectedGuid,
+    selection: () => selection,
+  });
   let modelCount = 0;
   // track a human label per loaded model so the federation panel can list disciplines
   const modelLabels = new Map<string, string>();
@@ -222,13 +227,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (selection) await loader.fragments.resetHighlight(selection);
     selection = map;
     relayoutTools();          // what you can do depends on what you have selected
-    if (!map) { gizmo?.hide(); ppGizmo?.hide(); propsHint(); updateInfoBox(null); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); onSelectionChanged(null); spatialAnchor = null; spatialScope = "item"; return; }
+    if (!map) { gizmos.hideAll(); propsHint(); updateInfoBox(null); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); onSelectionChanged(null); spatialAnchor = null; spatialScope = "item"; return; }
     await loader.fragments.highlight(SELECT_MAT(), map);
     await loader.fragments.core.update(true);
     if (opts.fit) await fitToItems(map);
     await showProps(map, opts.guid);
-    if (editInPlace) await attachGizmo(map);
-    else if (pushPullOn) await attachPushPull(map);
+    await gizmos.onSelection(map);
     onSelectionChanged(opts.guid ?? selectedGuid);
   }
 
@@ -527,7 +531,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       if (g && cadPick([g.x, -g.z])) return;
     }
     if (measure.mode !== "off" && !armed) { measure.create(); return; }
-    if (gizmo?.dragging) return;                 // a gizmo-handle drag isn't a select/deselect click
+    if (gizmos.isDragging()) return;             // a gizmo-handle drag isn't a select/deselect click
     mouse.set(e.clientX, e.clientY);
     // A stalled Fragments worker (hidden tab / heavy load) must not silently eat clicks: race the
     // raycast with a short timeout and fall back to the ground plane — drafting keeps working, and a
@@ -959,30 +963,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const [dx, dy, dz] = v.split(",").map((n) => Number(n.trim()) || 0);
     await authorAndReload("copy_element", { guid: selectedGuid, dx, dy, dz }, "copy");
   }, "edit");
-  toolBtn("◈", "Edit in place — drag the gizmo to move the selected element", (b) => {
-    editInPlace = !editInPlace;
-    b.classList.toggle("on", editInPlace);
-    if (editInPlace) {
-      pushPullOn = false; ppGizmo?.hide();   // one gesture at a time — two gizmos on one box read as noise
-      if (selection) { void attachGizmo(selection); }
-      notify("Edit-in-place on — select an element and drag the gizmo to move it", "info");
-    } else {
-      gizmo?.hide();
-      setStatus("edit-in-place off");
-    }
-  }, "edit");
-  toolBtn("⇕", "Push/pull — drag the top handle to make the selected element taller or thicker", (b) => {
-    pushPullOn = !pushPullOn;
-    b.classList.toggle("on", pushPullOn);
-    if (pushPullOn) {
-      editInPlace = false; gizmo?.hide();
-      if (selection) { void attachPushPull(selection); }
-      notify("Push/pull on — select an element and drag its top handle; the base stays put", "info");
-    } else {
-      ppGizmo?.hide();
-      setStatus("push/pull off");
-    }
-  }, "edit");
+  toolBtn("◈", "Edit in place — drag the gizmo to move the selected element", (b) => gizmos.toggleMove(b), "edit");
+  toolBtn("⇕", "Push/pull — drag the top handle to make the selected element taller or thicker", (b) => gizmos.togglePushPull(b), "edit");
 
   // R26-TOOLBAR — every tool is installed by now, so lay the bar out: a handful of LABELED verbs for
   // the current context, the rest under More. Runs last on purpose; a layout pass that only moves
@@ -1224,66 +1206,6 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (box.isEmpty()) return;
     await viewer.world.camera.controls.fitToSphere(box.getBoundingSphere(new THREE.Sphere()), !document.hidden);
     await loader.fragments.core.update(true);
-  }
-
-  // ---- P5 edit-in-place: drag-to-move gizmo --------------------------------
-  function ensureGizmo(): TransformGizmo {
-    if (gizmo) return gizmo;
-    const g = new TransformGizmo(
-      viewer.world.camera.three,
-      viewer.world.renderer!.three.domElement,
-      viewer.world.scene.three,
-      (enabled) => { viewer.world.camera.controls.enabled = enabled; },
-    );
-    g.onDrag = (d) => setStatus(`move  ΔE ${d.dx.toFixed(2)} · ΔN ${d.dy.toFixed(2)} · ΔZ ${d.dz.toFixed(2)} m`);
-    g.onCommit = async (d) => {
-      const guid = selectedGuid;
-      if (!guid || !projectId) return;
-      await authorAndReload("move_element", { guid, dx: d.dx, dy: d.dy, dz: d.dz }, "move");
-      if (editInPlace && selectedGuid === guid) await selectByGuid(guid);   // re-attach on the moved element
-    };
-    gizmo = g;
-    return g;
-  }
-  /** Attach the move gizmo to a selection's world bounding box (edit-in-place mode). */
-  async function attachGizmo(map: ModelIdMap) {
-    const boxes = await loader.fragments.getBBoxes(map);
-    const box = new THREE.Box3();
-    for (const b of boxes) box.union(b);
-    if (box.isEmpty()) return;
-    const g = ensureGizmo();
-    g.setSnap(ctx.getSettings().snap);
-    g.attach(box);
-  }
-
-  // ---- R38-PUSHPULL: drag the top handle, the extrusion deepens ------------
-  // The gesture commits through `set_extrusion_depth` — a recipe-parameter edit, GUID-stable, which
-  // the server refuses for non-extrusions. No client-side allowlist: the refusal arrives through the
-  // normal recipe error path and the A29 failure marker rules apply.
-  function ensurePushPull(): PushPullGizmo {
-    if (ppGizmo) return ppGizmo;
-    const g = new PushPullGizmo(
-      viewer.world.camera.three,
-      viewer.world.renderer!.three.domElement,
-      viewer.world.scene.three,
-      (enabled) => { viewer.world.camera.controls.enabled = enabled; },
-    );
-    g.onDrag = (depth) => setStatus(`push/pull  depth ${depth.toFixed(2)} m`);
-    g.onCommit = async (depth) => {
-      const guid = selectedGuid;
-      if (!guid || !projectId) return;
-      await authorAndReload("set_extrusion_depth", { guid, depth }, "push/pull");
-      if (pushPullOn && selectedGuid === guid) await selectByGuid(guid);   // re-attach at the new height
-    };
-    ppGizmo = g;
-    return g;
-  }
-  async function attachPushPull(map: ModelIdMap) {
-    const boxes = await loader.fragments.getBBoxes(map);
-    const box = new THREE.Box3();
-    for (const b of boxes) box.union(b);
-    if (box.isEmpty()) return;
-    ensurePushPull().attach(box);
   }
 
   // ---- rail panels ---------------------------------------------------------
