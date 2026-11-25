@@ -70,26 +70,7 @@ import subprocess
 from datetime import date
 
 #: "package:GHSA-id" -> (expiry ISO date, reason). Near-empty is the target state.
-EXEMPT: dict[str, tuple[str, str]] = {
-    "uuid:GHSA-w5hq-g745-h8pq": (
-        "2026-11-21",
-        "Dev-only, and the vulnerable functions are never called. The advisory is a missing buffer "
-        "bounds check in uuid's v3/v5/v6 WHEN A BUFFER IS PASSED; the only consumer here is "
-        "node_modules/xcode (pulled by @capacitor/cli, dev:true), and it calls `uuid.v4()` with no "
-        "arguments at pbxProject.js:90 and nowhere else - checked by reading it, not inferred from "
-        "the version. npm's proposed fix is a semver-major DOWNGRADE of @capacitor/cli to 8.4.2, "
-        "which would undo the 8.5.x line we are on. Re-check when @capacitor/cli ships an xcode "
-        "that does not pin uuid ^7."),
-    "xcode:GHSA-w5hq-g745-h8pq": (
-        "2026-11-21",
-        "The same finding propagated up the chain - xcode's only offence is depending on uuid ^7. "
-        "See the uuid entry; it carries the reading of the call site."),
-    "@capacitor/cli:GHSA-w5hq-g745-h8pq": (
-        "2026-11-21",
-        "The same finding propagated one level further - @capacitor/cli depends on xcode. Exempted "
-        "here as well because npm reports each hop as its own row, and leaving the hops unexempted "
-        "would block on one finding three times. See the uuid entry."),
-}
+EXEMPT: dict[str, tuple[str, str]] = {}
 
 
 def _audit() -> dict:

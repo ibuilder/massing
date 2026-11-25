@@ -173,10 +173,9 @@ def _composite(data: bytes, page_index: int, overlay: bytes) -> bytes:
     ov = PdfReader(io.BytesIO(overlay)).pages[0]
     w = PdfWriter()
     idx = max(0, min(page_index, len(reader.pages) - 1))
-    for i, pg in enumerate(reader.pages):
-        if i == idx:
-            pg.merge_page(ov)
+    for pg in reader.pages:
         w.add_page(pg)
+    w.pages[idx].merge_page(ov)
     out = io.BytesIO()
     w.write(out)
     return out.getvalue()

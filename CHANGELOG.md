@@ -4,6 +4,11 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Dependency security
+
+- Refresh the web toolchain and affected transitive packages, and rebuild the Python runtime lock for the published security fixes.
+- Apply PDF stamps and professional seals to a writer-owned page for compatibility with pypdf 7.
+
 ## Unreleased
 
 ### ROUTE-SHADOW — four routes were registered on a URL another route already owned
